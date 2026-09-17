@@ -1,11 +1,11 @@
 # FILE: backend/app/services/synthesis_service.py
-# PHOENIX PROTOCOL - SYNTHESIS SERVICE V3.7
-# V3.7: Shtuar 4 guardrails anti-halucinacion (si document_review):
-#   - Guardrail #1: Prompt i rreptë për verifikim citimesh
-#   - Guardrail #2: Regex ekstraktim i citimeve nga të gjitha dokumentet
-#   - Guardrail #3: Verifikim i dyfishtë (LLM + LLM correction)
-#   - Guardrail #4: Citation checker fjalë-për-fjalë
-#   - Kthim te FAST_SEARCH_MODEL (GPT-4o-mini)
+# PHOENIX PROTOCOL - SYNTHESIS SERVICE V3.8
+# V3.8: Shtuar:
+#   - Guardrail #1b: Prompt strikt format + afate
+#   - Guardrail #2b: Regex për akronime + çifte (Neni X + Ligji)
+#   - Guardrail #5: Verifikim i atribuimit (Neni X i LMDHF vs Neni X i KPRK)
+#   - Guardrail #5b: Detektim i kontradiktave të afateve
+# V3.7: Guardrails anti-halucinacion + FAST_SEARCH_MODEL
 # V3.6: Dual case type detection.
 
 import logging
@@ -63,13 +63,13 @@ LAW_WITH_NUMBER_PATTERN = re.compile(
     r'Ligji\s+Nr\.?\s+\d+\/[A-Za-z]-\d+'
     r'(?:\s+për\s+[^\n(]+?)?'
     r'|'
-    r'(?:KPPRK|KPRK|KPPK|LPK|LMD|LFK|LSHT|LMDHF)\s+Nr\.?\s+\d+\/[A-Za-z]-\d+'
+    r'(?:KPPRK|KPRK|KPPK|LPK|LMD|LFK|LSHT|LMDHF|KPK)\s+Nr\.?\s+\d+\/[A-Za-z]-\d+'
     r')',
     re.IGNORECASE
 )
 
 LAW_ABBREVIATION_PATTERN = re.compile(
-    r'\b(KPPRK|KPRK|LPK|LMD|LFK|LSHT|LMDHF|Kushtetuta)\b',
+    r'\b(KPPRK|KPRK|KPPK|LPK|LMD|LFK|LSHT|LMDHF|KPK|Kushtetuta)\b',
     re.IGNORECASE
 )
 
@@ -98,8 +98,9 @@ MULTI_ARTICLE_PATTERN = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
+
 # ═══════════════════════════════════════════════════════════════════════════
-# GUARDRAIL #2: Regex për ekstraktim deterministik të citimeve
+# V3.8 — GUARDRAIL #2b: Regex për ekstraktim deterministik
 # ═══════════════════════════════════════════════════════════════════════════
 
 LAW_NUMBER_PATTERN = re.compile(
@@ -113,105 +114,142 @@ VERIFIED_ARTICLE_PATTERN = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
+# V3.8: Pattern për çifte (Neni X i LIGJI)
+CITATION_WITH_LAW_PATTERN = re.compile(
+    r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)'
+    r'(?:\s*,?\s*par(?:\.|agrafi|agrafit)?\s*(\d+))?'
+    r'\s+(?:i|të|te|e|së)\s+'
+    r'([A-ZËÇ][A-Za-zëçËÇ0-9\-]{2,25}|KPRK|KPK|KPPRK|LPK|LMD|LMDHF)',
+    re.IGNORECASE | re.UNICODE,
+)
 
+# V3.8: Pattern për datat (për detektimin e kontradiktave)
+DATE_PATTERN = re.compile(
+    r'\b(\d{1,2}[\.\/]\d{1,2}[\.\/]\d{2,4})\b'
+)
+
+# V3.8: Pattern për afatet
+DEADLINE_PATTERN = re.compile(
+    r'\bafat[ie]?\s+(?:për\s+\w+\s+)?(?:është|prej|prej\s+)?\s*'
+    r'(\d+)\s*(dit[ëe]?|muaj|jav[ëe]?|vjet)',
+    re.IGNORECASE | re.UNICODE
+)
+
+
+def _extract_verified_citations_from_documents(
+    db,
+    case_id: str
+) -> Dict[str, Any]:
+    """
+    GUARDRAIL #2 (V3.8): Ekstraktim deterministik i citimeve.
+
+    Returns:
+        {
+            "laws": [...],                    # unike
+            "articles": [...],                 # unike (me metadata)
+            "article_law_pairs": [...],        # V3.8: [(article, law), ...]
+            "by_document": {...},              # doc_id → articles
+            "document_laws": {...},            # V3.8: doc_id → laws
+            "total_laws": N,
+            "total_articles": M,
+            "total_pairs": P,
+        }
+    """
+    laws: Set[str] = set()
+    articles_by_doc: Dict[str, List[str]] = defaultdict(list)
+    document_laws: Dict[str, Set[str]] = defaultdict(set)
+    all_articles: List[Dict[str, Any]] = []
+    article_law_pairs: Set[Tuple[str, str]] = set()
+
+    try:
+        case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+        query = {
+            "$or": [
+                {"case_id": case_id},
+                {"case_id": case_oid},
+                {"case_id": str(case_oid)},
+            ],
+            "status": {"$ne": "DELETED"},
+        }
+
+        cursor = db.documents.find(
+            query,
+            {"_id": 1, "file_name": 1, "content": 1, "extracted_text": 1, "text": 1},
+        )
+
+        for doc in cursor:
+            text = (
+                doc.get("content")
+                or doc.get("extracted_text")
+                or doc.get("text")
+                or ""
+            )
+            if not text:
+                continue
+
+            doc_id = str(doc["_id"])
+            doc_name = doc.get("file_name", "")
+
+            # ═══ Ligjet me numër (03/L-182) ═══
+            for match in LAW_NUMBER_PATTERN.finditer(text):
+                law_num = match.group(1).replace(" ", "")
+                laws.add(law_num)
+                document_laws[doc_id].add(law_num)
+
+            # ═══ V3.8: Akronimet e ligjeve ═══
+            for match in LAW_ABBREVIATION_PATTERN.finditer(text):
+                abbr = match.group(1)
+                if abbr.lower() == "kushtetuta":
+                    laws.add("Kushtetuta")
+                    document_laws[doc_id].add("Kushtetuta")
+                else:
+                    abbr_up = abbr.upper()
+                    laws.add(abbr_up)
+                    document_laws[doc_id].add(abbr_up)
+
+            # ═══ Nenet (të vetme) ═══
+            for match in VERIFIED_ARTICLE_PATTERN.finditer(text):
+                article_num = match.group(1)
+                paragraph = match.group(2)
+                all_articles.append({
+                    "number": article_num,
+                    "paragraph": paragraph,
+                    "doc_id": doc_id,
+                    "doc_name": doc_name,
+                })
+                articles_by_doc[doc_id].append(article_num)
+
+            # ═══ V3.8: Çiftet (Neni X i LIGJI) ═══
+            for match in CITATION_WITH_LAW_PATTERN.finditer(text):
+                article_num = match.group(1)
+                law = match.group(3).upper()
+                article_law_pairs.add((article_num, law))
+
+    except Exception as e:
+        logger.warning(f"⚠️ [GUARDRAIL #2] extraction failed: {e}")
+
+    # Dedupe nenet
+    seen: Set[Tuple[str, Optional[str]]] = set()
+    unique_articles: List[Dict[str, Any]] = []
+    for art in all_articles:
+        key = (art["number"], art["paragraph"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_articles.append(art)
+
+    return {
+        "laws": sorted(laws),
+        "articles": unique_articles,
+        "article_law_pairs": sorted(article_law_pairs),
+        "by_document": dict(articles_by_doc),
+        "document_laws": {k: sorted(v) for k, v in document_laws.items()},
+        "total_laws": len(laws),
+        "total_articles": len(unique_articles),
+        "total_pairs": len(article_law_pairs),
+    }
 # ────────────────────────────────────────────────────────────────────────────
-# CASE TYPE PATTERNS
-# ────────────────────────────────────────────────────────────────────────────
-
-CASE_TYPE_PATTERNS = {
-    "Kërkesë për Urdhër Mbrojtjeje": {
-        "patterns": [
-            r"urdh[eë]r\s+mbrojtj?eje",
-            r"urdh[eë]r\s+mbrojt[eë]s",
-            r"dhun[eë]\s+n[eë]\s+familje",
-            r"mbrojtje\s+nga\s+dhuna\s+n[eë]\s+familje",
-            r"LMDHF",
-            r"ligj[i]?\s*nr\.?\s*0[48]\s*[\/\-]?\s*L[-\s]*1[28]5",
-            r"parandalimi\s+dhe\s+mbrojtja\s+nga\s+dhuna",
-            r"pal[eë]\s+e\s+mbrojtur",
-            r"pal[eë]\s+p[eë]rgjegj[eë]se",
-            r"masa\s+t[eë]\s+mbrojtjes",
-        ],
-        "weight": 3.0,
-    },
-    "Çështje Familjare": {
-        "patterns": [
-            r"kujdestari",
-            r"bashk[eë]short",
-            r"divorc",
-            r"ushqim(?:i)?\s+fëmij[eë]s",
-            r"alimentacion",
-            r"marr[eë]dh[eë]nie\s+familjare",
-            r"kontakt(?:i)?\s+me\s+f[eë]mij[eë]n",
-        ],
-        "weight": 2.5,
-    },
-    "Kallëzim Penal": {
-        "patterns": [
-            r"kall[eë]zim\s+penal",
-            r"aktakuz[eë]\b",
-            r"vep[eë]r\s+penale",
-            r"prokuror(?:i|ia|in)",
-            r"i\s+pandehur",
-            r"e\s+pandehur",
-        ],
-        "weight": 2.0,
-    },
-    "Padi Civile": {
-        "patterns": [
-            r"k[eë]rkes[eë]padi",
-            r"padit[eë]s(?:i|ja|in)",
-            r"\be\s+paditura\b",
-            r"\bi\s+padituri\b",
-            r"petitum",
-        ],
-        "weight": 2.0,
-    },
-    "Procedurë Administrative": {
-        "patterns": [
-            r"ankes[eë]\s+administrative",
-            r"organ(?:i)?\s+administrativ",
-            r"procedur[eë]\s+administrative",
-        ],
-        "weight": 2.0,
-    },
-}
-
-
-# ────────────────────────────────────────────────────────────────────────────
-# DUAL CASE TYPE FAMILIES
-# ────────────────────────────────────────────────────────────────────────────
-
-CASE_TYPE_FAMILIES = {
-    "civil_family": {
-        "label": "Kërkesë për Urdhër Mbrojtjeje",
-        "filename_keywords": [
-            "mbrojtje", "mbrojtjes", "mbrojtës", "mbrojtes",
-            "vendim_per_urdher", "urdher_mbrojtje", "urdhermbrojtje",
-            "dhune", "dhunë", "dhuna",
-            "familje", "familjar", "familjare",
-            "shkurorëzim", "shkurorezim", "divorc",
-            "kujdestari",
-        ],
-    },
-    "penal_family": {
-        "label": "Procedurë Penale",
-        "filename_keywords": [
-            "aktakuz", "aktakuze",
-            "kallzim", "kallëzim", "kallzim_penal",
-            "kerkese_per_hudhje", "kërkesë_për_hedhje",
-            "hedhje_akuz", "hedhjes_se_akuz",
-            "refuzimi_e_hedhjes",
-            "penale", "penal",
-            "prokuror",
-            "pandehur", "padisur",
-        ],
-    },
-}
-
-
-# ────────────────────────────────────────────────────────────────────────────
-# STRICT RULES (V3.7 — me Guardrail #1)
+# STRICT RULES
 # ────────────────────────────────────────────────────────────────────────────
 
 STRICT_RULES = """
@@ -233,49 +271,54 @@ STRICT_RULES = """
 
 4. NËSE DIGEST-i përmban "DOKUMENTI KRYESOR", fokusohu KRYESISHT në atë.
 
-5. ⚠️ RREGULL ABSOLUT PËR NENET E LIGJEVE:
+5. ⚠️ RREGULL ABSOLUT PËR NENET E LIGJEVE (KRITIKE):
    - Seksioni "🔒 CITIMET E VËRTETUARA (REGEX)" është BURIMI I VETËM 
      I SË VËRTETËS për citimet.
    - PËRDOR VETËM ligjet dhe nenet që shfaqen në atë seksion.
-   - ÇDO ligj/nen që NUK është aty → KONSIDEROHET HALUDINACION 
-     dhe do të fshihet automatikisht.
-   - NUK LEJOHET të ndryshosh numrin e ligjit:
-        ❌ Nëse digest-i thotë "03/L-182", NUK mund të shkruash "06/L-006"
-        ✅ Kopjo numrin e ligjit FJALË-PËR-FJALË
-   - PËR NENET: nëse neni shfaqet VETËM si numër, shkruaj VETËM 
+   - ÇDO ligj/nen që NUK është aty → KONSIDEROHET HALUDINACION.
+   - NUK LEJOHET të ndryshosh numrin e ligjit (03/L-182 ≠ 06/L-006).
+   - NUK LEJOHET të shpikësh emra ligjesh (LMDHF, KPK, etj.) që nuk 
+     shfaqen në listën e ligjeve të verifikuara.
+   - NENET: nëse neni shfaqet VETËM si numër, shkruaj VETËM 
      "Neni X i [Ligjit]" — PA shpikje përshkrimi.
-   - SHEMBUJ TË GABIMEVE:
-        ❌ "Neni 3 par.4: Definimi i palës së mbrojtur." (i shpikur)
-        ❌ "Neni 1.2 i LMDHF" (format i gabuar — neni nuk është 1.2)
-        ✅ "Neni 3 i LMDHF" (vetëm numri, pa përshkrim)
-   - NUK LEJOHET: "[numri]", "[Ligji i panjohur]", "[i panjohur]", 
+   - NUK LEJOHET "[numri]", "[Ligji i panjohur]", "[i panjohur]", 
      "(i panjohur)", "[N/A]".
 
-6. PËR AKTGJYKIMET E GJYKATËS SUPREME: cito TË GJITHA nga seksioni 
-   "AKTGJYKIMET E GJYKATËS SUPREME".
+6. ⚠️ FORMATI I NENEVE (KRITIKE):
+   - Shkruaj "Neni X" ose "Neni X, par. Y" — KURRË "Neni X.Y".
+   - Shembull i saktë:
+        ✅ "Neni 1 i LMDHF"
+        ✅ "Neni 1, par. 2 i LMDHF"
+        ✅ "Neni 248 i KPRK"
+   - Shembull i GABUAR:
+        ❌ "Neni 1.2 i LMDHF"
+        ❌ "Neni 248 i LMDHF" (nëse 248 nuk është në LMDHF)
+   - NËSE dyshon → shkruaj VETËM numrin, pa përshkrim.
 
-7. PËR TË PANDËHURIT: NËSE digest-i përmban "GRUPET E TË PANDËHURVE", 
-   raportoji të gjithë sipas grupeve — ME NUMRIN, EMRI DHE ROLI.
-   NËSE NUK përmban grupet, shkruaj "Nuk ka të pandehur të identifikuar" 
-   — MOS shpik.
+7. ⚠️ PËRSHKRIMET E NENEVE:
+   - NËSE digest-i etiketon përshkrimin si "kontekst dokumenti" → NUK 
+     është përshkrim zyrtar → shkruaj VETËM "Neni X i [Ligjit]".
+   - NËSE digest-i etiketon si "përshkrim zyrtar" → përdore fjalë për fjalë.
+   - KURRË mos shpik "Rregullat për procedurat e veçanta" ose 
+     përshkrime gjenerike.
 
-8. ⚠️ LLOJI I LËNDËS (KRITIK):
-   - NËSE digest-i përmban seksionin "🎯 LLOJI I LËNDËS", ky është 
-     lloji i saktë i lëndës.
-   - PËRDOR atë lloj në të gjithë raportin — MOS e ndrysho.
-   - Lloji i lëndës përcakton TERMINOLOGJINË.
+8. ⚠️ AFATET PROCEDURALE (KRITIKE):
+   - Cito afatin VETËM me burim: "Sipas [dokumenti/neni], afati është X".
+   - NËSE dokumentet kanë afate të ndryshme → listoji TË GJITHA me burime.
+   - NUK LEJOHET kontradiktë brenda raportit (p.sh. 6 muaj në një 
+     seksion dhe 8 ditë në tjetrin).
+   - Afatet e njohura nga dokumentet: 8 ditë ankim, 12 muaj urdhër 
+     mbrojtjeje, 7 ditë ekspertizë psikiatrike, 10 ditë refuzim kërkese.
+   - NËSE nuk gjendet afat → shkruaj "Afati: kontrollo manualisht".
 
-9. ⚠️ AFATET DHE MUNDËSITË PROCEDURALE:
-   - Cito VETËM afate që shfaqen në dokumentet e fashikullit.
-   - NËSE dokumenti përmend "8 ditë ankim" → citoje saktësisht.
-   - NËSE dokumenti NUK përmend afat → shkruaj "Afati: kontrollo manualisht"
-   - NUK LEJOHET të shpikësh afate nga ligji i përgjithshëm.
+9. ⚠️ LLOJI I LËNDËS:
+   - NËSE digest-i përmban "🎯 LLOJI I LËNDËS", përdore atë lloj në 
+     të gjithë raportin — MOS e ndrysho.
 
 10. ⚠️ STATUSI I DOKUMENTIT:
     - NËSE dokumenti përmban "KËSHILLË JURIDIKE" ose "afat ankimi" 
       → NUK është i plotfuqishëm.
-    - PËRDOJE atë që shfaqet në dokument — MOS e etiketо si 
-      "i plotfuqishëm" pa bazë në tekst.
+    - MOS e etiketо si "i plotfuqishëm" pa bazë në tekst.
 """
 
 
@@ -300,8 +343,11 @@ DETYRA:
 - Jurisprudenca relevante e Gjykatës Supreme
 - Rezultati i mundshëm
 
-⚠️ NUK e etiketо statusin e dokumentit si "i plotfuqishëm" pa bazë 
-në tekst. NËSE ka këshillë juridike ose afat ankimi → citoje.
+⚠️ AFATET:
+- Cito afatin VETËM me burim: "Sipas [dokumenti], afati është X ditë/muaj".
+- NËSE ka afate të ndryshme → listoji TË GJITHA me burime.
+- KURRË mos shkruaj "afati është 6 muaj" pa treguar se në cilin 
+  dokument shfaqet.
 
 """ + STRICT_RULES,
     },
@@ -321,6 +367,8 @@ DETYRA:
 
 FORMATI:
 [Data] — [Ngjarja] — [Rëndësia] — [Referenca dokumenti]
+
+⚠️ KURRË mos shpik datë që nuk shfaqet në dokumentet.
 
 """ + STRICT_RULES,
     },
@@ -356,13 +404,16 @@ bashkoji në formën e plotë.
         "prompt": """Ti je jurist ekspert në legjislacionin e Kosovës. Bazuar në 
 digest-in, harto KUADRIN LIGJOR.
 
-⚠️ RREGULL ABSOLUT PËR NENET (KRITIKE — GUARDRAIL #1):
+⚠️ RREGULL ABSOLUT (GUARDRAIL #1):
 - Seksioni "🔒 CITIMET E VËRTETUARA (REGEX)" është BURIMI I VETËM 
   I SË VËRTETËS.
 - PËRDOR VETËM ligjet dhe nenet që shfaqen në atë seksion.
 - ÇDO ligj/nen që nuk është aty do të fshihet nga Guardrail #4.
 - NUK LEJOHET të ndryshosh numrin e ligjit (03/L-182 ≠ 06/L-006).
-- NËSE një nen shfaqet VETËM si "Neni X" (pa përshkrim), shkruaj VETËM:
+- NUK LEJOHET të shpikësh akronime ligjesh (LMDHF, KPK) që nuk janë 
+  në listën e ligjeve të verifikuara.
+- FORMATI: "Neni X" ose "Neni X, par. Y" — KURRË "Neni X.Y".
+- NËSE neni shfaqet VETËM si numër, shkruaj VETËM:
     "Neni X i [Ligjit]"
   PA shpikje përshkrimi.
 
@@ -415,10 +466,10 @@ C. REKOMANDIMI PËRFUNDIMTAR
    ▶ RREZIQET
 
 ⚠️ RREGULLA KRITIKE PËR AFATET:
-- Cito VETËM afate që shfaqen në digest (dokumentet e fashikullit)
-- NËSE dokumenti përmend "8 ditë ankim" → citoje saktësisht
-- NËSE dokumenti NUK përmend afat → shkruaj "Afati: kontrollo manualisht"
-- NUK LEJOHET të shpikësh afate nga ligji i përgjithshëm
+- Cito VETËM afate që shfaqen në digest (dokumentet e fashikullit).
+- NËSE dokumenti përmend "8 ditë ankim" → citoje saktësisht.
+- NËSE dokumenti NUK përmend afat → shkruaj "Afati: kontrollo manualisht".
+- NUK LEJOHET të shpikësh afate nga ligji i përgjithshëm.
 
 """ + STRICT_RULES,
     },
@@ -484,7 +535,7 @@ class CanonicalEntities:
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# DEDUP ADJACENT WORDS
+# HELPERS
 # ────────────────────────────────────────────────────────────────────────────
 
 def _dedup_adjacent_words(text: str) -> str:
@@ -502,10 +553,6 @@ def _dedup_adjacent_words(text: str) -> str:
         result.append(words[i])
     return " ".join(result)
 
-
-# ────────────────────────────────────────────────────────────────────────────
-# SIMILARITY HELPERS
-# ────────────────────────────────────────────────────────────────────────────
 
 def _similarity(a: str, b: str) -> float:
     if not a or not b:
@@ -549,10 +596,6 @@ def _is_known_entity(name, canonical):
     return (False, None, None)
 
 
-# ────────────────────────────────────────────────────────────────────────────
-# SYNC STREAMING
-# ────────────────────────────────────────────────────────────────────────────
-
 def _stream_section_sync(system_prompt, user_content, temperature=0.1):
     if not _get_api_key():
         return
@@ -583,12 +626,97 @@ def _stream_section_sync(system_prompt, user_content, temperature=0.1):
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# CASE TYPE PATTERNS
+# ────────────────────────────────────────────────────────────────────────────
+
+CASE_TYPE_PATTERNS = {
+    "Kërkesë për Urdhër Mbrojtjeje": {
+        "patterns": [
+            r"urdh[eë]r\s+mbrojtj?eje",
+            r"urdh[eë]r\s+mbrojt[eë]s",
+            r"dhun[eë]\s+n[eë]\s+familje",
+            r"mbrojtje\s+nga\s+dhuna\s+n[eë]\s+familje",
+            r"LMDHF",
+            r"ligj[i]?\s*nr\.?\s*0[48]\s*[\/\-]?\s*L[-\s]*1[28]5",
+            r"pal[eë]\s+e\s+mbrojtur",
+            r"pal[eë]\s+p[eë]rgjegj[eë]se",
+            r"masa\s+t[eë]\s+mbrojtjes",
+        ],
+        "weight": 3.0,
+    },
+    "Çështje Familjare": {
+        "patterns": [
+            r"kujdestari",
+            r"bashk[eë]short",
+            r"divorc",
+            r"ushqim(?:i)?\s+fëmij[eë]s",
+            r"alimentacion",
+            r"marr[eë]dh[eë]nie\s+familjare",
+        ],
+        "weight": 2.5,
+    },
+    "Kallëzim Penal": {
+        "patterns": [
+            r"kall[eë]zim\s+penal",
+            r"aktakuz[eë]\b",
+            r"vep[eë]r\s+penale",
+            r"prokuror(?:i|ia|in)",
+            r"i\s+pandehur",
+            r"e\s+pandehur",
+        ],
+        "weight": 2.0,
+    },
+    "Padi Civile": {
+        "patterns": [
+            r"k[eë]rkes[eë]padi",
+            r"padit[eë]s(?:i|ja|in)",
+            r"\be\s+paditura\b",
+            r"\bi\s+padituri\b",
+            r"petitum",
+        ],
+        "weight": 2.0,
+    },
+    "Procedurë Administrative": {
+        "patterns": [
+            r"ankes[eë]\s+administrative",
+            r"organ(?:i)?\s+administrativ",
+            r"procedur[eë]\s+administrative",
+        ],
+        "weight": 2.0,
+    },
+}
+
+
+CASE_TYPE_FAMILIES = {
+    "civil_family": {
+        "label": "Kërkesë për Urdhër Mbrojtjeje",
+        "filename_keywords": [
+            "mbrojtje", "mbrojtjes", "mbrojtës", "mbrojtes",
+            "urdher_mbrojtje", "urdhermbrojtje",
+            "dhune", "dhunë", "dhuna",
+            "familje", "familjar",
+            "shkurorëzim", "divorc", "kujdestari",
+        ],
+    },
+    "penal_family": {
+        "label": "Procedurë Penale",
+        "filename_keywords": [
+            "aktakuz", "aktakuze",
+            "kallzim", "kallëzim",
+            "hedhje_akuz", "hedhjes_se_akuz",
+            "penale", "penal",
+            "prokuror",
+            "pandehur", "padisur",
+        ],
+    },
+}
+# ────────────────────────────────────────────────────────────────────────────
 # SERVICE
 # ────────────────────────────────────────────────────────────────────────────
 
 class SynthesisService:
     """
-    V3.7 — Guardrails anti-halucinacion + FAST_SEARCH_MODEL.
+    V3.8 — Guardrails anti-halucinacion + FAST_SEARCH_MODEL.
     """
 
     def __init__(self, db):
@@ -596,96 +724,174 @@ class SynthesisService:
         self.defendant_extractor = get_defendant_group_extractor(db)
 
     # ────────────────────────────────────────────────────────────────────
-    # GUARDRAIL #2 — Regex ekstraktim multi-dokument
+    # GUARDRAIL #5 — Verifikim i Atribuimit (Neni + Ligji)
     # ────────────────────────────────────────────────────────────────────
 
-    def _extract_verified_citations_from_documents(
-        self, case_id: str
+    def _verify_attribution_word_by_word(
+        self,
+        output_text: str,
+        verified_citations: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        GUARDRAIL #2: Ekstraktim deterministik i citimeve nga TË GJITHA
-        dokumentet e fashikullit.
-        """
-        laws: Set[str] = set()
-        articles_by_doc: Dict[str, List[str]] = defaultdict(list)
-        all_articles: List[Dict[str, Any]] = []
+        GUARDRAIL #5 (V3.8): Kontrollon që çdo citim "Neni X i LIGJI"
+        të ketë ÇIFTIN e vërtetë në dokumentet.
 
-        try:
-            case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
-            query = {
-                "$or": [
-                    {"case_id": case_id},
-                    {"case_id": case_oid},
-                    {"case_id": str(case_oid)},
-                ],
-                "status": {"$ne": "DELETED"},
+        Shembull gabimi që kapet:
+            LLM: "Neni 248 i LMDHF"
+            Dokumentet: "Neni 248 i KPRK" dhe "Neni 44 i LMDHF"
+            → 248 nuk është kurrë me LMDHF → HALLUCINIM
+        """
+        if not output_text:
+            return {
+                "verified": [],
+                "unverified": [],
+                "hallucination_rate": 0.0,
             }
 
-            cursor = self.db.documents.find(
-                query,
-                {"_id": 1, "file_name": 1, "content": 1, "extracted_text": 1, "text": 1},
-            )
+        article_law_pairs = set(
+            tuple(p) for p in verified_citations.get("article_law_pairs", [])
+        )
 
-            for doc in cursor:
-                text = (
-                    doc.get("content")
-                    or doc.get("extracted_text")
-                    or doc.get("text")
-                    or ""
-                )
-                if not text:
-                    continue
+        # Nëse skemi pairs → nuk mund të verifikojmë atribuimin → skip
+        if not article_law_pairs:
+            return {
+                "verified": [],
+                "unverified": [],
+                "hallucination_rate": 0.0,
+                "warning": "no_pairs_available",
+            }
 
-                doc_id = str(doc["_id"])
-                doc_name = doc.get("file_name", "")
+        verified: List[Dict[str, Any]] = []
+        unverified: List[Dict[str, Any]] = []
+        seen: Set[Tuple[str, str]] = set()
 
-                # Ekstrakto ligjet
-                for match in LAW_NUMBER_PATTERN.finditer(text):
-                    law_num = match.group(1).replace(" ", "")
-                    laws.add(law_num)
+        for match in CITATION_WITH_LAW_PATTERN.finditer(output_text):
+            article_num = match.group(1)
+            paragraph = match.group(2)
+            law = match.group(3).upper()
 
-                for match in LAW_ABBREVIATION_PATTERN.finditer(text):
-                    abbr = match.group(1)
-                    if abbr.lower() == "kushtetuta":
-                        laws.add("Kushtetuta")
-                    else:
-                        laws.add(abbr.upper())
+            # Normalizo emrin e ligjit
+            law_normalized = law.strip()
 
-                # Ekstrakto nenet
-                for match in VERIFIED_ARTICLE_PATTERN.finditer(text):
-                    article_num = match.group(1)
-                    paragraph = match.group(2)
-                    all_articles.append({
-                        "number": article_num,
-                        "paragraph": paragraph,
-                        "doc_id": doc_id,
-                        "doc_name": doc_name,
-                    })
-                    articles_by_doc[doc_id].append(article_num)
-
-        except Exception as e:
-            logger.warning(f"⚠️ [GUARDRAIL #2] extraction failed: {e}")
-
-        # Dedupe nenet
-        seen: Set[Tuple[str, Optional[str]]] = set()
-        unique_articles: List[Dict[str, Any]] = []
-        for art in all_articles:
-            key = (art["number"], art["paragraph"])
+            key = (article_num, law_normalized)
             if key in seen:
                 continue
             seen.add(key)
-            unique_articles.append(art)
+
+            entry = {
+                "article": article_num,
+                "paragraph": paragraph,
+                "law": law_normalized,
+                "raw": match.group(0).strip(),
+            }
+
+            # Verifiko: a ekziston ÇIFTI (article, law) në dokumente?
+            # Kontrollo me disa variante të mundshme të emrit të ligjit
+            found = False
+            for pair_art, pair_law in article_law_pairs:
+                if pair_art != article_num:
+                    continue
+                # Krahaso emrin e ligjit (case-insensitive, normalized)
+                if pair_law.upper() == law_normalized:
+                    found = True
+                    break
+                # Nëse ligji është shkruar si numër dhe citimi si akronim
+                if law_normalized in pair_law.upper() or pair_law.upper() in law_normalized:
+                    found = True
+                    break
+
+            if found:
+                verified.append(entry)
+            else:
+                unverified.append(entry)
+
+        total = len(verified) + len(unverified)
+        hallucination_rate = (
+            round(len(unverified) / max(1, total) * 100, 1) if total > 0 else 0.0
+        )
 
         return {
-            "laws": sorted(laws),
-            "articles": unique_articles,
-            "total_laws": len(laws),
-            "total_articles": len(unique_articles),
-            "by_document": dict(articles_by_doc),
+            "verified": verified,
+            "unverified": unverified,
+            "total_attributions": total,
+            "hallucination_rate": hallucination_rate,
         }
 
     # ────────────────────────────────────────────────────────────────────
-    # GUARDRAIL #4 — Citation Checker (multi-dokument)
+    # GUARDRAIL #5b — Detektim i Kontradiktave të Afateve
+    # ────────────────────────────────────────────────────────────────────
+
+    def _detect_deadline_contradictions(
+        self,
+        output_text: str,
+    ) -> Dict[str, Any]:
+        """
+        GUARDRAIL #5b (V3.8): Detekton afate të ndryshme për të njëjtin veprim.
+
+        Shembull kontradikte:
+            Pasqyra: "afati është 6 muaj"
+            Rekomandimet: "afati është 8 ditë"
+            → KONTRADIKTË (i njëjti raport)
+        """
+        if not output_text:
+            return {
+                "deadlines_found": [],
+                "contradictions": [],
+            }
+
+        # Gjej të gjitha afatet me kontekst
+        deadlines: List[Dict[str, Any]] = []
+
+        for match in DEADLINE_PATTERN.finditer(output_text):
+            num = int(match.group(1))
+            unit = match.group(2).lower().strip("ëe")
+
+            # Normalizo njësinë
+            if unit.startswith("dit"):
+                unit_normalized = "ditë"
+            elif unit.startswith("muaj"):
+                unit_normalized = "muaj"
+            elif unit.startswith("jav"):
+                unit_normalized = "javë"
+            elif unit.startswith("vjet"):
+                unit_normalized = "vjet"
+            else:
+                unit_normalized = unit
+
+            deadlines.append({
+                "num": num,
+                "unit": unit_normalized,
+                "raw": match.group(0).strip(),
+                "position": match.start(),
+            })
+
+        # Kontrollo kontradikta:
+        # Nëse ka të njëjtën njësi por numra të ndryshëm → kontradiktë
+        # (Heuristikë: 2 afate me unit të njëjtë por numra të ndryshëm)
+        contradictions: List[Dict[str, Any]] = []
+        by_unit: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for d in deadlines:
+            by_unit[d["unit"]].append(d)
+
+        for unit, items in by_unit.items():
+            if len(items) < 2:
+                continue
+            unique_nums = set(item["num"] for item in items)
+            if len(unique_nums) > 1:
+                contradictions.append({
+                    "unit": unit,
+                    "values": sorted(unique_nums),
+                    "count": len(items),
+                    "examples": [item["raw"] for item in items[:3]],
+                })
+
+        return {
+            "deadlines_found": deadlines,
+            "contradictions": contradictions,
+        }
+
+    # ────────────────────────────────────────────────────────────────────
+    # GUARDRAIL #4 — Citation Checker (fjalë-për-fjalë, vetëm numrat)
     # ────────────────────────────────────────────────────────────────────
 
     def _verify_citations_word_by_word(
@@ -693,9 +899,6 @@ class SynthesisService:
         output_text: str,
         doc_articles_available: Set[str],
     ) -> Dict[str, Any]:
-        """
-        GUARDRAIL #4: Kontrollon çdo nen të output-it kundrejt dokumenteve.
-        """
         if not output_text:
             return {
                 "verified": [],
@@ -732,20 +935,25 @@ class SynthesisService:
         }
 
     # ────────────────────────────────────────────────────────────────────
-    # GUARDRAIL #3 — Verifikim i Dyfishtë (LLM correction)
+    # GUARDRAIL #3 — Verifikim i Dyfishtë (LLM Correction)
     # ────────────────────────────────────────────────────────────────────
 
     def _correct_citations_with_llm(
         self,
         output_text: str,
         checker_report: Dict[str, Any],
+        attribution_report: Dict[str, Any],
         verified_citations: Dict[str, Any],
     ) -> str:
         """
-        GUARDRAIL #3: LLM i dytë pastron citimet halucinuese.
+        GUARDRAIL #3 (V3.8): LLM pastron output-in duke hequr:
+        - Nene që nuk ekzistojnë (checker_report)
+        - Çifte të gabuara Neni+Ligji (attribution_report)
         """
-        unverified = checker_report.get("unverified", [])
-        if not unverified:
+        unverified_articles = checker_report.get("unverified", [])
+        unverified_attrs = attribution_report.get("unverified", [])
+
+        if not unverified_articles and not unverified_attrs:
             return output_text
 
         laws_list = ", ".join(verified_citations.get("laws", [])) or "asnjë"
@@ -753,28 +961,48 @@ class SynthesisService:
             f"Neni {a['number']}" for a in verified_citations.get("articles", [])[:50]
         ) or "asnjë"
 
+        # Lista e çifteve të vërteta (maks 50)
+        pairs_list = " | ".join(
+            f"Neni {a} i {l}" for a, l in verified_citations.get("article_law_pairs", [])[:50]
+        ) or "asnjë"
+
+        issues = []
+        if unverified_articles:
+            issues.append(
+                "NENET QË NUK EKZISTOJNË NË FASHIKULL:\n" +
+                "\n".join(f"  ❌ Neni {n}" for n in unverified_articles)
+            )
+        if unverified_attrs:
+            issues.append(
+                "ÇIFTET E GABUARA (Neni + Ligji):\n" +
+                "\n".join(
+                    f"  ❌ {a['raw']} (kombinim i palejuar)" for a in unverified_attrs
+                )
+            )
+
         system_prompt = """Ti je "Verifikues i Saktësisë Ligjore" në Gjykatën Supreme të Kosovës.
 
-DETYRA: Pastron output-in duke fshirë citimet e neneve që NUK ekzistojnë 
-në DOKUMENTET E FASHIKULLIT.
+DETYRA: Pastron output-in duke:
+1. Fshirë citimet e neneve që NUK ekzistojnë në dokumente.
+2. Fshirë çiftet e gabuara (Neni X i LIGJI) që nuk shfaqen në dokumente.
 
 RREGULLA ABSOLUTE:
-1. Për çdo nen që shfaqet në "NENET E PAVËRTETUARA" → FSHIJE ose KORRIGJOJE.
-2. Ruaj çdo nen që EKZISTON vërtetë në fashikull.
-3. NUK LEJOHET të shtosh nene të re.
-4. Ruaj strukturën, titujt, formatimin markdown.
-5. NUK shpjego — kthe VETËM tekstin e pastruar."""
+1. Fshij ÇDO nen që shfaqet në "NENET QË NUK EKZISTOJNË".
+2. Fshij ÇDO citim që shfaqet në "ÇIFTET E GABUARA".
+3. Ruaj vetëm citimet e vërteta që ekzistojnë në dokumente.
+4. NUK LEJOHET të shtosh nene të re.
+5. Ruaj strukturën, titujt, formatimin markdown.
+6. NUK shpjego — kthe VETËM tekstin e pastruar."""
 
-        user_content = f"""LIGJET E VËRTETUARA NË FASHIKULL:
-{laws_list}
-
-NENET E VËRTETUARA NË FASHIKULL:
-{articles_list}
+        user_content = f"""BURIMI I SË VËRTETËS:
+- Ligjet e verifikuara: {laws_list}
+- Nenet e verifikuara: {articles_list}
+- Çiftet e vërteta (Neni X i Ligji): {pairs_list}
 
 ───────────────────────────────────────────────────────
 
-NENET QË NUK EKZISTOJNË NË FASHIKULL (duhen fshirë/korrigjuar):
-{chr(10).join('❌ Neni ' + n for n in unverified)}
+PROBLEMET E ZBULUARA:
+{chr(10).join(issues)}
 
 ───────────────────────────────────────────────────────
 
@@ -783,7 +1011,7 @@ OUTPUT-I QË DUHET PASTRUAR:
 
 ───────────────────────────────────────────────────────
 
-Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
+Kthe tekstin e pastruar (pa gabime citimesh):"""
 
         try:
             corrected = _call_llm(
@@ -831,15 +1059,15 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         articles_by_law = self._extract_articles_by_law(case_id)
         total_articles = sum(len(v) for v in articles_by_law.values())
 
-        # ═══ GUARDRAIL #2: Regex ekstraktim para LLM ═══
-        verified_citations = self._extract_verified_citations_from_documents(case_id)
+        # ═══ GUARDRAIL #2b: Regex ekstraktim para LLM ═══
+        verified_citations = _extract_verified_citations_from_documents(self.db, case_id)
         logger.info(
-            f"🔒 [GUARDRAIL #2] Verified citations from documents: "
+            f"🔒 [GUARDRAIL #2b] Verified citations: "
             f"laws={verified_citations['total_laws']}, "
-            f"articles={verified_citations['total_articles']}"
+            f"articles={verified_citations['total_articles']}, "
+            f"pairs={verified_citations['total_pairs']}"
         )
 
-        # Set i neneve të vërtetuara për Guardrail #4
         doc_articles_available: Set[str] = {
             a["number"] for a in verified_citations.get("articles", [])
         }
@@ -852,12 +1080,9 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             f"🔍 [SYNTHESIS] Digest built: {len(digest)} chars, "
             f"case_type={case_type or 'unknown'}, "
             f"docs={len(extractions)}, "
-            f"defendant_groups={len(defendants_groups)}, "
-            f"defendants={sum(len(g.get('defendants', [])) for g in defendants_groups)}, "
-            f"articles_by_law={len(articles_by_law)} laws, "
-            f"total_articles={total_articles}, "
             f"verified_laws={verified_citations['total_laws']}, "
             f"verified_articles={verified_citations['total_articles']}, "
+            f"verified_pairs={verified_citations['total_pairs']}, "
             f"case={case_id}"
         )
 
@@ -868,6 +1093,8 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         total_institutions_fixed = 0
         total_prefix_fixes = 0
         total_citation_fixes = 0
+        total_attribution_fixes = 0
+        all_deadline_contradictions: List[Dict[str, Any]] = []
 
         for section_key, section_cfg in SECTION_PROMPTS.items():
             section_start = time.time()
@@ -898,45 +1125,77 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 total_institutions_fixed += fix_stats.get("institutions_fixed", 0)
                 total_prefix_fixes += fix_stats.get("prefix_fixes", 0)
 
-                # ═══ GUARDRAILS #3 + #4 për sections që citojnë nene ═══
-                if section_key in ("legal_framework", "recommendations", "key_findings_contradictions") and content:
-                    logger.info(f"🔍 [GUARDRAIL #4] Checking {section_key}...")
+                # ═══ GUARDRAILS #3, #4, #5 për sections që citojnë nene ═══
+                if section_key in ("legal_framework", "recommendations", "executive_summary", "key_findings_contradictions") and content:
+                    logger.info(f"🔍 [GUARDRAILS] Checking {section_key}...")
+
+                    # #4: Verifiko numrat e neneve
                     checker_report = self._verify_citations_word_by_word(
                         content, doc_articles_available
                     )
-                    guardrail_reports[section_key] = checker_report
+
+                    # #5: Verifiko atribuimin
+                    attribution_report = self._verify_attribution_word_by_word(
+                        content, verified_citations
+                    )
+
+                    # #5b: Kontradikta afatesh
+                    deadline_report = self._detect_deadline_contradictions(content)
+
+                    guardrail_reports[section_key] = {
+                        "citations": checker_report,
+                        "attributions": attribution_report,
+                        "deadlines": deadline_report,
+                    }
 
                     logger.info(
                         f"📊 [GUARDRAIL #4] {section_key}: "
-                        f"verified={len(checker_report['verified'])}, "
-                        f"unverified={len(checker_report['unverified'])}, "
-                        f"hallucination_rate={checker_report['hallucination_rate']}%"
+                        f"citations_verified={len(checker_report['verified'])}, "
+                        f"citations_unverified={len(checker_report['unverified'])}, "
+                        f"attributions_unverified={len(attribution_report.get('unverified', []))}, "
+                        f"deadlines_contradictions={len(deadline_report.get('contradictions', []))}"
                     )
 
-                    # Nëse ka halucinacione → korrigjo me LLM #2
-                    if checker_report["unverified"]:
+                    # Track deadlines
+                    if deadline_report.get("contradictions"):
+                        all_deadline_contradictions.extend([
+                            {**c, "section": section_key}
+                            for c in deadline_report["contradictions"]
+                        ])
+
+                    # ═══ GUARDRAIL #3: Korrigjo me LLM ═══
+                    has_citation_issues = bool(checker_report.get("unverified"))
+                    has_attribution_issues = bool(attribution_report.get("unverified"))
+
+                    if has_citation_issues or has_attribution_issues:
                         logger.info(
-                            f"🔧 [GUARDRAIL #3] Correcting "
-                            f"{len(checker_report['unverified'])} unverified citations in {section_key}..."
+                            f"🔧 [GUARDRAIL #3] Correcting {section_key} — "
+                            f"citations={len(checker_report.get('unverified', []))}, "
+                            f"attributions={len(attribution_report.get('unverified', []))}"
                         )
                         corrected_content = self._correct_citations_with_llm(
-                            content, checker_report, verified_citations
+                            content, checker_report, attribution_report, verified_citations
                         )
 
                         # Re-verify pas korrigjimit
-                        report_after = self._verify_citations_word_by_word(
+                        report_after_cit = self._verify_citations_word_by_word(
                             corrected_content, doc_articles_available
+                        )
+                        report_after_attr = self._verify_attribution_word_by_word(
+                            corrected_content, verified_citations
                         )
                         logger.info(
                             f"✅ [GUARDRAIL #3] {section_key} after correction: "
-                            f"hallucination_rate={report_after['hallucination_rate']}%"
+                            f"citations_hall_rate={report_after_cit['hallucination_rate']}%, "
+                            f"attributions_hall_rate={report_after_attr.get('hallucination_rate', 0)}%"
                         )
 
-                        total_citation_fixes += len(checker_report["unverified"])
+                        total_citation_fixes += len(checker_report.get("unverified", []))
+                        total_attribution_fixes += len(attribution_report.get("unverified", []))
                         content = corrected_content
-                        guardrail_reports[section_key] = {
-                            **checker_report,
-                            "after_correction": report_after,
+                        guardrail_reports[section_key]["after_correction"] = {
+                            "citations": report_after_cit,
+                            "attributions": report_after_attr,
                         }
 
                 sections[section_key] = {
@@ -996,18 +1255,22 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 "article_descriptions_count": total_articles,
                 "verified_laws_count": verified_citations["total_laws"],
                 "verified_articles_count": verified_citations["total_articles"],
+                "verified_pairs_count": verified_citations["total_pairs"],
                 "canonical_persons": canonical.stats()["persons"],
                 "canonical_organizations": canonical.stats()["organizations"],
                 "hallucinations_fixed": total_hallucinations_fixed,
                 "institutions_fixed": total_institutions_fixed,
                 "prefix_fixes": total_prefix_fixes,
                 "citation_hallucinations_fixed": total_citation_fixes,
+                "attribution_hallucinations_fixed": total_attribution_fixes,
+                "deadline_contradictions": len(all_deadline_contradictions),
                 "sections_generated": len([s for s in sections.values() if s.get("content")]),
                 "sections_total": len(SECTION_PROMPTS),
                 "duration_sec": duration,
             },
             "guardrail_reports": guardrail_reports,
             "regex_verified_citations": verified_citations,
+            "deadline_contradictions": all_deadline_contradictions,
             "section_stats": section_stats,
             "status": "completed",
         }
@@ -1018,9 +1281,9 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             f"✅ [SYNTHESIS] Complete: case={case_id}, "
             f"case_type={case_type}, "
             f"hallucinations_fixed={total_hallucinations_fixed}, "
-            f"institutions_fixed={total_institutions_fixed}, "
-            f"prefix_fixes={total_prefix_fixes}, "
             f"citation_hallucinations_fixed={total_citation_fixes}, "
+            f"attribution_hallucinations_fixed={total_attribution_fixes}, "
+            f"deadline_contradictions={len(all_deadline_contradictions)}, "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"duration={duration}s"
         )
@@ -1028,7 +1291,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         return result
 
     # ────────────────────────────────────────────────────────────────────
-    # DUAL CASE TYPE DETECTION (existing)
+    # CASE TYPE DETECTION
     # ────────────────────────────────────────────────────────────────────
 
     def _detect_case_type(
@@ -1036,7 +1299,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         case_id: str,
         extractions: List[Dict[str, Any]],
     ) -> Optional[str]:
-        # (Same as V3.6 — no changes)
         civil_found = False
         penal_found = False
         civil_evidence = None
@@ -1074,17 +1336,11 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 if civil_found and penal_found:
                     break
 
-            if civil_found:
-                logger.info(f"🎯 [SYNTHESIS] Civil family found: '{civil_evidence}'")
-            if penal_found:
-                logger.info(f"🎯 [SYNTHESIS] Penal family found: '{penal_evidence}'")
-
             if civil_found and penal_found:
                 dual_type = (
                     f"{CASE_TYPE_FAMILIES['civil_family']['label']} → "
                     f"{CASE_TYPE_FAMILIES['penal_family']['label']}"
                 )
-                logger.info(f"🎯 [SYNTHESIS] DUAL case type detected: '{dual_type}'")
                 return dual_type
             elif civil_found:
                 return CASE_TYPE_FAMILIES["civil_family"]["label"]
@@ -1137,14 +1393,11 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         if not scores:
             return None
 
-        top_3 = sorted(scores.items(), key=lambda x: -x[1])[:3]
-        logger.info(f"🎯 [SYNTHESIS] Case type scores (no override): {dict(top_3)}")
-
         best = max(scores.items(), key=lambda x: x[1])
         return best[0]
 
     # ────────────────────────────────────────────────────────────────────
-    # BUILD CANONICAL ENTITIES (existing)
+    # BUILD CANONICAL ENTITIES
     # ────────────────────────────────────────────────────────────────────
 
     def _build_canonical_entities(self, extractions, defendants_groups):
@@ -1197,19 +1450,12 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 name = (d.get("name") or "").strip()
                 role = (d.get("role") or "").strip()
                 if name:
-                    institution = None
-                    if "—" in role:
-                        parts = role.split("—", 1)
-                        if len(parts) == 2:
-                            institution = parts[1].strip()
-                    elif "," in role:
-                        institution = role
-                    canonical.add_person(name, role=role, institution=institution)
+                    canonical.add_person(name, role=role)
 
         return canonical
 
     # ────────────────────────────────────────────────────────────────────
-    # ADJACENT WORD DEDUP (existing)
+    # POST-PROCESSING
     # ────────────────────────────────────────────────────────────────────
 
     def _fix_prefix_duplication(self, content, canonical):
@@ -1226,10 +1472,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         def replacer(match):
             word = match.group(1)
             fixes_count[0] += 1
-            logger.info(
-                f"🔧 [SYNTHESIS] Adjacent word deduped: "
-                f"'{word} {word}' → '{word}'"
-            )
             return word
 
         for _ in range(3):
@@ -1239,10 +1481,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             content = new_content
 
         return content, fixes_count[0]
-
-    # ────────────────────────────────────────────────────────────────────
-    # HALLUCINATION DETECTION (existing — names only)
-    # ────────────────────────────────────────────────────────────────────
 
     def _detect_and_fix_hallucinations(self, content, canonical):
         if not content or not canonical.persons:
@@ -1261,7 +1499,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         )
 
         for match in list(name_pattern.finditer(content)):
-            full_match = match.group(0)
             title_prefix = match.group(1) or ""
             name_only = match.group(2).strip()
 
@@ -1271,10 +1508,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                     f"{title_prefix}{name_deduped}" + \
                     content[match.end():]
                 fixes_count += 1
-                logger.info(
-                    f"🔧 [SYNTHESIS] Adjacent dedup: "
-                    f"'{name_only}' → '{name_deduped}'"
-                )
                 continue
 
             is_known, _, _ = _is_known_entity(name_only, canonical)
@@ -1306,11 +1539,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 continue
 
             if (best_score - second_best_score) < SIMILARITY_AMBIGUITY_GAP and second_best_score >= SIMILARITY_THRESHOLD:
-                logger.warning(
-                    f"⚠️ [SYNTHESIS] Ambiguous match for '{name_only}': "
-                    f"best='{best_match_key}' ({best_score:.2f}), "
-                    f"second={second_best_score:.2f}. Skipping."
-                )
                 continue
 
             canonical_entry = canonical.get_person(best_match_key)
@@ -1323,16 +1551,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             content = content[:match.start()] + replacement + content[match.end():]
             fixes_count += 1
 
-            logger.info(
-                f"🔧 [SYNTHESIS] Hallucination fixed: "
-                f"'{name_only}' → '{canonical_name}' (similarity: {best_score:.2f})"
-            )
-
         return content, fixes_count
-
-    # ────────────────────────────────────────────────────────────────────
-    # INSTITUTION VERIFICATION (existing)
-    # ────────────────────────────────────────────────────────────────────
 
     def _verify_institutions(self, content, canonical):
         if not content or not canonical.persons:
@@ -1381,18 +1600,10 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                             + content[abs_pos + len(wrong_inst_found):]
                         )
                         fixes_count += 1
-                        logger.info(
-                            f"🔧 [SYNTHESIS] Institution fixed for '{canonical_name}': "
-                            f"'{wrong_inst_found}' → '{correct_inst}'"
-                        )
 
                 start = idx + len(canonical_name)
 
         return content, fixes_count
-
-    # ────────────────────────────────────────────────────────────────────
-    # PLACEHOLDER CLEANUP (existing)
-    # ────────────────────────────────────────────────────────────────────
 
     def _cleanup_placeholder_text(self, content):
         content = re.sub(
@@ -1409,39 +1620,13 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             content,
             flags=re.IGNORECASE,
         )
-        content = re.sub(
-            r'(Neni\s+\d+(?:[\.\/]\d+)*)\s+i\s+'
-            r'\[(?:[^\]]*(?:panjohur|i panjohur|e panjohur)[^\]]*)\]\s*',
-            r'\1 ',
-            content,
-            flags=re.IGNORECASE,
-        )
         content = re.sub(r'\[numri\]', '', content, flags=re.IGNORECASE)
         content = re.sub(r'\[përshkrim\]', '', content, flags=re.IGNORECASE)
-        content = re.sub(r'\[përshkrimi\]', '', content, flags=re.IGNORECASE)
         content = re.sub(r'\[Ligji i panjohur\]', '', content, flags=re.IGNORECASE)
-        content = re.sub(r'\[Ligj i panjohur\]', '', content, flags=re.IGNORECASE)
         content = re.sub(r'\[i panjohur\]', '', content, flags=re.IGNORECASE)
         content = re.sub(r'\[e panjohur\]', '', content, flags=re.IGNORECASE)
         content = re.sub(r'\[N\/A\]', '', content, flags=re.IGNORECASE)
-        content = re.sub(
-            r'\s*[—\-:]\s*\[(?:[^\]]*?(?:panjohur|numri|përshkrim|N\/A)[^\]]*?)\]\s*',
-            ' ',
-            content,
-            flags=re.IGNORECASE,
-        )
-        content = re.sub(
-            r'(\*\*\[Ligji\s+Nr\.?\s+[^\]]+\]\*\*)\s*[—\-:]\s*'
-            r'\[(?:[^\]]*(?:panjohur|i panjohur|N\/A)[^\]]*)\]\s*',
-            r'\1',
-            content,
-            flags=re.IGNORECASE,
-        )
         return content
-
-    # ────────────────────────────────────────────────────────────────────
-    # POST-PROCESSING (existing)
-    # ────────────────────────────────────────────────────────────────────
 
     def _post_process_output(self, content, canonical):
         if not content:
@@ -1463,7 +1648,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         }
 
     # ────────────────────────────────────────────────────────────────────
-    # ARTICLES BY LAW (existing)
+    # ARTICLES BY LAW
     # ────────────────────────────────────────────────────────────────────
 
     def _extract_articles_by_law(self, case_id: str) -> Dict[str, Dict[str, str]]:
@@ -1495,11 +1680,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                     continue
                 self._process_document_articles(text, articles_by_law)
 
-            total = sum(len(v) for v in articles_by_law.values())
-            logger.info(
-                f"📖 [SYNTHESIS] Extracted {total} article descriptions "
-                f"across {len(articles_by_law)} laws"
-            )
             return dict(articles_by_law)
         except Exception as e:
             logger.warning(f"⚠️ [SYNTHESIS] Could not extract articles: {e}")
@@ -1579,7 +1759,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         return raw
 
     # ────────────────────────────────────────────────────────────────────
-    # STREAMING SECTION (FAST_SEARCH_MODEL)
+    # STREAMING SECTION
     # ────────────────────────────────────────────────────────────────────
 
     def _synthesize_section_streaming(
@@ -1597,7 +1777,7 @@ KLIENTI: {client_name}
 
 FORMATIMI:
 - Përdor markdown me tituj (##, ###).
-- Përshi referenca specifike.
+- Përfshi referenca specifike.
 - Shkruaj në shqip standarde juridike.
 - Mos shpik — bazohu VETËM në digest.
 """
@@ -1625,21 +1805,18 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                     if stream_callback and buffer:
                         try:
                             stream_callback(section_key, buffer)
-                        except Exception as e:
-                            logger.warning(f"⚠️ stream_callback failed: {e}")
+                        except Exception:
+                            pass
                     buffer = ""
                     last_emit = now
             if buffer and stream_callback:
                 try:
                     stream_callback(section_key, buffer)
-                except Exception as e:
-                    logger.warning(f"⚠️ stream_callback (flush) failed: {e}")
+                except Exception:
+                    pass
             return accumulated
         except Exception as e:
-            logger.warning(
-                f"⚠️ [SYNTHESIS] Streaming failed for {section_key}, "
-                f"falling back to non-streaming: {e}"
-            )
+            logger.warning(f"⚠️ [SYNTHESIS] Streaming failed for {section_key}: {e}")
             if not stream_succeeded and not accumulated:
                 try:
                     raw = _call_llm(
@@ -1653,15 +1830,15 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                     if stream_callback and accumulated:
                         try:
                             stream_callback(section_key, accumulated)
-                        except Exception as e2:
-                            logger.warning(f"⚠️ stream_callback (fallback) failed: {e2}")
+                        except Exception:
+                            pass
                 except Exception as e2:
                     logger.error(f"❌ [SYNTHESIS] Fallback also failed: {e2}")
                     raise
             return accumulated
 
     # ────────────────────────────────────────────────────────────────────
-    # DIGEST (V3.7 — me Guardrail #2 section)
+    # DIGEST
     # ────────────────────────────────────────────────────────────────────
 
     def _build_digest(
@@ -1675,18 +1852,17 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
         lines.append("=" * 70)
         lines.append(f"Titulli: {case.get('title') or case.get('case_name') or 'N/A'}")
         lines.append(f"Klienti: {case.get('client_name') or 'N/A'}")
-        lines.append(f"Pozicioni: {case.get('client_position') or case.get('client_role') or 'N/A'}")
         lines.append(f"Numri i dokumenteve: {len(extractions)}")
         lines.append("")
 
-        # ═══ GUARDRAIL #2: CITIMET E VËRTETUARA (REGEX) ═══
+        # ═══ GUARDRAIL #2b: CITIMET E VËRTETUARA ═══
         if verified_citations:
             lines.append("=" * 70)
             lines.append("🔒 CITIMET E VËRTETUARA NGA DOKUMENTET (REGEX EXTRACTION)")
             lines.append("=" * 70)
             lines.append(
                 "⚠️ KY ËSHTË BURIMI I VETËM I SË VËRTETËS. "
-                "LLM NUK LEJOHET TË SHPIKË LIGJE APO NENE QË NUK SHFAQEN KËTU."
+                "NUK LEJOHET TË SHPIKËSH LIGJE APO NENE QË NUK SHFAQEN KËTU."
             )
             lines.append("")
 
@@ -1700,8 +1876,6 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
 
             lines.append(f"NENET E CITUARA ({verified_citations['total_articles']}):")
             if verified_citations["articles"]:
-                # Group by document
-                by_doc = verified_citations.get("by_document", {})
                 shown = set()
                 for art in verified_citations["articles"][:60]:
                     par = f", par. {art['paragraph']}" if art.get("paragraph") else ""
@@ -1715,10 +1889,16 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                 lines.append("  (asnjë nen i cituar në dokumente)")
             lines.append("")
 
+            # V3.8: Çiftet e vërteta
+            if verified_citations.get("article_law_pairs"):
+                lines.append(f"ÇIFTET E VËRTETA (Neni X i Ligji) ({verified_citations['total_pairs']}):")
+                for art, law in verified_citations["article_law_pairs"][:60]:
+                    lines.append(f"  • Neni {art} i {law}")
+                lines.append("")
+
             lines.append(
                 "⚠️ RREGULL ABSOLUT: Përdor VETËM ligjet dhe nenet e mësipërme. "
-                "ÇDO ligj/nen që nuk është në këtë listë KONSIDEROHET "
-                "HALUDINACION dhe do të fshihet automatikisht."
+                "ÇDO ligj/nen që nuk është në këtë listë KONSIDEROHET HALUDINACION."
             )
             lines.append("")
 
@@ -1726,22 +1906,11 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
             lines.append("=" * 70)
             lines.append("🎯 LLOJI I LËNDËS")
             lines.append("=" * 70)
+            lines.append(f"**{case_type}**")
             if "→" in case_type:
                 lines.append(
-                    f"**{case_type}**\n"
-                    f"Ky është një rast i DYFISHTË që ka evoluar nga "
-                    f"procedura civile (urdhër mbrojtjeje) në procedurë penale "
-                    f"(aktakuzë). Në raport, pasqyro të DYJA fazat:\n"
-                    f"  • Faza 1 (Civile): Kërkesë për Urdhër Mbrojtjeje\n"
-                    f"  • Faza 2 (Penale): Procedurë me Aktakuzë\n"
-                    f"Përdor terminologjinë e saktë për secilën fazë."
-                )
-            else:
-                lines.append(
-                    f"**{case_type}**\n"
-                    f"Ky është lloji i saktë i lëndës, i përcaktuar nga analiza "
-                    f"e dokumenteve dhe dokumenti kryesor. Përdor terminologjinë "
-                    f"e saktë për këtë lloj lënde."
+                    "Ky është një rast i DYFISHTË që ka evoluar nga "
+                    "procedura civile (urdhër mbrojtjeje) në procedurë penale."
                 )
             lines.append("")
 
@@ -1750,10 +1919,6 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
             lines.append("=" * 70)
             lines.append(f"📄 DOKUMENTI KRYESOR: {primary_doc.get('file_name', 'N/A')}")
             lines.append("=" * 70)
-            lines.append(
-                f"Lloji: {primary_doc.get('document_type', 'N/A')}\n"
-                f"Ky është dokumenti më i rëndësishëm i lëndës."
-            )
             lines.append("")
 
         lines.append("=" * 70)
@@ -1764,25 +1929,12 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
             lines.append(
                 f"{i}. {ext.get('file_name', 'N/A')} "
                 f"[{ext.get('document_type', 'N/A')}] "
-                f"({ext.get('text_length', 0):,} chars, "
-                f"{ext.get('stats', {}).get('total_entities', 0)} entitete){marker}"
+                f"({ext.get('text_length', 0):,} chars){marker}"
             )
         lines.append("")
 
-        for i, ext in enumerate(extractions, 1):
-            self._append_document_section(lines, i, ext)
-
         if defendants_groups:
             self._append_defendants_groups(lines, defendants_groups)
-        else:
-            lines.append("=" * 70)
-            lines.append("⚖️  GRUPET E TË PANDËHURVE")
-            lines.append("=" * 70)
-            lines.append(
-                "NUK U IDENTIFIKUAN grupe të pandehurish në dokumentet e "
-                "analizuara."
-            )
-            lines.append("")
 
         self._append_parties_excluding_defendants(lines, extractions, defendants_groups)
 
@@ -1792,10 +1944,8 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
         sc_decisions = self._extract_supreme_court_decisions(extractions)
         if sc_decisions:
             lines.append("=" * 70)
-            lines.append("🏛️  AKTGJYKIMET E GJYKATËS SUPREME TË PËRMENDURA")
+            lines.append("🏛️ AKTGJYKIMET E GJYKATËS SUPREME")
             lines.append("=" * 70)
-            lines.append("Citoji TË GJITHA në seksionin 'KUADRI LIGJOR'.")
-            lines.append("")
             for d in sc_decisions:
                 lines.append(f"  • {d}")
             lines.append("")
@@ -1806,70 +1956,36 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
         digest = "\n".join(lines)
 
         if len(digest) > MAX_DIGEST_CHARS:
-            logger.warning(
-                f"⚠️ [SYNTHESIS] Digest too large ({len(digest)} chars), "
-                f"truncating to {MAX_DIGEST_CHARS}"
-            )
             digest = digest[:MAX_DIGEST_CHARS] + "\n\n[...digest truncated...]"
 
         return digest
-
-    # ────────────────────────────────────────────────────────────────────
-    # (Rest of methods — _append_articles_by_law, _append_parties, 
-    #  _append_defendants_groups, _append_document_section, _find_primary_document,
-    #  _extract_supreme_court_decisions, _append_cross_references — SAME AS V3.6)
-    # ────────────────────────────────────────────────────────────────────
 
     def _append_articles_by_law(self, lines, articles_by_law):
         total = sum(len(v) for v in articles_by_law.values())
 
         lines.append("=" * 70)
-        lines.append("📖 PËRSHKRIMET E NENEVE (TË GRUPUARA SIPAS LIGJIT)")
+        lines.append("📖 KONTEKSTI I NENEVE NË DOKUMENTE (JO PËRSHKRIME ZYRTARE)")
         lines.append("=" * 70)
         lines.append(
-            f"Ky seksion përmban {total} nene të nxjerrura nga teksti burimor, "
-            f"TË GRUPUARA SIPAS LIGJIT PËRKATËS."
+            f"Ky seksion përmban {total} nene me KONTEKST DOKUMENTI (jo përshkrime zyrtare)."
         )
         lines.append(
-            "KUR citon një nen në raport:"
-        )
-        lines.append(
-            "  • NËSE neni ka përshkrim (pas em-dash), përdore FJALË PËR FJALË."
-        )
-        lines.append(
-            "  • NËSE neni shfaqet VETËM si numër (pa përshkrim), shkruaj "
-            "VETËM 'Neni X i [Ligjit]' — PA shpikje përshkrimi."
-        )
-        lines.append(
-            "NUK LEJOHET: '[numri]', '[Ligji i panjohur]', '(i panjohur)', "
-            "'Neni X.Y' në vend të 'Neni X'."
+            "⚠️ KONTEKSTI ËSHTË JOZYRTAR. NËSE citon në raport → shkruaj "
+            "VETËM 'Neni X i [Ligjit]' PA përshkrim."
         )
         lines.append("")
 
-        def law_sort_key(law_name):
-            has_number = bool(re.search(r'Nr\.?\s+\d+', law_name, re.IGNORECASE))
-            return (0 if has_number else 1, law_name.lower())
-
-        for law_name in sorted(articles_by_law.keys(), key=law_sort_key):
+        for law_name in sorted(articles_by_law.keys()):
             articles = articles_by_law[law_name]
             if not articles:
                 continue
             lines.append(f"**{law_name}:**")
-
-            def article_sort_key(article_key):
-                m = re.search(r'Neni\s+(\d+)(?:[\.\/](\d+))?', article_key)
-                if m:
-                    major = int(m.group(1))
-                    minor = int(m.group(2)) if m.group(2) else 0
-                    return (major, minor, article_key)
-                return (9999, 9999, article_key)
-
-            for article_key in sorted(articles.keys(), key=article_sort_key):
+            for article_key in sorted(articles.keys()):
                 desc = articles[article_key]
                 if desc:
-                    lines.append(f"  • {article_key} — {desc}")
+                    lines.append(f"  • {article_key} — [KONTEKST DOKUMENTI: {desc}]")
                 else:
-                    lines.append(f"  • {article_key} (pa përshkrim në bazë)")
+                    lines.append(f"  • {article_key} (pa kontekst)")
             lines.append("")
 
     def _append_parties_excluding_defendants(self, lines, extractions, defendants_groups):
@@ -1879,11 +1995,6 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                 name = (d.get("name") or "").strip().lower()
                 if name:
                     defendant_names.add(name)
-                    parts = name.split()
-                    if parts:
-                        defendant_names.add(parts[0])
-                        if len(parts) > 1:
-                            defendant_names.add(parts[-1])
 
         parties_raw = {}
         for ext in extractions:
@@ -1894,66 +2005,31 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                     continue
                 key = text.lower()
                 if key not in parties_raw:
-                    parties_raw[key] = {
-                        "text": text,
-                        "documents": [],
-                        "confidence": item.get("confidence", 0.0),
-                    }
-                parties_raw[key]["documents"].append(ext.get("file_name", ""))
+                    parties_raw[key] = text
 
-        filtered_parties = []
-        for key, p in parties_raw.items():
-            parts = key.split()
-            is_defendant = False
-            if key in defendant_names:
-                is_defendant = True
-            else:
-                for part in parts:
-                    if len(part) > 3 and part in defendant_names:
-                        is_defendant = True
-                        break
-            if not is_defendant:
-                filtered_parties.append(p)
+        filtered = [v for k, v in parties_raw.items() if k not in defendant_names]
 
-        if filtered_parties:
-            lines.append("=" * 70)
-            lines.append("👥 PALËT NDËRGYQËSE (pa të pandehurit)")
-            lines.append("=" * 70)
-            lines.append("Personat që NUK janë në grupet e të pandehurve.")
-            lines.append("")
-            for p in sorted(filtered_parties, key=lambda x: x["text"]):
-                lines.append(f"  • {p['text']}")
-            lines.append("")
-        else:
+        if filtered:
             lines.append("=" * 70)
             lines.append("👥 PALËT NDËRGYQËSE")
             lines.append("=" * 70)
-            lines.append(
-                "Të gjitha palët e identifikuara janë në grupet e "
-                "të pandehurve."
-            )
+            for p in sorted(filtered):
+                lines.append(f"  • {p}")
             lines.append("")
 
     def _append_defendants_groups(self, lines, defendants_groups):
         total = sum(len(g.get("defendants", [])) for g in defendants_groups)
 
         lines.append("=" * 70)
-        lines.append("⚖️  GRUPET E TË PANDËHURVE (nga kallëzimi penal)")
+        lines.append("⚖️ GRUPET E TË PANDËHURVE")
         lines.append("=" * 70)
-        lines.append(
-            f"Kallëzimi penal identifikon {total} të pandehur, "
-            f"të organizuar në {len(defendants_groups)} grupe."
-        )
+        lines.append(f"Total: {total} të pandehur në {len(defendants_groups)} grupe.")
         lines.append("")
 
         for group in defendants_groups:
             group_key = group.get("group", "?")
             title = group.get("title", "")
-            subtitle = group.get("subtitle", "")
-
             lines.append(f"GRUPI {group_key}: {title}")
-            if subtitle:
-                lines.append(f"  ({subtitle[:120]})")
             for d in group.get("defendants", []):
                 num = d.get("number", "")
                 name = d.get("name", "")
@@ -1961,78 +2037,11 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                 lines.append(f"  {num}. {name} — {role}")
             lines.append("")
 
-    def _append_document_section(self, lines, idx, ext):
-        lines.append("=" * 70)
-        lines.append(f"DOKUMENTI #{idx}: {ext.get('file_name', 'N/A')}")
-        lines.append("=" * 70)
-        lines.append(f"Lloji: {ext.get('document_type', 'N/A')}")
-        lines.append(f"Madhësia: {ext.get('text_length', 0):,} chars")
-        lines.append("")
-
-        meta = ext.get("metadata") or {}
-        meta_lines = []
-        for k, v in meta.items():
-            if v in (None, "", [], {}):
-                continue
-            v_str = str(v)
-            if len(v_str) > 150:
-                v_str = v_str[:150] + "..."
-            meta_lines.append(f"  {k}: {v_str}")
-        if meta_lines:
-            lines.append("METADATA:")
-            lines.extend(meta_lines)
-            lines.append("")
-
-        ebt = ext.get("entities_by_type", {})
-        entity_order = [
-            ("PARTY", 30), ("JUDGE", 20), ("PROSECUTOR", 20),
-            ("LAWYER", 20), ("WITNESS", 30), ("COURT", 20), ("ORGANIZATION", 30),
-        ]
-        for label, limit in entity_order:
-            items = ebt.get(label, [])
-            if not items:
-                continue
-            lines.append(f"[{label}] — {len(items)}:")
-            for item in items[:limit]:
-                lines.append(f"  • {item.get('text', '')}")
-            if len(items) > limit:
-                lines.append(f"  ... dhe {len(items) - limit} të tjera")
-            lines.append("")
-
-        statutes = ebt.get("STATUTE", [])
-        if statutes:
-            lines.append(f"[STATUTE] — {len(statutes)}:")
-            for item in statutes[:40]:
-                lines.append(f"  • {item.get('text', '')}")
-            if len(statutes) > 40:
-                lines.append(f"  ... dhe {len(statutes) - 40} të tjera")
-            lines.append("")
-
-        articles = ebt.get("ARTICLE", [])
-        if articles:
-            lines.append(f"[ARTICLE] — {len(articles)}:")
-            for item in articles[:60]:
-                lines.append(f"  • {item.get('text', '')}")
-            if len(articles) > 60:
-                lines.append(f"  ... dhe {len(articles) - 60} të tjera")
-            lines.append("")
-
-        case_nums = ebt.get("CASE_NUMBER", [])
-        if case_nums:
-            lines.append(f"[CASE_NUMBER] — {len(case_nums)}:")
-            for item in case_nums[:40]:
-                lines.append(f"  • {item.get('text', '')}")
-            if len(case_nums) > 40:
-                lines.append(f"  ... dhe {len(case_nums) - 40} të tjera")
-            lines.append("")
-
-        lines.append("")
-
     def _find_primary_document(self, extractions):
         priorities = [
             ("kallëzim", "kallzim"),
             ("aktakuzë", "aktakuze"),
-            ("padi", "kërkesëpadi", "kerkesepadi"),
+            ("padi", "kërkesëpadi"),
             ("aktgjykim", "aktvendim"),
         ]
         for keywords in priorities:
@@ -2058,35 +2067,15 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
 
     def _append_cross_references(self, lines, xrefs):
         lines.append("=" * 70)
-        lines.append("LIDHJET MIDIS DOKUMENTEVE (CROSS-REFERENCES)")
+        lines.append("LIDHJET MIDIS DOKUMENTEVE")
         lines.append("=" * 70)
-
         doc_refs = xrefs.get("document_references", [])
         if doc_refs:
-            lines.append(f"\nReferencat dokument-dokument ({len(doc_refs)}):")
             for ref in doc_refs[:20]:
                 lines.append(
                     f"  • '{ref.get('source_file_name')}' → "
-                    f"'{ref.get('target_file_name')}' "
-                    f"(përmes {ref.get('via_case_number')})"
+                    f"'{ref.get('target_file_name')}'"
                 )
-
-        cn_chain = xrefs.get("case_number_chain", {})
-        if cn_chain:
-            shared = {k: v for k, v in cn_chain.items() if len(v) > 1}
-            if shared:
-                lines.append(f"\nNumrat e lëndës në shumë dokumente:")
-                for cn, docs in sorted(shared.items(), key=lambda x: -len(x[1]))[:15]:
-                    lines.append(f"  • '{cn}' — në {len(docs)} dokumente")
-
-        party_app = xrefs.get("party_appearances", {})
-        if party_app:
-            multi = {k: v for k, v in party_app.items() if len(v) > 1}
-            if multi:
-                lines.append(f"\nPersonat në shumë dokumente:")
-                for name, docs in sorted(multi.items(), key=lambda x: -len(x[1]))[:20]:
-                    lines.append(f"  • '{name}' — në {len(docs)} dokumente")
-
         lines.append("")
 
     # ────────────────────────────────────────────────────────────────────
@@ -2098,27 +2087,22 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
             c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             doc = self.db.cases.find_one({"_id": c_oid})
             return doc or {}
-        except Exception as e:
-            logger.warning(f"⚠️ [SYNTHESIS] Could not load case: {e}")
+        except Exception:
             return {}
 
     def _load_extractions(self, case_id):
         try:
             query = {"case_id": str(case_id), "status": "completed"}
-            cursor = self.db[EXTRACTION_COLLECTION].find(query).sort(
-                [("completed_at", 1)]
-            )
+            cursor = self.db[EXTRACTION_COLLECTION].find(query).sort([("completed_at", 1)])
             return list(cursor)
-        except Exception as e:
-            logger.error(f"❌ [SYNTHESIS] load_extractions failed: {e}")
+        except Exception:
             return []
 
     def _load_cross_refs(self, case_id):
         try:
             doc = self.db[CROSS_REF_COLLECTION].find_one({"case_id": str(case_id)})
             return doc or {}
-        except Exception as e:
-            logger.warning(f"⚠️ [SYNTHESIS] load_cross_refs failed: {e}")
+        except Exception:
             return {}
 
     # ────────────────────────────────────────────────────────────────────
@@ -2160,8 +2144,7 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                 "case_id": str(case_id),
                 "scope": "case",
             })
-        except Exception as e:
-            logger.error(f"❌ [SYNTHESIS] load failed: {e}")
+        except Exception:
             return None
 
 
