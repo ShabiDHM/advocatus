@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.9
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.9.1
+// V2.9.1: reportSource tracking (saved/cache/fresh) — banner shfaqet edhe kur cache vjen nga SSE.
 // V2.9: Banner informues kur raport ekziston + butoni "Rianalizo" (force_reprocess).
 // V2.8: Auto-start prop — analiza fillon automatikisht kur nuk ka raport.
 // V2.7: Word export colors si konstante.
@@ -20,7 +21,7 @@ import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WORD EXPORT COLORS
+// WORD EXPORT COLORS — Për eksport në Microsoft Word (jo UI)
 // ═══════════════════════════════════════════════════════════════════════════
 const WORD_CODE_BG = '#f1f5f9';
 const WORD_BLOCKQUOTE_BORDER = '#2563eb';
@@ -31,7 +32,7 @@ const WORD_HEADING_COLOR = '#0f172a';
 const WORD_BODY_COLOR = '#1e293b';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// V2.9: DATE FORMATTER (Albanian)
+// DATE FORMATTER (Albanian)
 // ═══════════════════════════════════════════════════════════════════════════
 const ALBANIAN_MONTHS = [
   'Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor',
@@ -288,6 +289,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
   // V2.9: Last audit timestamp
   const [lastAuditedAt, setLastAuditedAt] = useState<string | null>(null);
+  // V2.9.1: Source of report — fresh / cache / saved
+  const [reportSource, setReportSource] = useState<'fresh' | 'cache' | 'saved' | null>(null);
 
   // V2.8: Auto-start tracking
   const [hasCheckedSavedReport, setHasCheckedSavedReport] = useState<boolean>(false);
@@ -338,24 +341,28 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       setIsLoading(false);
       setHasCheckedSavedReport(false);
       setLastAuditedAt(null);
+      setReportSource(null);
 
       apiService.getCaseDetails(caseId)
         .then((details: any) => {
           const savedAudit = details?.latest_dossier_analysis || '';
           if (savedAudit && typeof savedAudit === 'string' && savedAudit.trim().length > 50) {
             setReportContent(savedAudit);
-            // V2.9: Capture last audit timestamp
             const auditedAt = details?.last_dossier_audited_at;
             setLastAuditedAt(auditedAt || null);
+            // V2.9.1: Mark source as 'saved'
+            setReportSource('saved');
           } else {
             setReportContent('');
             setLastAuditedAt(null);
+            setReportSource(null);
           }
           setHasCheckedSavedReport(true);
         })
         .catch(() => {
           setReportContent('');
           setLastAuditedAt(null);
+          setReportSource(null);
           setHasCheckedSavedReport(true);
         });
     } else {
@@ -384,7 +391,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [reportContent, isLoading]);
 
-  // ═══ V2.9: handleGenerateAudit me forceReprocess param ═══
+  // ═══ handleGenerateAudit me forceReprocess param ═══
   const handleGenerateAudit = useCallback(async (forceReprocess: boolean = false) => {
     if (!caseId || isLoading || isPurging || isSaving) return;
 
@@ -393,7 +400,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
     setIsLoading(true);
     setReportContent('');
-    setLastAuditedAt(null);  // V2.9: clear timestamp kur fillon analiza e re
+    setLastAuditedAt(null);
+    setReportSource(null);
     setCurrentPhase('extraction');
     setPhaseLabel('Fillo...');
     setProgressDetail('');
@@ -405,7 +413,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     setRuntimeScope(null);
 
     try {
-      // V2.9: kalon forceReprocess
       const stream = apiService.streamCaseAnalysis(caseId, forceReprocess, documentIds);
 
       for await (const evt of stream) {
@@ -491,6 +498,9 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
           if (fromCache && content.trim() && !hasReceivedChunksRef.current) {
             setPhaseLabel('Duke shfaqur raportin...');
+            // V2.9.1: Mark source as 'cache' + set timestamp
+            setReportSource('cache');
+            setLastAuditedAt(new Date().toISOString());
             await applyTypewriter(
               content,
               (partial) => {
@@ -530,6 +540,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
           await apiService.saveCaseDossierAudit(caseId, finalMarkdown);
           // V2.9: Update lastAuditedAt me timestamp e tanishëm
           setLastAuditedAt(new Date().toISOString());
+          // V2.9.1: Shëno si 'fresh' nëse nuk ishte cache — analiza e re
+          setReportSource(prev => prev === 'cache' ? 'cache' : 'fresh');
         } catch (saveErr) {
           console.error("Save error:", saveErr);
           alert("Raporti u gjenerua por nuk mund të ruhej në server.");
@@ -550,7 +562,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [caseId, caseName, isLoading, isPurging, isSaving, documentIds, phasesToShow, effectiveScope]);
 
-  // ═══ V2.8: AUTO-START — vetëm kur NUK ka raport ekzistues ═══
+  // ═══ AUTO-START — vetëm kur NUK ka raport ekzistues ═══
   useEffect(() => {
     if (
       isOpen &&
@@ -564,7 +576,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     ) {
       hasAutoStartedRef.current = true;
       const timer = setTimeout(() => {
-        handleGenerateAudit(false);  // forceReprocess=false (nuk ka cache)
+        handleGenerateAudit(false);
       }, 150);
       return () => clearTimeout(timer);
     }
@@ -589,6 +601,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       await apiService.clearCaseDossierAudit(caseId);
       setReportContent('');
       setLastAuditedAt(null);
+      setReportSource(null);
       setCompletedPhases([]);
       setCurrentPhase('idle');
       accumulatedRef.current = '';
@@ -601,7 +614,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   };
 
   const handleRegenerate = () => {
-    // V2.9: Fshij raportin aktual dhe fillon analiza e re me force_reprocess=true
     handleGenerateAudit(true);
   };
 
@@ -643,7 +655,10 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
   if (!isOpen) return null;
 
-  const showReportBanner = Boolean(reportContent.trim()) && !isLoading && Boolean(lastAuditedAt);
+  // V2.9.1: Banner shows if report exists AND is not a fresh generation
+  const showReportBanner = Boolean(reportContent.trim())
+    && !isLoading
+    && (reportSource === 'cache' || reportSource === 'saved');
 
   return (
     <AnimatePresence>
@@ -828,7 +843,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
               </div>
             ) : (
               <>
-                {/* ═══ V2.9: BANNER — Raport ekzistues ═══ */}
+                {/* V2.9.1: BANNER — Raport ekzistues (saved ose cache) */}
                 {showReportBanner && (
                   <div className="mb-4 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
@@ -837,10 +852,14 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs sm:text-sm font-bold text-text-primary">
-                          Ky raport ekziston nga një analizë e mëparshme
+                          {reportSource === 'cache'
+                            ? 'Ky raport është shfaqur nga cache e serverit'
+                            : 'Ky raport ekziston nga një analizë e mëparshme'}
                         </p>
                         <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
-                          Gjeneruar më <span className="font-mono font-semibold text-text-secondary">{formatAuditDate(lastAuditedAt)}</span>
+                          {reportSource === 'cache'
+                            ? 'Kliko "Rianalizo" për të gjeneruar nga e para'
+                            : <>Gjeneruar më <span className="font-mono font-semibold text-text-secondary">{formatAuditDate(lastAuditedAt)}</span></>}
                         </p>
                       </div>
                     </div>
