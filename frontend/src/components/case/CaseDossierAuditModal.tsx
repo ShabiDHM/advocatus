@@ -1,10 +1,12 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.9.1
-// V2.9.1: reportSource tracking (saved/cache/fresh) — banner shfaqet edhe kur cache vjen nga SSE.
-// V2.9: Banner informues kur raport ekziston + butoni "Rianalizo" (force_reprocess).
-// V2.8: Auto-start prop — analiza fillon automatikisht kur nuk ka raport.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.9.2
+// V2.9.2: Banner u zhvendos JASHTË body-t scrollable (gjithmonë i dukshëm).
+//         Cache detection edhe nga phase_skipped (më i sigurt).
+// V2.9.1: reportSource tracking (saved/cache/fresh).
+// V2.9: Banner + butoni "Rianalizo".
+// V2.8: Auto-start prop.
 // V2.7: Word export colors si konstante.
-// V2.6: Dynamic title based on scope (case vs document).
+// V2.6: Dynamic title based on scope.
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,7 +23,7 @@ import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WORD EXPORT COLORS — Për eksport në Microsoft Word (jo UI)
+// WORD EXPORT COLORS
 // ═══════════════════════════════════════════════════════════════════════════
 const WORD_CODE_BG = '#f1f5f9';
 const WORD_BLOCKQUOTE_BORDER = '#2563eb';
@@ -64,10 +66,6 @@ interface CaseDossierAuditModalProps {
   documentCount?: number;
   documentIds?: string[];
   documentNames?: string[];
-  /**
-   * V2.8: Nëse true, fillon analizën automatikisht kur modal hapet
-   * dhe nuk ekziston raport i ruajtur.
-   */
   autoStart?: boolean;
 }
 
@@ -287,12 +285,9 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
   const [runtimeScope, setRuntimeScope] = useState<'case' | 'document' | null>(null);
 
-  // V2.9: Last audit timestamp
   const [lastAuditedAt, setLastAuditedAt] = useState<string | null>(null);
-  // V2.9.1: Source of report — fresh / cache / saved
   const [reportSource, setReportSource] = useState<'fresh' | 'cache' | 'saved' | null>(null);
 
-  // V2.8: Auto-start tracking
   const [hasCheckedSavedReport, setHasCheckedSavedReport] = useState<boolean>(false);
   const hasAutoStartedRef = useRef<boolean>(false);
 
@@ -350,7 +345,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             setReportContent(savedAudit);
             const auditedAt = details?.last_dossier_audited_at;
             setLastAuditedAt(auditedAt || null);
-            // V2.9.1: Mark source as 'saved'
             setReportSource('saved');
           } else {
             setReportContent('');
@@ -391,7 +385,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [reportContent, isLoading]);
 
-  // ═══ handleGenerateAudit me forceReprocess param ═══
+  // ═══ handleGenerateAudit ═══
   const handleGenerateAudit = useCallback(async (forceReprocess: boolean = false) => {
     if (!caseId || isLoading || isPurging || isSaving) return;
 
@@ -441,8 +435,14 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
           continue;
         }
 
+        // ═══ V2.9.2: Detect cache from phase_skipped (final phase) ═══
         if (evtType === 'phase_skipped') {
           setCompletedPhases(prev => [...prev, evt.phase as PhaseKey]);
+          const skippedPhase = evt.phase;
+          if (skippedPhase === 'synthesis' || skippedPhase === 'document_review') {
+            setReportSource('cache');
+            setLastAuditedAt(prev => prev || new Date().toISOString());
+          }
           continue;
         }
 
@@ -498,9 +498,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
           if (fromCache && content.trim() && !hasReceivedChunksRef.current) {
             setPhaseLabel('Duke shfaqur raportin...');
-            // V2.9.1: Mark source as 'cache' + set timestamp
             setReportSource('cache');
-            setLastAuditedAt(new Date().toISOString());
+            setLastAuditedAt(prev => prev || new Date().toISOString());
             await applyTypewriter(
               content,
               (partial) => {
@@ -538,9 +537,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
         setIsSaving(true);
         try {
           await apiService.saveCaseDossierAudit(caseId, finalMarkdown);
-          // V2.9: Update lastAuditedAt me timestamp e tanishëm
           setLastAuditedAt(new Date().toISOString());
-          // V2.9.1: Shëno si 'fresh' nëse nuk ishte cache — analiza e re
           setReportSource(prev => prev === 'cache' ? 'cache' : 'fresh');
         } catch (saveErr) {
           console.error("Save error:", saveErr);
@@ -562,7 +559,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [caseId, caseName, isLoading, isPurging, isSaving, documentIds, phasesToShow, effectiveScope]);
 
-  // ═══ AUTO-START — vetëm kur NUK ka raport ekzistues ═══
+  // ═══ AUTO-START ═══
   useEffect(() => {
     if (
       isOpen &&
@@ -655,7 +652,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
   if (!isOpen) return null;
 
-  // V2.9.1: Banner shows if report exists AND is not a fresh generation
+  // V2.9.2: Banner shows if report exists AND is not fresh
   const showReportBanner = Boolean(reportContent.trim())
     && !isLoading
     && (reportSource === 'cache' || reportSource === 'saved');
@@ -784,6 +781,39 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           )}
 
+          {/* ═══ V2.9.2: BANNER — I DUKSHËM GJITHMONË (jashtë scroll) ═══ */}
+          {showReportBanner && (
+            <div className="mt-3 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-primary-start/15 flex items-center justify-center shrink-0">
+                  <Calendar size={15} className="text-primary-start" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-bold text-text-primary">
+                    {reportSource === 'cache'
+                      ? 'Ky raport është shfaqur nga cache e serverit'
+                      : 'Ky raport ekziston nga një analizë e mëparshme'}
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
+                    {reportSource === 'cache'
+                      ? 'Kliko "Rianalizo" për të gjeneruar nga e para'
+                      : <>Gjeneruar më <span className="font-mono font-semibold text-text-secondary">{formatAuditDate(lastAuditedAt)}</span></>}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                disabled={isLoading || isSaving || isPurging}
+                className="h-9 px-4 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
+                title="Rianalizo nga e para — injoron cache-në"
+              >
+                <RotateCcw size={13} />
+                <span>Rianalizo</span>
+              </button>
+            </div>
+          )}
+
           {/* Body */}
           <div
             ref={scrollContainerRef}
@@ -842,47 +872,11 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 </p>
               </div>
             ) : (
-              <>
-                {/* V2.9.1: BANNER — Raport ekzistues (saved ose cache) */}
-                {showReportBanner && (
-                  <div className="mb-4 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
-                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                      <div className="w-8 h-8 rounded-lg bg-primary-start/15 flex items-center justify-center shrink-0">
-                        <Calendar size={15} className="text-primary-start" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-text-primary">
-                          {reportSource === 'cache'
-                            ? 'Ky raport është shfaqur nga cache e serverit'
-                            : 'Ky raport ekziston nga një analizë e mëparshme'}
-                        </p>
-                        <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
-                          {reportSource === 'cache'
-                            ? 'Kliko "Rianalizo" për të gjeneruar nga e para'
-                            : <>Gjeneruar më <span className="font-mono font-semibold text-text-secondary">{formatAuditDate(lastAuditedAt)}</span></>}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRegenerate}
-                      disabled={isLoading || isSaving || isPurging}
-                      className="h-9 px-4 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
-                      title="Rianalizo nga e para — injoron cache-në"
-                    >
-                      <RotateCcw size={13} />
-                      <span>Rianalizo</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Markdown content */}
-                <div className="markdown-content fast-case-dossier-audit prose prose-slate dark:prose-invert max-w-none text-text-primary">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                    {autoLinkLegalCitations(reportContent)}
-                  </ReactMarkdown>
-                </div>
-              </>
+              <div className="markdown-content fast-case-dossier-audit prose prose-slate dark:prose-invert max-w-none text-text-primary">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {autoLinkLegalCitations(reportContent)}
+                </ReactMarkdown>
+              </div>
             )}
 
             {showScrollBottomBtn && (
