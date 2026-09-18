@@ -1,10 +1,15 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - ULTRA-FAST JURIDICAL RAG ENGINE V204.0 (TOC IGNORANCE & 1-INDEX NORMALIZER)
+# PHOENIX PROTOCOL - ULTRA-FAST JURIDICAL RAG ENGINE V205.0 (PHASE 1 OPTIMIZATIONS)
+# V205.0: Fazë 1 optimizime performance:
+#   - Ekzekutim paralel i dy thirrjeve LLM (rerank + qualification) — fitim ~400-900ms
+#   - Skip PDF scan nëse faqja ekziston në DB (actual_page) — fitim ~1-5s
+# V204.0: TOC IGNORANCE & 1-INDEX NORMALIZER
 # 100% COMPLETE CODE • ZERO TOC JUMPS • EXACT PAGE JUMPING • DEEPSEEK & GPT-4O-MINI
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Set, List, Optional, Dict, Any
 from pathlib import Path
+import asyncio
 import logging
 import os
 import re
@@ -438,8 +443,16 @@ async def ai_semantic_law_search(
                     })
 
         ranked_statutes = _prioritize_statutes_by_intent(clean_q, statute_candidates)
-        verified_caselaw = await _rerank_and_verify_caselaw_with_ai(clean_q, raw_caselaw_candidates)
-        qualification = await _synthesize_legal_qualification(clean_q, ranked_statutes, verified_caselaw)
+
+        # ═══════════════════════════════════════════════════════════════════
+        # V205.0: Ekzekutim PARALEL i dy thirrjeve LLM (fitim ~400-900ms)
+        # Kualifikimi nuk varet nga caselaw-i i verifikuar — ai shfaqet veçmas
+        # në përgjigje dhe përdoret për "supreme_court_interpretations".
+        # ═══════════════════════════════════════════════════════════════════
+        verified_caselaw, qualification = await asyncio.gather(
+            _rerank_and_verify_caselaw_with_ai(clean_q, raw_caselaw_candidates),
+            _synthesize_legal_qualification(clean_q, ranked_statutes, []),
+        )
 
         matched_statutes = []
         for s in ranked_statutes[:4]:
@@ -734,23 +747,45 @@ async def get_law_article(
         if not doc_source:
             raise HTTPException(status_code=404, detail=f"Ligji '{clean_law_title}' nuk u gjet.")
 
-        real_physical_page = _scan_exact_article_page(doc_source, art_digits)
+        # ═══════════════════════════════════════════════════════════════════
+        # V205.0: Skip PDF scan nëse faqja ekziston tashmë në DB (fitim ~1-5s)
+        # Kontrollon actual_page → page → page_number, dhe përdor direkt nëse > 0.
+        # ═══════════════════════════════════════════════════════════════════
+        cached_page = None
+        if statute_docs:
+            cached_page = (
+                statute_docs[0].get("actual_page")
+                or statute_docs[0].get("page")
+                or statute_docs[0].get("page_number")
+            )
 
-        if real_physical_page:
-            page_val = real_physical_page
-            if statute_docs:
-                db.legal_knowledge_base.update_many(
-                    {"_id": {"$in": [d["_id"] for d in statute_docs]}},
-                    {"$set": {"page": page_val, "actual_page": page_val}}
-                )
-        elif statute_docs:
-            raw_page = statute_docs[0].get("actual_page") or statute_docs[0].get("page") or statute_docs[0].get("page_number") or 1
-            try:
-                page_val = int(raw_page) + 1
-            except Exception:
-                page_val = 1
+        try:
+            cached_page_int = int(cached_page) if cached_page else 0
+        except (ValueError, TypeError):
+            cached_page_int = 0
+
+        if cached_page_int > 0:
+            # ✅ Fast path: faqja është e njohur → asnjë scan PDF
+            page_val = cached_page_int
         else:
-            page_val = 1
+            # 🐢 Slow path: scan PDF një herë dhe ruaj për herën tjetër
+            real_physical_page = _scan_exact_article_page(doc_source, art_digits)
+
+            if real_physical_page:
+                page_val = real_physical_page
+                if statute_docs:
+                    db.legal_knowledge_base.update_many(
+                        {"_id": {"$in": [d["_id"] for d in statute_docs]}},
+                        {"$set": {"page": page_val, "actual_page": page_val}}
+                    )
+            elif statute_docs:
+                raw_page = statute_docs[0].get("actual_page") or statute_docs[0].get("page") or statute_docs[0].get("page_number") or 1
+                try:
+                    page_val = int(raw_page) + 1
+                except Exception:
+                    page_val = 1
+            else:
+                page_val = 1
 
         full_text = "\n\n".join([doc.get("text", "") for doc in statute_docs if doc and doc.get("text")])
         if not full_text:

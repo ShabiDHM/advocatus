@@ -1,6 +1,8 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V97.0 (100% PURGED • ZERO RESIDUAL ARTIFACTS)
-# 100% COMPLETE CODE • ZERO 'FAST/DEEP' ARTIFACTS • ZERO MODEL OVERRIDES • EXCLUSIVE LLM_MODEL
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.0
+# V98.0: Shtuar parametër opsional `model` në generate_stream/_call_with_retry.
+#        Chat-i i klientit kalon FAST_SEARCH_MODEL (gpt-4o-mini).
+#        Law Audit vazhdon me default (DEEP_ANALYSIS_MODEL - deepseek).
 
 import logging
 import asyncio
@@ -30,7 +32,8 @@ OPENROUTER_HEADERS = {
 
 
 def _get_target_model() -> str:
-    """Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL."""
+    """Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL.
+    Përdoret si fallback kur generate_stream nuk jep model eksplicit."""
     model = getattr(settings, "LLM_MODEL", None) or os.getenv("LLM_MODEL", "") or "deepseek/deepseek-chat"
     if "claude" in model.lower() or "anthropic" in model.lower():
         model = "deepseek/deepseek-chat"
@@ -38,7 +41,7 @@ def _get_target_model() -> str:
 
 
 def _get_provider_routing_payload() -> Dict[str, Any]:
-    """Lejon të gjithë ofruesit zyrtarë të DeepSeek me failover automatik dhe zero bllokime 404."""
+    """Lejon të gjithë ofruesit zyrtarë me failover automatik dhe zero bllokime 404."""
     return {
         "provider": {
             "allow_fallbacks": True
@@ -48,9 +51,10 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
 
 class ResponseGenerator:
     """
-    Gjeneruesi Qendror i Përgjigjeve (V97.0):
-    - Motor i Vetëm dhe i Unifikuar: DeepSeek nga settings.LLM_MODEL.
-    - Zero mbeturina (u fshinë përfundimisht 'FAST/DEEP' dhe 'model_override').
+    Gjeneruesi Qendror i Përgjigjeve (V98.0):
+    - Motor i vetëm me parametër opsional `model`:
+        * Chat-i i klientit → FAST_SEARCH_MODEL (gpt-4o-mini)
+        * Law Audit / other → default DEEP_ANALYSIS_MODEL (deepseek)
     - Mbrojtje e plotë nga mbingarkesat (429 Auto-Retry me 3 tentativa).
     """
 
@@ -59,13 +63,14 @@ class ResponseGenerator:
         self.client = _get_async_client()
 
     async def _call_with_retry(
-        self, 
-        messages: List[Dict[str, str]], 
-        stream: bool = True, 
-        max_tokens: int = 8192
+        self,
+        messages: List[Dict[str, str]],
+        stream: bool = True,
+        max_tokens: int = 8192,
+        model: Optional[str] = None,
     ):
         last_error = None
-        target_model = _get_target_model()
+        target_model = model if model else _get_target_model()
 
         kwargs: Dict[str, Any] = {
             "model": target_model,
@@ -76,22 +81,21 @@ class ResponseGenerator:
             "extra_body": _get_provider_routing_payload()
         }
 
-        # Riprovon deri në 3 herë me DeepSeek nëse ka 429
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                logger.info(f"⚖️ [Client AI Engine] Ekzekutim në {target_model} (Përpjekja {attempt})...")
+                logger.info(f"⚖️ [ResponseGenerator] Ekzekutim në {target_model} (Përpjekja {attempt})...")
                 response = await self.client.chat.completions.create(**kwargs)
                 return response
             except Exception as e:
                 last_error = e
                 err_str = str(e).lower()
                 if "429" in err_str or "rate limit" in err_str:
-                    logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek. Po pres {2 * attempt}s...")
+                    logger.warning(f"⚠️ [Rate Limit 429] në {target_model}. Po pres {2 * attempt}s...")
                     await asyncio.sleep(2.0 * attempt)
                     continue
-                logger.warning(f"⚠️ Dështoi përpjekja {attempt} në DeepSeek: {e}")
+                logger.warning(f"⚠️ Dështoi përpjekja {attempt} në {target_model}: {e}")
                 await asyncio.sleep(1.5)
-        
+
         raise last_error if last_error else Exception("Shërbimi është përkohësisht i ngarkuar nga fluksi.")
 
     async def generate_stream(
@@ -99,11 +103,16 @@ class ResponseGenerator:
         system_prompt: str,
         user_query: str,
         context: str = "",
-        history: Optional[List[Dict[str, Any]]] = None
+        history: Optional[List[Dict[str, Any]]] = None,
+        model: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
+        """
+        model: Nëse None → përdor _get_target_model() (DeepSeek).
+               Nëse jepet → përdor atë model (p.sh. FAST_SEARCH_MODEL për chat).
+        """
         try:
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
-            
+
             enhanced_system_prompt = f"""
 {full_context_content}
 
@@ -113,7 +122,7 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
 3. Bazo çdo zgjidhje në ligjet pozitive dhe shkresat reale të fashikullit.
 """
             messages = [{"role": "system", "content": enhanced_system_prompt[:MAX_SINGLE_PASS_CHARS]}]
-            
+
             if history and isinstance(history, list):
                 for h in history[-8:]:
                     r = "assistant" if h.get("role") in ["ai", "assistant"] else "user"
@@ -122,19 +131,21 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
                         messages.append({"role": r, "content": c})
 
             messages.append({"role": "user", "content": user_query})
-            
+
             response = await self._call_with_retry(
-                messages, 
-                stream=True, 
-                max_tokens=8192
+                messages,
+                stream=True,
+                max_tokens=8192,
+                model=model,
             )
-            
+
             async for chunk in response:
                 if chunk.choices and len(chunk.choices) > 0:
                     choice = chunk.choices[0]
                     if choice.delta and choice.delta.content:
                         yield choice.delta.content
-                    
+
         except Exception as e:
-            logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve në DeepSeek: {e}")
+            target_model = model if model else _get_target_model()
+            logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve në {target_model}: {e}")
             yield f"\n\n[Shërbimi është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"

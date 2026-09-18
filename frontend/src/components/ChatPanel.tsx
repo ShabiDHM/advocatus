@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V95.0 (LEGACY FORENSIC PROMPT HANDLER PURGED)
+// PHOENIX PROTOCOL - CHAT PANEL V96.0 (STATIC DISCLAIMER FOOTER)
 // ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • 100% COMPLETE CODE • ULTRA 60FPS TYPING
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -608,6 +608,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
           </div>
         )}
       </div>
+
+      {/* V96.0: DISCLAIMER FOOTER STATIK — shfaqet vetëm kur ka mesazhe */}
+      {displayMessages.length > 0 && (
+        <div className="px-3 sm:px-4 py-2 bg-surface/50 border-t border-main/60 shrink-0">
+          <p className="text-[9px] sm:text-[10px] text-text-muted leading-snug text-center max-w-5xl mx-auto">
+            ⚖️ <span className="font-semibold text-text-secondary">KLAUZOLË E PËRGJEGJËSISË LIGJORE:</span>{' '}
+            Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Juristi AI për qëllime informative, kërkimore dhe mbështetjeje profesionale. Nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin pozitiv në fuqi para përdorimit zyrtar.
+          </p>
+        </div>
+      )}
 
       {/* INPUT AREA */}
       <div className="p-3 sm:p-4 bg-surface shrink-0 z-20">

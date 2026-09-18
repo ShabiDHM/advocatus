@@ -1,5 +1,5 @@
 // FILE: src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V77.0 (STRICT SUPREME-ONLY CITATION FILTER)
+// PHOENIX PROTOCOL - CHAT HELPERS V78.0 (DISCLAIMER FOOTER MODE)
 // 100% COMPLETE CODE • ZERO APPEALS/BASIC COURT LINKS • ONLY GENUINE SUPREME PRECEDENTS
 
 interface StatuteDefinition {
@@ -204,27 +204,22 @@ export const autoLinkLegalCitations = (text: any): string => {
 export const extractFollowUpQuestions = (text: any): { cleanText: string; questions: string[] } => {
   if (!text || typeof text !== 'string') return { cleanText: '', questions: [] };
 
-  let disclaimerBlock = '';
+  // V78.0: Disclaimer-i u hoq nga chat-i — shfaqet vetëm si footer statik në ChatPanel.
+  // Nëse ende vjen nga backend (mbrojtje e dyfishtë), hiqet këtu pa u rikthyer.
   const disclaimerRegex = /(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË\s+E\s+PËRGJEGJËSISË\s+LIGJORE\*?\*?:?[\s\S]*$/i;
-  const disclaimerMatch = text.match(disclaimerRegex);
+  let textClean = text.replace(disclaimerRegex, '').trim();
 
-  let textWithoutDisclaimer = text;
-  if (disclaimerMatch) {
-    disclaimerBlock = disclaimerMatch[0].trim();
-    textWithoutDisclaimer = text.substring(0, disclaimerMatch.index).trim();
-  }
-
-  textWithoutDisclaimer = stripFakeSignatures(textWithoutDisclaimer);
+  textClean = stripFakeSignatures(textClean);
 
   const markerRegex = /(?:\n|^)(?:#{1,4}\s*)?(?:Sugjerime(?:\s+për\s+hapat\s+e\s+ardhshëm)?|Pyetje\s+sugjeruese|Pyetje\s+&?\s*Veprime\s+Taktike|Pyetje\s+për\s+hapat\s+e\s+ardhshëm|Hapat\s+e\s+Ardhshëm\s+të\s+Sugjeruar|🎯\s*\*\*Hapat\s+e\s+Sugjeruar)\s*:?/i;
-  const match = textWithoutDisclaimer.match(markerRegex);
+  const match = textClean.match(markerRegex);
 
-  let cleanText = textWithoutDisclaimer;
+  let cleanText = textClean;
   let questions: string[] = [];
 
   if (match && match.index !== undefined) {
-    cleanText = textWithoutDisclaimer.substring(0, match.index).trim();
-    const suggestionsPart = textWithoutDisclaimer.substring(match.index + match[0].length).trim();
+    cleanText = textClean.substring(0, match.index).trim();
+    const suggestionsPart = textClean.substring(match.index + match[0].length).trim();
 
     questions = suggestionsPart
       .split(/\n+/)
@@ -238,10 +233,6 @@ export const extractFollowUpQuestions = (text: any): { cleanText: string; questi
       })
       .filter((q) => q.length > 5 && !q.startsWith('---') && !q.startsWith('*') && !q.includes('KLAUZOLË'))
       .slice(0, 4);
-  }
-
-  if (disclaimerBlock) {
-    cleanText = `${cleanText}\n\n${disclaimerBlock}`;
   }
 
   return { cleanText, questions };

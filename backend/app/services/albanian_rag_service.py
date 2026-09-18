@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V273.0
-# V273.0: Removed ForensicAuditService (orphaned).
-#   - Chat me 1 dok → shkon në UNIVERSAL_CHAT me RAG context të dokumentit
-#   - document_ids transmetohet në query_case_knowledge_base për scoping
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V274.0
+# V274.0: Chat-i kalon në FAST_SEARCH_MODEL (gpt-4o-mini).
+#         Hequr MANDATORY_LEGAL_DISCLAIMER (zhvendosur si footer statik në frontend).
 
 import os
 import logging
@@ -23,18 +22,12 @@ from app.services.pillars.base_pillar_service import BasePillarService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
+# Modeli i shpejtë për chat
+from app.services.llm.llm_client import FAST_SEARCH_MODEL
+
 logger = logging.getLogger(__name__)
 
 CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
-
-MANDATORY_LEGAL_DISCLAIMER = (
-    "\n\n---\n"
-    "⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**\n"
-    "*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Juristi AI për qëllime informative, "
-    "kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i "
-    "Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin "
-    "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
-)
 
 # 🧠 UDHËZIMI I RI I MENÇUR DHE I NATYRSHËM (ZERO SHABLLONE TË NGURTA)
 NATURAL_COUNSEL_INSTRUCTION = """
@@ -84,7 +77,7 @@ class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Natural Client Service V273.0 Initialized.")
+        logger.info(f"✅ [RAG] Juristi AI Natural Client Service V274.0 Initialized (chat model: {FAST_SEARCH_MODEL}).")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -198,7 +191,6 @@ class AlbanianRAGService:
             "baza ligjore", "nenet e ligjit", "nxirr nenet", "kontrollo nenet"
         ])
 
-        # V273.0: Intent detection — pa FORENSIC_AUDIT
         if is_case_wide_request:
             user_intent = "COMPREHENSIVE_ANALYSIS"
             single_doc_obj = None
@@ -219,9 +211,6 @@ class AlbanianRAGService:
             manifest_str=""
         )
 
-        # =========================================================================
-        # 🔍 FILLON GJENERIMI ME ARSYETIM TË LIRË DHE TË MENÇUR
-        # =========================================================================
         exec_query = optimized_query
         system_prompt = ""
 
@@ -339,9 +328,15 @@ class AlbanianRAGService:
             except Exception as e:
                 logger.warning(f"Could not save user chat message: {e}")
 
-        # Ekzekutimi me DeepSeek
+        # Ekzekutimi me FAST_SEARCH_MODEL (gpt-4o-mini)
         full_generated_response = ""
-        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context="", history=history):
+        async for content in self.response_generator.generate_stream(
+            system_prompt,
+            exec_query,
+            context="",
+            history=history,
+            model=FAST_SEARCH_MODEL,
+        ):
             full_generated_response += content
             yield content
 
@@ -358,4 +353,4 @@ class AlbanianRAGService:
             except Exception as e:
                 logger.warning(f"Could not save assistant chat message: {e}")
 
-        yield MANDATORY_LEGAL_DISCLAIMER
+        # V274.0: Disclaimer-i u hoq nga këtu — shfaqet vetëm si footer statik në frontend.
