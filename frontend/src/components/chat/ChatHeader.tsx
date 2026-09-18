@@ -1,9 +1,9 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V40.0 (BACKGROUND AUDIT BUTTON)
-// V40.0: Butoni "Analizo" shfaq spinner + status gjatë gjenerimit background.
-// V39.0: Fix — tab character brenda var(--status-success).
+// PHOENIX PROTOCOL - CHAT HEADER V41.0 (INLINE PROGRESS BAR)
+// V41.0: Progress bar inline zëvendëson label-in "Sesioni: ..." gjatë analizës.
+// V40.0: Background audit button me spinner.
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles, Loader2 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
@@ -21,9 +21,12 @@ interface ChatHeaderProps {
   onDocumentSelectionChange?: (ids: string[]) => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
-  // V40.0: Background generation state
+  // V41.0: Progress data
   isAuditGenerating?: boolean;
   auditProgressText?: string;
+  auditProgressPercent?: number;
+  auditPhaseLabel?: string;
+  auditStartTime?: number | null;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -35,14 +38,39 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isFullscreen = false,
   onToggleFullscreen,
   isAuditGenerating = false,
-  auditProgressText = '',
+  auditProgressPercent = 0,
+  auditPhaseLabel = '',
+  auditStartTime = null,
 }) => {
   const hasSelectedDoc = !!selectedDocName && selectedDocName.trim().length > 0;
 
+  // V41.0: Koha e kaluar live — tik çdo sekondë
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!isAuditGenerating || !auditStartTime) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(Math.floor((Date.now() - auditStartTime) / 1000));
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - auditStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isAuditGenerating, auditStartTime]);
+
+  const formatElapsed = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const safePercent = Math.min(100, Math.max(0, Math.round(auditProgressPercent)));
+
   return (
     <div className="flex flex-row items-center justify-between px-3 sm:px-5 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none shadow-xs">
-      {/* 1. MAJTAS: Drita LED + Emri i Dokumentit / Statusi i gjenerimit */}
-      <div className="flex items-center gap-2 shrink-0 min-w-0">
+      {/* 1. MAJTAS: LED + Progress bar (gjatë analizës) ose Emri i dokumentit */}
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         <span
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
             connectionStatus === 'CONNECTED'
@@ -53,12 +81,42 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         />
 
         {isAuditGenerating ? (
-          <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-primary-start/10 border border-primary-start/30 text-[11px] font-bold text-primary-start max-w-[260px] sm:max-w-[400px] truncate animate-pulse">
-            <Loader2 size={12} className="animate-spin shrink-0" />
-            <span className="truncate">{auditProgressText || 'Duke analizuar...'}</span>
-          </span>
+          // V41.0: Progress bar inline në vend të "Sesioni: ..."
+          <div className="flex-1 min-w-0 max-w-[280px] sm:max-w-[520px]">
+            <div className="relative h-7 bg-canvas border border-primary-start/40 rounded-full overflow-hidden">
+              {/* Fill background */}
+              <div
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary-start/25 to-primary-start/45 transition-all duration-300 ease-out"
+                style={{ width: `${safePercent}%` }}
+              />
+
+              {/* Text overlay */}
+              <div className="relative h-full flex items-center justify-between gap-1.5 sm:gap-2 px-2.5 sm:px-3">
+                {/* Përqindja */}
+                <span className="text-[10px] font-black text-primary-start tabular-nums shrink-0">
+                  {safePercent}%
+                </span>
+
+                {/* Faza — e fshehur në mobile shumë të vogël, e dukshme në sm+ */}
+                <span
+                  className="text-[10px] font-bold text-text-primary truncate flex-1 text-center hidden xs:block"
+                  title={auditPhaseLabel}
+                >
+                  {auditPhaseLabel || 'Duke analizuar...'}
+                </span>
+
+                {/* Koha */}
+                <span className="text-[10px] font-mono font-bold text-text-muted tabular-nums shrink-0">
+                  {formatElapsed(elapsed)}
+                </span>
+              </div>
+            </div>
+          </div>
         ) : selectedDocName ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-main text-[11px] font-medium text-text-secondary max-w-[180px] sm:max-w-[300px] truncate" title={`Shkresa aktive: ${selectedDocName}`}>
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-main text-[11px] font-medium text-text-secondary max-w-[180px] sm:max-w-[300px] truncate"
+            title={`Shkresa aktive: ${selectedDocName}`}
+          >
             <FileText size={12} className="text-primary-start shrink-0" />
             <span className="truncate">{selectedDocName}</span>
           </span>
@@ -71,7 +129,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
       {/* 2. DJATHTAS: Butoni dinamik, Fullscreen, Eksporti, Koshi */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-
         {/* Butoni Dinamik: Analizo Rastin / Analizo Dokumentin */}
         {onAnalyzeDocument && (
           <button
@@ -111,7 +168,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* BUTONI VETËM ME IKONË: ZGJERO / ZVOGËLO */}
+        {/* Fullscreen toggle */}
         {onToggleFullscreen && (
           <button
             type="button"
@@ -124,15 +181,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             title={isFullscreen ? "Zvogëlo dritaren (ESC)" : "Zgjero dritaren"}
             aria-label={isFullscreen ? "Zvogëlo dritaren" : "Zgjero dritaren"}
           >
-            {isFullscreen ? (
-              <Minimize2 size={15} />
-            ) : (
-              <Maximize2 size={15} />
-            )}
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </button>
         )}
 
-        {/* Butoni: Shkarko Bisedën */}
+        {/* Export */}
         {onExportChat && (
           <button
             type="button"
@@ -144,7 +197,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* Butoni: Pastro Bisedën (Koshi) */}
+        {/* Clear */}
         <button
           type="button"
           onClick={onClearChat}

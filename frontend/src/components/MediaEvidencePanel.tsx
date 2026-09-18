@@ -1,7 +1,9 @@
 // FILE: frontend/src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V15.0 (DIARIZATION SPEAKER UI)
+// PHOENIX PROTOCOL - MEDIA PANEL V17.0 (NATIVE BROWSER PROMPT)
+// V17.0: Hequr modal i lejes — kthehemi në thirrje direkte të getUserMedia().
+//        Shfletuesi shfaq popup-in e vetëm natyror (Allow/Block).
+//        Alert i thjeshtë nëse leja u refuzua më parë.
 // V15.0: Shfaqja e folësve (FOLËSI_A/B/C) me badge me ngjyra + backward compat.
-// V14.0: PORTAL-RENDERED MODAL
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -42,7 +44,7 @@ interface MediaEvidencePanelProps {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// SPEAKER COLOR MAPPING — Ngjyra të ndryshme sipas folësit
+// SPEAKER COLOR MAPPING
 // ═══════════════════════════════════════════════════════════════════════
 const SPEAKER_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
     'FOLËSI_A': {
@@ -80,7 +82,6 @@ const DEFAULT_SPEAKER_COLOR = {
 
 const getSpeakerColor = (speaker: string) => SPEAKER_COLORS[speaker] || DEFAULT_SPEAKER_COLOR;
 
-// Format "FOLËSI_A" → "Folësi A"
 const formatSpeakerLabel = (speaker: string): string => {
     return speaker
         .replace(/_/g, ' ')
@@ -205,6 +206,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         return '';
     };
 
+    // ═══════════════════════════════════════════════════════════════════
+    // V17.0: Thirrje direkte e getUserMedia() — browser shfaq popup-in natyror
+    // ═══════════════════════════════════════════════════════════════════
     const startRecording = async () => {
         try {
             const audioConstraints: MediaTrackConstraints = {
@@ -215,6 +219,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 channelCount: 1
             };
 
+            // Shfletuesi shfaq popup-in natyror "Allow / Block" nëse është hera e parë
             const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
             streamRef.current = stream;
 
@@ -273,12 +278,22 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             }, 1000);
 
         } catch (err: any) {
-            console.error("Microphone access denied:", err);
+            console.error("Microphone access error:", err);
             const errName = err?.name || '';
+
             if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-                alert("Sistemi ka nevojë për qasje në mikrofonin tuaj për të regjistruar dëshminë. Ju lutem jepni leje në shfletues.");
+                alert(
+                    "Qasja në mikrofon u refuzua.\n\n" +
+                    "Për ta riaktivizuar:\n" +
+                    "1. Kliko ikonën 🔒 në shiritin e URL-së\n" +
+                    "2. Zgjidh \"Site settings\" / \"Cilësimet e faqes\"\n" +
+                    "3. Gjej \"Microphone\" → ndryshoje në \"Allow\"\n" +
+                    "4. Rifresko faqen"
+                );
             } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
                 alert("Nuk u gjet asnjë mikrofon në pajisjen tuaj.");
+            } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+                alert("Mikrofoni është duke u përdorur nga një aplikacion tjetër. Mbyllni aplikacionet e tjera dhe provoni përsëri.");
             } else {
                 alert(`Dështoi regjistrimi: ${err?.message || 'Gabim i panjohur'}`);
             }
@@ -355,9 +370,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     const authToken = apiService.getToken();
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // KALKULO NUMRIN E FOLËSVE UNIKË (për header info)
-    // ═══════════════════════════════════════════════════════════════════════
     const uniqueSpeakers = useMemo(() => {
         if (!selectedMedia?.segments || selectedMedia.segments.length === 0) return [];
         const set = new Set<string>();
@@ -559,7 +571,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </button>
                             </div>
 
-                            {/* Bar info për folësit (V15.0) */}
+                            {/* Bar info për folësit */}
                             {uniqueSpeakers.length > 0 && (
                                 <div className="flex items-center gap-2 pb-3 shrink-0 overflow-x-auto">
                                     <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-bold text-text-muted uppercase tracking-wider shrink-0">
@@ -582,10 +594,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </div>
                             )}
 
-                            {/* Modal Body - Transkripti me Folës + Sekonda */}
+                            {/* Modal Body */}
                             <div className="flex-1 overflow-y-auto custom-finance-scroll p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner bg-canvas">
                                 <div className="space-y-2.5 text-sm leading-relaxed">
-                                    {/* V15.0: Prioritet — Segments të strukturuara */}
                                     {selectedMedia.segments && selectedMedia.segments.length > 0 ? (
                                         selectedMedia.segments.map((seg, idx) => {
                                             const color = getSpeakerColor(seg.speaker);
@@ -609,7 +620,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                             );
                                         })
                                     ) : (
-                                        /* Backward compat: parsing i tekstit të vjetër */
                                         selectedMedia.transcript ? (
                                             selectedMedia.transcript.split('\n').filter(Boolean).map((line, idx) => {
                                                 const timeMatch = line.match(/^\[(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\]/);

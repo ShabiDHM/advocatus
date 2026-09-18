@@ -1,7 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V97.0 (BACKGROUND AUDIT PROPS)
-// V97.0: Props të reja për background audit (isAuditGenerating, auditProgressText).
-// V96.0: Static disclaimer footer.
+// PHOENIX PROTOCOL - CHAT PANEL V98.0 (INLINE PROGRESS PROPS)
+// V98.0: Pason 3 props të reja për inline progress në ChatHeader.
+// V97.0: Background audit props.
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -55,9 +55,12 @@ interface ChatPanelProps {
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
   onAnalyzeDocument?: () => void;
   selectedDocName?: string;
-  // V97.0: Background audit
+  // V97.0 / V98.0: Background audit + progress
   isAuditGenerating?: boolean;
   auditProgressText?: string;
+  auditProgressPercent?: number;
+  auditPhaseLabel?: string;
+  auditStartTime?: number | null;
 }
 
 type FileCategory = 'audio' | 'spreadsheet' | 'image' | 'document';
@@ -374,6 +377,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     selectedDocName,
     isAuditGenerating = false,
     auditProgressText = '',
+    auditProgressPercent = 0,
+    auditPhaseLabel = '',
+    auditStartTime = null,
   } = props;
 
   const [input, setInput] = useState('');
@@ -551,6 +557,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         onToggleFullscreen={() => setIsFullscreen(prev => !prev)}
         isAuditGenerating={isAuditGenerating}
         auditProgressText={auditProgressText}
+        auditProgressPercent={auditProgressPercent}
+        auditPhaseLabel={auditPhaseLabel}
+        auditStartTime={auditStartTime}
       />
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">

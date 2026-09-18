@@ -1,11 +1,9 @@
 # FILE: backend/app/services/document_review_service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V2.0
-# V2.0: Shtuar 4 guardrails anti-halucinacion:
-#   - Guardrail #1: Prompt i rreptë për verifikim citimesh
-#   - Guardrail #2: Regex ekstraktim i citimeve para LLM
-#   - Guardrail #3: Verifikim i dyfishtë (LLM + LLM correction)
-#   - Guardrail #4: Citation checker fjalë-për-fjalë
-#   - Kthim te FAST_SEARCH_MODEL (GPT-4o-mini)
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V3.0
+# V3.0: Kaluar në DEEP_ANALYSIS_MODEL (DeepSeek).
+#       Shtuar post-processor për kontroll deterministik të citimeve.
+#       Shtuar guardrail për "falso precedenta" + format "Neni X.Y".
+# V2.0: 4 guardrails anti-halucinacion.
 
 import logging
 import re
@@ -24,8 +22,10 @@ from app.services.llm.llm_client import (
     _get_provider_routing_payload,
     _get_api_key,
     FAST_SEARCH_MODEL,
+    DEEP_ANALYSIS_MODEL,
 )
 from app.services.vector_store_service import query_global_knowledge_base
+from app.services.rag.document_review_post_processor import build_review_correction_section
 
 logger = logging.getLogger(__name__)
 
@@ -71,17 +71,13 @@ TITLE_PREFIX_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# ═══════════════════════════════════════════════════════════════════════════
-# GUARDRAIL #2: Regex për ekstraktimin deterministik të citimeve
-# ═══════════════════════════════════════════════════════════════════════════
-
 LAW_NUMBER_PATTERN = re.compile(
     r'\b(\d{2}\s*\/\s*[A-Za-z]\s*-\s*\d{2,4})\b',
     re.IGNORECASE,
 )
 
 LAW_ABBREVIATION_PATTERN = re.compile(
-    r'\b(KPPRK|KPRK|KPPK|LPK|LMD|LFK|LSHT|LMDHF|Kushtetuta)\b',
+    r'\b(KPPRK|KPRK|KPPK|LPK|LMD|LFK|LSHT|LMDHF|KDMM|KDPM|Kushtetuta)\b',
     re.IGNORECASE,
 )
 
@@ -93,10 +89,6 @@ VERIFIED_ARTICLE_PATTERN = re.compile(
 
 
 def _extract_verified_citations(text: str) -> Dict[str, Any]:
-    """
-    GUARDRAIL #2: Ekstraktim deterministik i citimeve me regex.
-    Krijon listë të mbyllur që LLM-ja NUK mund të shkelë.
-    """
     if not text:
         return {
             "laws": [],
@@ -107,12 +99,10 @@ def _extract_verified_citations(text: str) -> Dict[str, Any]:
 
     laws: Set[str] = set()
 
-    # Ligjet me numër: 03/L-182, 06/L-006
     for match in LAW_NUMBER_PATTERN.finditer(text):
         law_num = match.group(1).replace(" ", "")
         laws.add(law_num)
 
-    # Abbreviations
     for match in LAW_ABBREVIATION_PATTERN.finditer(text):
         abbr = match.group(1)
         if abbr.lower() == "kushtetuta":
@@ -120,7 +110,6 @@ def _extract_verified_citations(text: str) -> Dict[str, Any]:
         else:
             laws.add(abbr.upper())
 
-    # Nenet me kontekst
     articles: List[Dict[str, Any]] = []
     seen_articles: Set[Tuple[str, Optional[str]]] = set()
 
@@ -146,7 +135,7 @@ def _extract_verified_citations(text: str) -> Dict[str, Any]:
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# SECTION PROMPTS
+# SECTION PROMPTS (V3.0 — me rregulla anti-hallucinim të forcuara)
 # ────────────────────────────────────────────────────────────────────────────
 
 DOCUMENT_REVIEW_PROMPTS = {
@@ -165,11 +154,12 @@ DETYRA:
 - Objekti i dokumentit në 1-2 fjali
 - Statusi aktual i dokumentit (nëse dihet: i plotfuqishëm, në apelim, etj.)
 
-SHKRUAJ në gjuhë standarde juridike shqipe. JI KONCIS dhe i saktë.
-
-RREGULLA:
+⚠️ RREGULLA ABSOLUTE:
 - Përdor VETËM atë që gjendet në digest
-- NUK lejohet të shpikësh emra, institucione, data""",
+- NUK lejohet të shpikësh emra, institucione, data
+- NUK lejohet të citosh NEN apo LIGJ në këtë seksion
+
+SHKRUAJ në gjuhë standarde juridike shqipe. JI KONCIS dhe i saktë.""",
     },
 
     "article_verification": {
@@ -179,38 +169,38 @@ RREGULLA:
 
 Bazuar në digest-in, verifiko ÇDO NEN të cituar në dokument.
 
-⚠️ RREGULLA ABSOLUTE (GUARDRAIL #1 — NUK SHKELEN):
+⚠️ RREGULLA ABSOLUTE (NUK SHKELEN):
 
-1. LEXO ME VËMENDJE SEKSIONIN "CITIMET E VËRTETUARA NGA DOKUMENTI (REGEX)" 
-   në digest. Ky është ekstraktim DETERMINISTIK me regex — i vetmi burim i 
-   së vërtetës për atë që citohet në dokument.
+1. LEXO ME VËMENDJE SEKSIONIN "🔒 CITIMET E VËRTETUARA" në digest. 
+   Ky është ekstraktim DETERMINISTIK me regex — i vetmi burim i së vërtetës.
 
-2. PËRDOR VETËM LIGJET DHE NENET QË SHFAQEN NË ATË SEKSION:
-   - NËSE një ligj nuk është aty → NUK EKZISTON në dokument → NUK E PËRDOR
-   - NËSE një nen nuk është aty → NUK EKZISTON në dokument → NUK E PËRDOR
-   - NUK LEJOHET të shtosh ligje/nene që "mendon" se ekzistojnë
+2. PËRDOR VETËM NENET QË SHFAQEN NË ATË SEKSION:
+   - NËSE një nen NUK është aty → NUK EKZISTON në dokument → NUK E PËRDOR
+   - NUK LEJOHET të shtosh nene që "mendon" se ekzistojnë
 
-3. RREGULL I VEÇANTË PËR NUMRAT E LIGJEVE:
-   - Nëse digest-i thotë "03/L-182", NUK mund të shkruash "06/L-006"
-   - Ky është HALUDINACION i rëndë — konsiderohet gabim kritik
-   - Numri i ligjit KOPJO fjalë-për-fjalë nga digest-i
+3. ⚠️ NUK LEJOHET TË PËRZIESH KODE LIGJESH:
+   - **KPK**  = Kodi i Procedurës Penale → PROCEDURA PENALE
+   - **KPRK** = Kodi Penal → VEPRA PENALE
+   - **LMDHF** = Ligji për Mbrojtjen nga Dhuna në Familje
+   - **KDMM** = Kodi i Drejtësisë për të Mitur
+   - **KURRË mos i ndërro rolet e këtyre kodeve.**
+   - NËSE dokumenti citon LMDHF → NUK cito KDMM
 
-4. STATUSI I ÇDO NENI:
+4. ⚠️ FORMAT I SAKTË I CITIMIT:
+   - **Neni X i [Ligjit]** → saktë
+   - **Neni X, par. Y** → saktë
+   - **Neni X.Y** → GABIM (duhet "Neni X, par. Y")
+   - "Neni 1.1" ≠ nen i veçantë → neni 1, paragrafi 1
+
+5. STATUSI I ÇDO NENI:
    - ✅ EKZISTON → vetëm nëse neni është në digest
    - ❌ NUK EKZISTON → nëse neni NUK është në digest
 
-5. FORMATI I S AKTË PËR ÇDO NEN:
+6. FORMATI:
 
-### Neni [numri] i [Ligji i saktë nga digest]
+### Neni [numri] i [Ligji i saktë]
 **Statusi:** ✅ EKZISTON / ❌ NUK U GJET NË DOKUMENT
-**Përshkrimi:** [fjalë për fjalë nga KB nëse ekziston]
 **Referohet në dokument:** [kontekst nga digest]
-
-6. NËSE NUK KA NENE TË CITUARA fare:
-   - Shkruaj: "Dokumenti nuk përmban citime nene."
-
-⚠️ ÇDO LIGJ APO NEN QË NUK SHFAQET NË SEKSIONIN "CITIMET E VËRTETUARA" 
-   KONSIDEROHET HALUDINACION DHE ZBRET AUTOMATIKISHT NGA GUARDRAIL #4.
 
 MOS përfshi introduksione. Fillo direkt me nenet.""",
     },
@@ -222,26 +212,28 @@ MOS përfshi introduksione. Fillo direkt me nenet.""",
 
 Bazuar në digest-in, analizo precedentët relevantë për këtë dokument.
 
-⚠️ RREGULLA:
-- Seksioni "🏛️ PRECEDENTË TË REKOMANDUAR" i digest-it përmban precedentë 
-  të gjetur automatikisht nga baza e Gjykatës Supreme.
-- Seksioni "📋 PRECEDENTË TË CITUAR NË DOKUMENT" përmban precedentët 
-  që dokumenti VETË i citon.
+⚠️ RREGULLA KRITIKE:
+
+1. ⚠️ NUMRI I LËNDËS SË DOKUMENTIT NUK ËSHTË PRECEDENT:
+   - Numri i lëndës (p.sh. C.nr.385/2024) i cili shfaqet në krye të dokumentit 
+     ËSHTË numri i kësaj çështje — NUK ËSHTË PRECEDENT!
+   - KURRË mos e përfshi numrin e lëndës së dokumentit si "precedent të cituar"
+
+2. PRECEDENTËT E VËRTETË KANË FORMAT:
+   - PML.nr.X/YY (Kolegji Penal)
+   - Rev.nr.X/YY (Revizion)
+   - PA1.nr.X/YY ose PKR.nr.X/YY
+   - NUK mund të shpikësh numra precedentësh
+
+3. NËSE NUK KA PRECEDENTË TË CILËTUAR:
+   - Shkruaj: "Dokumenti nuk citon precedentë të Gjykatës Supreme."
 
 DETYRA:
 A. PRECEDENTËT E CITUAR NË DOKUMENT (nëse ka)
-   - Listoji ata që dokumenti i referon drejtpërdrejt
-   - Vlerëso: a janë të saktë?
-
-B. PRECEDENTËT E REKOMANDUAR (nga baza)
-   - Listo 3-7 precedentë nga digest-i
-   - Për secilin: numri + konteksti + pse është relevant
-
+B. PRECEDENTËT E REKOMANDUAR NGA BAZA
 C. REKOMANDIMI
-   - Nëse dokumenti NUK citon precedentë → rekomando shtimin
-   - Nëse citon → vlerëso cilësinë
 
-⚠️ NUK LEJOHET të shpikësh numra precedentësh. Përdor VETËM ata në digest.""",
+⚠️ NUK LEJOHET të shpikësh numra precedentësh.""",
     },
 
     "drafting_quality": {
@@ -265,7 +257,7 @@ FORMATI:
 ## D. Konsistenca
 ## E. Vlerësimi
 
-NUK LEJOHET të shpikësh mangësi që nuk ekzistojnë.""",
+NUK LEJOHET të shpikësh mangësi që nuk ekzistojnë në digest.""",
     },
 
     "errors_corrections": {
@@ -280,14 +272,11 @@ Bazuar në digest-in, identifiko GABIME dhe propozo KORRIGJIME.
 1. GABIME NË NENE — Kontrollo VETËM nenet që shfaqen në digest.
    - NËSE digest-i thotë "Neni X ❌ NUK U GJET" → raportoje si gabim
    - NUK LEJOHET të krijosh gabime për nene që nuk ekzistojnë në dokument
-   
+
 2. GABIME FAKTIKE — Vetëm ato që janë të dukshme në digest.
-   - Data që nuk përputhen brenda dokumentit
-   - Numra lënde të ndryshëm
-   
-3. RREGULL I VEÇANTË:
-   - Për çdo gabim, trego SE KU (faqe/paragraf) dhe CILA është e saktë
-   - PËR ÇDO GABIM: "❌ [gabimi] → korrigjo me [e saktë] (impakti: X)"
+
+3. FORMATI I ÇDO GABIMI:
+   "❌ [gabimi] → korrigjo me [e saktë] (impakti: X)"
 
 FORMATI:
 ### A. Gabime në nene
@@ -318,6 +307,7 @@ E. RREZIQET
 - NËSE dokumenti përmend afat specifik → CITOJE SAKTËSISHT
 - NËSE dokumenti NUK përmend afat → shkruaj "Afati: kontrollo manualisht"
 - NUK LEJOHET të shpikësh afate që nuk janë në dokument
+- NUK LEJOHET të bësh kontradikta (p.sh. 12 muaj në një seksion, 8 ditë në tjetrin)
 
 FORMATI:
 ## A. Vlerësimi
@@ -330,7 +320,7 @@ FORMATI:
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# SYNC STREAMING
+# SYNC STREAMING (V3.0 — DeepSeek)
 # ────────────────────────────────────────────────────────────────────────────
 
 def _stream_section_sync(system_prompt, user_content, temperature=0.1):
@@ -341,7 +331,7 @@ def _stream_section_sync(system_prompt, user_content, temperature=0.1):
     client = _get_sync_client()
     try:
         stream = client.chat.completions.create(
-            model=FAST_SEARCH_MODEL,
+            model=DEEP_ANALYSIS_MODEL,
             messages=[
                 {"role": "system", "content": full_sys},
                 {"role": "user", "content": sanitized},
@@ -368,7 +358,7 @@ def _stream_section_sync(system_prompt, user_content, temperature=0.1):
 
 class DocumentReviewService:
     """
-    V2.0 — Verifikim i një dokumenti me 4 guardrails anti-halucinacion.
+    V3.0 — DeepSeek + post-processor + fake precedent detection.
     """
 
     def __init__(self, db):
@@ -381,10 +371,6 @@ class DocumentReviewService:
     def _verify_citations_word_by_word(
         self, output_text: str, doc_text: str
     ) -> Dict[str, Any]:
-        """
-        GUARDRAIL #4: Kontrollon çdo nen të output-it kundrejt dokumentit.
-        Kthen raport me citimet e verifikuara / të pavërtetuara.
-        """
         if not output_text or not doc_text:
             return {
                 "verified": [],
@@ -394,12 +380,10 @@ class DocumentReviewService:
                 "hallucination_rate": 0.0,
             }
 
-        # Nxjerr nenet nga dokumenti (burimi i së vërtetës)
         doc_articles: Set[str] = set()
         for match in VERIFIED_ARTICLE_PATTERN.finditer(doc_text):
             doc_articles.add(match.group(1))
 
-        # Nxjerr nenet nga output-i
         verified: List[str] = []
         unverified: List[str] = []
         seen: Set[str] = set()
@@ -430,7 +414,7 @@ class DocumentReviewService:
         }
 
     # ────────────────────────────────────────────────────────────────────
-    # GUARDRAIL #3 — Verifikim i Dyfishtë (LLM correction)
+    # GUARDRAIL #3 — LLM correction (DeepSeek tani)
     # ────────────────────────────────────────────────────────────────────
 
     def _correct_citations_with_llm(
@@ -439,10 +423,6 @@ class DocumentReviewService:
         checker_report: Dict[str, Any],
         doc_text: str,
     ) -> str:
-        """
-        GUARDRAIL #3: LLM i dytë pastron citimet halucinuese.
-        Përdoret vetëm nëse Guardrail #4 ka gjetur nene të pavërtetuara.
-        """
         unverified = checker_report.get("unverified", [])
         if not unverified:
             return output_text
@@ -482,7 +462,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 user_content=user_content,
                 json_mode=False,
                 temperature=0.0,
-                model=FAST_SEARCH_MODEL,
+                model=DEEP_ANALYSIS_MODEL,
             )
             return corrected or output_text
         except Exception as e:
@@ -535,7 +515,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             f"len={len(doc_text)} chars"
         )
 
-        # ═══ GUARDRAIL #2: Regex ekstraktim para LLM ═══
         verified_citations = _extract_verified_citations(doc_text)
         logger.info(
             f"🔒 [GUARDRAIL #2] Regex extraction: "
@@ -543,7 +522,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             f"articles={verified_citations['total_articles']}"
         )
 
-        # Nxirr nenet e cituara (për KB verification)
         article_citations = self._extract_article_citations(doc_text)
         logger.info(
             f"📖 [DOC_REVIEW] Found {len(article_citations)} article citations"
@@ -580,7 +558,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             doc_text, article_citations, cited_precedents
         )
 
-        # Ndërto digest me citimet e vërtetuara
         digest = self._build_review_digest(
             document=document,
             extraction=extraction,
@@ -600,10 +577,10 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             f"precedents_recommended={len(recommended_precedents)}"
         )
 
-        # Gjenero 6 seksionet
         sections: Dict[str, Any] = {}
         section_stats: Dict[str, Any] = {}
         verification_reports: Dict[str, Any] = {}
+        correction_sections: Dict[str, str] = {}
 
         for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
             section_start = time.time()
@@ -628,6 +605,26 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                     stream_callback=section_stream_callback,
                 )
 
+                # ═══ V3.0: Post-processor i ri ═══
+                try:
+                    correction_section = build_review_correction_section(
+                        output_text=content,
+                        verified_citations=verified_citations,
+                        doc_text=doc_text,
+                        section_key=section_key,
+                    )
+                    if correction_section:
+                        logger.info(
+                            f"🔍 [POST-PROCESSOR] {section_key}: "
+                            f"shtuar {len(correction_section)} chars korrigjimi"
+                        )
+                        content += correction_section
+                        correction_sections[section_key] = correction_section
+                except Exception as pp_err:
+                    logger.warning(
+                        f"⚠️ [POST-PROCESSOR] Failed for {section_key}: {pp_err}"
+                    )
+
                 # ═══ GUARDRAILS #3 + #4 për article_verification ═══
                 if section_key == "article_verification" and content:
                     logger.info("🔍 [GUARDRAIL #4] Running citation checker...")
@@ -642,7 +639,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                         f"Hallucination rate: {checker_report['hallucination_rate']}%"
                     )
 
-                    # Nëse ka halucinacione → korrigjo me LLM #2
                     if checker_report["unverified"]:
                         logger.info(
                             f"🔧 [GUARDRAIL #3] Correcting "
@@ -652,7 +648,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                             content, checker_report, doc_text
                         )
 
-                        # Re-verify pas korrigjimit
                         report_after = self._verify_citations_word_by_word(
                             corrected_content, doc_text
                         )
@@ -734,6 +729,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 "duration_sec": duration,
                 "verified_laws_count": verified_citations["total_laws"],
                 "verified_articles_count": verified_citations["total_articles"],
+                "sections_with_corrections": len(correction_sections),
             },
             "verification_details": {
                 "article_verifications": article_verifications,
@@ -741,6 +737,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 "recommended_precedents": recommended_precedents,
                 "regex_verified_citations": verified_citations,
                 "guardrail_reports": verification_reports,
+                "correction_sections": list(correction_sections.keys()),
             },
             "section_stats": section_stats,
             "status": "completed",
@@ -752,6 +749,7 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             f"✅ [DOC_REVIEW] Complete: doc={document_id}, "
             f"sections={result['stats']['sections_generated']}/"
             f"{result['stats']['sections_total']}, "
+            f"corrections={result['stats']['sections_with_corrections']}, "
             f"duration={duration}s"
         )
 
@@ -791,10 +789,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             logger.warning(f"⚠️ [DOC_REVIEW] load_extraction failed: {e}")
             return None
 
-    # ────────────────────────────────────────────────────────────────────
-    # ARTICLE EXTRACTION (existing)
-    # ────────────────────────────────────────────────────────────────────
-
     def _extract_article_citations(self, text: str) -> List[Dict[str, Any]]:
         if not text:
             return []
@@ -833,10 +827,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 break
 
         return citations
-
-    # ────────────────────────────────────────────────────────────────────
-    # ARTICLE VERIFICATION (existing)
-    # ────────────────────────────────────────────────────────────────────
 
     def _verify_articles_against_kb(
         self, citations: List[Dict[str, Any]]
@@ -920,10 +910,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
 
         return verifications
 
-    # ────────────────────────────────────────────────────────────────────
-    # PRECEDENT EXTRACTION (existing)
-    # ────────────────────────────────────────────────────────────────────
-
     def _extract_cited_precedents(self, text: str) -> List[str]:
         if not text:
             return []
@@ -938,10 +924,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
                 result.append(m_clean)
 
         return result
-
-    # ────────────────────────────────────────────────────────────────────
-    # RECOMMENDED PRECEDENTS (existing)
-    # ────────────────────────────────────────────────────────────────────
 
     def _find_recommended_precedents(
         self,
@@ -1014,10 +996,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             return 0.0
         return SequenceMatcher(None, text_a, text_b).ratio()
 
-    # ────────────────────────────────────────────────────────────────────
-    # DIGEST
-    # ────────────────────────────────────────────────────────────────────
-
     def _build_review_digest(
         self,
         document: Dict[str, Any],
@@ -1033,7 +1011,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
     ) -> str:
         lines = []
 
-        # ═══ 1. DOKUMENTI ═══
         lines.append("=" * 70)
         lines.append("DOKUMENTI NË REVIEW")
         lines.append("=" * 70)
@@ -1045,7 +1022,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         lines.append(f"Madhësia: {len(doc_text)} chars")
         lines.append("")
 
-        # ═══ 2. GUARDRAIL #2: CITIMET E VËRTETUARA (REGEX) ═══
         lines.append("=" * 70)
         lines.append("🔒 CITIMET E VËRTETUARA NGA DOKUMENTI (REGEX EXTRACTION)")
         lines.append("=" * 70)
@@ -1079,7 +1055,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
         )
         lines.append("")
 
-        # ═══ 3. FILLIMI I DOKUMENTIT ═══
         if doc_text:
             excerpt = doc_text[:3000]
             lines.append("=" * 70)
@@ -1088,7 +1063,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             lines.append(excerpt)
             lines.append("")
 
-        # ═══ 4. VERIFIKIMI I NENEVE (KB) ═══
         if article_verifications:
             lines.append("=" * 70)
             lines.append("📖 VERIFIKIMI I NENEVE (kundrejt bazës ligjore)")
@@ -1129,7 +1103,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             lines.append("NUK U IDENTIFIKUAN nene të cituara në këtë dokument.")
             lines.append("")
 
-        # ═══ 5. PRECEDENTË TË CITUAR ═══
         lines.append("=" * 70)
         lines.append("📋 PRECEDENTË TË CITUAR NË DOKUMENT")
         lines.append("=" * 70)
@@ -1140,7 +1113,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             lines.append("  (asnjë precedent i cituar në dokument)")
         lines.append("")
 
-        # ═══ 6. PRECEDENTË TË REKOMANDUAR ═══
         lines.append("=" * 70)
         lines.append("🏛️ PRECEDENTË TË REKOMANDUAR NGA GJYKATA SUPREME")
         lines.append("=" * 70)
@@ -1164,7 +1136,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
             )
             lines.append("")
 
-        # ═══ 7. METAINFO ═══
         extraction_meta = (extraction or {}).get("metadata") or {}
         if extraction_meta:
             lines.append("=" * 70)
@@ -1178,10 +1149,6 @@ Kthe tekstin e pastruar (pa nene të pavërtetuara):"""
 
         digest = "\n".join(lines)
         return digest
-
-    # ────────────────────────────────────────────────────────────────────
-    # SECTION STREAMING
-    # ────────────────────────────────────────────────────────────────────
 
     def _synthesize_section_streaming(
         self,
@@ -1261,7 +1228,7 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                         user_content=user_content,
                         json_mode=False,
                         temperature=0.1,
-                        model=FAST_SEARCH_MODEL,
+                        model=DEEP_ANALYSIS_MODEL,
                     )
                     accumulated = raw or ""
                     if stream_callback and accumulated:
@@ -1276,10 +1243,6 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                     raise
 
             return accumulated
-
-    # ────────────────────────────────────────────────────────────────────
-    # PERSIST
-    # ────────────────────────────────────────────────────────────────────
 
     def _persist(self, result: Dict[str, Any]) -> None:
         try:

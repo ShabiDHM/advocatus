@@ -1,7 +1,11 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V109.1
-// V109.1: Hequr variabla e papërdorur caseTitle (TS 6133).
-// V109.0: Background audit generation — modal hapet vetëm pasi raporti gati.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V109.5
+// V109.5: FIX KRITIK — rikthyer handler-i section_chunk (humbur gjatë refaktorimit).
+//         Shtuar handler për report_ready edhe në fresh run.
+//         Shtuar logging diagnostikues për accumulated bosh.
+// V109.4: Hequr auditSubLabel + auditIsDocumentMode.
+// V109.3: Progress bar inline në ChatHeader.
+// V109.0: Background audit generation.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -52,6 +56,11 @@ const CaseViewPage: React.FC = () => {
   const [pendingAuditReport, setPendingAuditReport] = useState<string | null>(null);
   const [pendingAuditSource, setPendingAuditSource] = useState<'fresh' | 'cache' | 'saved'>('fresh');
   const [pendingAuditDocIds, setPendingAuditDocIds] = useState<string[] | null>(null);
+
+  // V109.3: Progress state — kalohet në ChatHeader
+  const [auditPhaseLabel, setAuditPhaseLabel] = useState<string>('');
+  const [auditProgressPercent, setAuditProgressPercent] = useState<number>(0);
+  const [auditStartTime, setAuditStartTime] = useState<number | null>(null);
 
   const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
 
@@ -289,17 +298,31 @@ const CaseViewPage: React.FC = () => {
   }, [caseId, persistChatHistory]);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // V109.0: Background generation — modal hapet vetëm pasi raporti gati
+  // V109.5: Background generation + Progress tracking
   // ═══════════════════════════════════════════════════════════════════════
 
   const _runBackgroundAudit = useCallback(async (docIds: string[] | null) => {
     if (!currentCaseId) return;
 
+    const isDocMode = !!docIds;
+    const startedAt = Date.now();
+
+    // Reset progress state
     setIsAuditGenerating(true);
-    setAuditProgressText(docIds ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
+    setAuditProgressText(isDocMode ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
+    setAuditStartTime(startedAt);
+    setAuditPhaseLabel(isDocMode ? 'Fillimi i verifikimit' : 'Fillimi i analizës');
+    setAuditProgressPercent(2);
 
     let accumulated = '';
     let detectedSource: 'fresh' | 'cache' = 'fresh';
+    let currentPhase = '';
+    let docsTotal = 0;
+    let sectionsCompleted = 0;
+    let sectionsStarted = 0;
+    let chunksReceived = 0;
+
+    const SECTIONS_TOTAL = 6;
 
     try {
       const stream = apiService.streamCaseAnalysis(currentCaseId, false, docIds || undefined);
@@ -308,19 +331,29 @@ const CaseViewPage: React.FC = () => {
         const evtType = evt.event;
 
         if (evtType === 'start') {
-          setAuditProgressText(docIds ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
+          setAuditProgressText(isDocMode ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
           continue;
         }
 
         if (evtType === 'phase_started') {
-          const phase = evt.phase || '';
+          currentPhase = evt.phase || '';
           const phaseLabels: Record<string, string> = {
-            extraction: 'Ekstraktimi i shkresave...',
-            cross_reference: 'Gjetja e lidhjeve...',
-            synthesis: 'Hartimi i doktrinës...',
-            document_review: 'Verifikimi i dokumentit...',
+            extraction: isDocMode ? 'Ekstraktimi i dokumentit' : 'Ekstraktimi i shkresave',
+            cross_reference: 'Gjetja e lidhjeve',
+            synthesis: 'Hartimi i doktrinës',
+            document_review: 'Verifikimi ligjor',
           };
-          setAuditProgressText(phaseLabels[phase] || `Faza: ${phase}`);
+          setAuditPhaseLabel(phaseLabels[currentPhase] || currentPhase);
+
+          if (currentPhase === 'extraction') {
+            setAuditProgressPercent(5);
+          } else if (currentPhase === 'cross_reference') {
+            setAuditProgressPercent(60);
+          } else if (currentPhase === 'synthesis') {
+            setAuditProgressPercent(70);
+          } else if (currentPhase === 'document_review') {
+            setAuditProgressPercent(35);
+          }
           continue;
         }
 
@@ -332,20 +365,53 @@ const CaseViewPage: React.FC = () => {
         }
 
         if (evtType === 'document_started') {
-          setAuditProgressText(`Ekstraktimi ${(evt.index || 0) + 1}/${evt.total_documents || 0}: ${evt.file_name}`);
+          const idx = (evt.index || 0) + 1;
+          docsTotal = evt.total_documents || 0;
+          setAuditProgressText(`Ekstraktimi ${idx}/${docsTotal}: ${evt.file_name || ''}`);
+
+          if (docsTotal > 0) {
+            if (isDocMode) {
+              const pct = 5 + (idx / docsTotal) * 25;
+              setAuditProgressPercent(Math.round(pct));
+            } else {
+              const pct = 5 + (idx / docsTotal) * 50;
+              setAuditProgressPercent(Math.round(pct));
+            }
+          }
           continue;
         }
 
         if (evtType === 'section_started') {
           const title = evt.section_title || evt.section_key || '';
-          accumulated += `\n\n# ${title}\n\n`;
+          sectionsStarted++;
+          setAuditProgressText(`Seksioni: ${title}`);
+          // V109.5: Shto titullin në accumulated për strukturë
+          if (title) {
+            accumulated += `\n\n## ${title}\n\n`;
+          }
           continue;
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // V109.5: FIX — handler-i section_chunk u rikthye
+        // ═══════════════════════════════════════════════════════════════
         if (evtType === 'section_chunk') {
-          const chunk = evt.chunk || '';
+          const chunk = evt.chunk || evt.content || evt.text || '';
           if (chunk) {
+            chunksReceived++;
             accumulated += chunk;
+          }
+          continue;
+        }
+
+        if (evtType === 'section_completed') {
+          sectionsCompleted++;
+          if (currentPhase === 'synthesis') {
+            const pct = 70 + (sectionsCompleted / SECTIONS_TOTAL) * 25;
+            setAuditProgressPercent(Math.round(pct));
+          } else if (currentPhase === 'document_review') {
+            const pct = 35 + (sectionsCompleted / SECTIONS_TOTAL) * 60;
+            setAuditProgressPercent(Math.round(pct));
           }
           continue;
         }
@@ -353,8 +419,9 @@ const CaseViewPage: React.FC = () => {
         if (evtType === 'report_ready') {
           const content = evt.content || '';
           const fromCache = evt.from_cache === true;
-          if (fromCache && content.trim() && !accumulated) {
-            detectedSource = 'cache';
+          // V109.5: Prano report_ready edhe për fresh nëse accumulated është bosh
+          if (content.trim() && !accumulated) {
+            detectedSource = fromCache ? 'cache' : 'fresh';
             accumulated = content;
           }
           continue;
@@ -371,14 +438,29 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
+        console.error('[Background Audit] Accumulated content is empty!', {
+          isDocMode,
+          docsTotal,
+          sectionsStarted,
+          sectionsCompleted,
+          chunksReceived,
+          currentPhase,
+          detectedSource
+        });
         throw new Error('Raporti nuk u gjenerua. Provoni përsëri.');
       }
 
+      // Save në server
       try {
         await apiService.saveCaseDossierAudit(currentCaseId, finalReport);
       } catch (saveErr) {
         console.error('Save audit error:', saveErr);
       }
+
+      // Set progress 100% + hap modal
+      setAuditProgressPercent(100);
+      setAuditPhaseLabel('Përfundoi');
+      setAuditProgressText('Raporti u gjenerua me sukses');
 
       setPendingAuditReport(finalReport);
       setPendingAuditSource(detectedSource);
@@ -389,8 +471,13 @@ const CaseViewPage: React.FC = () => {
       console.error('[Background Audit Error]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
-      setIsAuditGenerating(false);
-      setAuditProgressText('');
+      setTimeout(() => {
+        setIsAuditGenerating(false);
+        setAuditProgressText('');
+        setAuditStartTime(null);
+        setAuditPhaseLabel('');
+        setAuditProgressPercent(0);
+      }, 800);
     }
   }, [currentCaseId]);
 
@@ -560,6 +647,9 @@ const CaseViewPage: React.FC = () => {
               selectedDocName={selectedDocObj?.file_name}
               isAuditGenerating={isAuditGenerating}
               auditProgressText={auditProgressText}
+              auditProgressPercent={auditProgressPercent}
+              auditPhaseLabel={auditPhaseLabel}
+              auditStartTime={auditStartTime}
             />
           </div>
         </div>
