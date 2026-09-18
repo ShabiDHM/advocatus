@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V108.0
-// V108.0: autoStart={true} për CaseDossierAuditModal — analiza fillon me 1 klik.
-// V107.0: unified CaseDossierAuditModal për të dyja rastet (fashikull + single-doc).
+// PHOENIX PROTOCOL - CASE VIEW PAGE V109.1
+// V109.1: Hequr variabla e papërdorur caseTitle (TS 6133).
+// V109.0: Background audit generation — modal hapet vetëm pasi raporti gati.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -46,9 +46,14 @@ const CaseViewPage: React.FC = () => {
   const [mobileTab, setMobileTab] = useState<MobileMainTab>('DOCS');
   const [vaultSubTab, setVaultSubTab] = useState<EvidenceSubTab>('documents');
 
-  // CaseDossierAuditModal state (V107 — i unifikuar)
+  // V109.0: Background audit generation state
+  const [isAuditGenerating, setIsAuditGenerating] = useState<boolean>(false);
+  const [auditProgressText, setAuditProgressText] = useState<string>('');
+  const [pendingAuditReport, setPendingAuditReport] = useState<string | null>(null);
+  const [pendingAuditSource, setPendingAuditSource] = useState<'fresh' | 'cache' | 'saved'>('fresh');
+  const [pendingAuditDocIds, setPendingAuditDocIds] = useState<string[] | null>(null);
+
   const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
-  const [dossierDocumentIds, setDossierDocumentIds] = useState<string[] | null>(null);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -283,34 +288,139 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // V107: Hap doktrinën e dokumentit (single-doc mode)
-  const handleVerifyDocumentLaws = useCallback((doc: Document) => {
-    if (!caseId) return;
-    setDossierDocumentIds([String(doc.id)]);
-    setIsDossierAuditModalOpen(true);
-  }, [caseId]);
+  // ═══════════════════════════════════════════════════════════════════════
+  // V109.0: Background generation — modal hapet vetëm pasi raporti gati
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // V107: Butoni dinamik — me dok selektuar → dokument, pa → fashikull
-  const handleTriggerSelectedDocAudit = useCallback(() => {
-    if (selectedDocObj) {
-      setDossierDocumentIds([String(selectedDocObj.id)]);
+  const _runBackgroundAudit = useCallback(async (docIds: string[] | null) => {
+    if (!currentCaseId) return;
+
+    setIsAuditGenerating(true);
+    setAuditProgressText(docIds ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
+
+    let accumulated = '';
+    let detectedSource: 'fresh' | 'cache' = 'fresh';
+
+    try {
+      const stream = apiService.streamCaseAnalysis(currentCaseId, false, docIds || undefined);
+
+      for await (const evt of stream) {
+        const evtType = evt.event;
+
+        if (evtType === 'start') {
+          setAuditProgressText(docIds ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
+          continue;
+        }
+
+        if (evtType === 'phase_started') {
+          const phase = evt.phase || '';
+          const phaseLabels: Record<string, string> = {
+            extraction: 'Ekstraktimi i shkresave...',
+            cross_reference: 'Gjetja e lidhjeve...',
+            synthesis: 'Hartimi i doktrinës...',
+            document_review: 'Verifikimi i dokumentit...',
+          };
+          setAuditProgressText(phaseLabels[phase] || `Faza: ${phase}`);
+          continue;
+        }
+
+        if (evtType === 'phase_skipped') {
+          if (evt.phase === 'synthesis' || evt.phase === 'document_review') {
+            detectedSource = 'cache';
+          }
+          continue;
+        }
+
+        if (evtType === 'document_started') {
+          setAuditProgressText(`Ekstraktimi ${(evt.index || 0) + 1}/${evt.total_documents || 0}: ${evt.file_name}`);
+          continue;
+        }
+
+        if (evtType === 'section_started') {
+          const title = evt.section_title || evt.section_key || '';
+          accumulated += `\n\n# ${title}\n\n`;
+          continue;
+        }
+
+        if (evtType === 'section_chunk') {
+          const chunk = evt.chunk || '';
+          if (chunk) {
+            accumulated += chunk;
+          }
+          continue;
+        }
+
+        if (evtType === 'report_ready') {
+          const content = evt.content || '';
+          const fromCache = evt.from_cache === true;
+          if (fromCache && content.trim() && !accumulated) {
+            detectedSource = 'cache';
+            accumulated = content;
+          }
+          continue;
+        }
+
+        if (evtType === 'error') {
+          throw new Error(evt.message || 'Gabim në server gjatë analizës.');
+        }
+
+        if (evtType === 'complete') {
+          break;
+        }
+      }
+
+      const finalReport = accumulated.trim();
+      if (!finalReport) {
+        throw new Error('Raporti nuk u gjenerua. Provoni përsëri.');
+      }
+
+      try {
+        await apiService.saveCaseDossierAudit(currentCaseId, finalReport);
+      } catch (saveErr) {
+        console.error('Save audit error:', saveErr);
+      }
+
+      setPendingAuditReport(finalReport);
+      setPendingAuditSource(detectedSource);
+      setPendingAuditDocIds(docIds);
       setIsDossierAuditModalOpen(true);
-      return;
-    }
 
-    if (liveDocuments.length === 0) {
+    } catch (err: any) {
+      console.error('[Background Audit Error]', err);
+      alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
+    } finally {
+      setIsAuditGenerating(false);
+      setAuditProgressText('');
+    }
+  }, [currentCaseId]);
+
+  const handleTriggerSelectedDocAudit = useCallback(() => {
+    if (isAuditGenerating) return;
+
+    let docIds: string[] | null = null;
+
+    if (selectedDocObj) {
+      docIds = [String(selectedDocObj.id)];
+    } else if (liveDocuments.length === 0) {
       alert("Nuk ka shkresa të administruara në këtë lëndë. Ngarkoni shkresat së pari.");
       return;
     }
 
-    setDossierDocumentIds(null);
-    setIsDossierAuditModalOpen(true);
-  }, [selectedDocObj, liveDocuments.length]);
+    _runBackgroundAudit(docIds);
+  }, [selectedDocObj, liveDocuments.length, isAuditGenerating, _runBackgroundAudit]);
 
   const handleCloseDossierModal = useCallback(() => {
     setIsDossierAuditModalOpen(false);
-    setDossierDocumentIds(null);
+    setPendingAuditReport(null);
+    setPendingAuditDocIds(null);
   }, []);
+
+  const handleRegenerateAudit = useCallback(() => {
+    const docIds = pendingAuditDocIds;
+    setIsDossierAuditModalOpen(false);
+    setPendingAuditReport(null);
+    setTimeout(() => _runBackgroundAudit(docIds), 150);
+  }, [pendingAuditDocIds, _runBackgroundAudit]);
 
   const handleRenameAction = async (newName: string) => {
     if (!caseId || !documentToRename) return;
@@ -339,9 +449,8 @@ const CaseViewPage: React.FC = () => {
     );
   }
 
-  // V107: Emrat e dokumenteve për modalin
-  const dossierDocumentNames = dossierDocumentIds
-    ? dossierDocumentIds
+  const dossierDocumentNames = pendingAuditDocIds
+    ? pendingAuditDocIds
         .map((id) => liveDocuments.find((d) => String(d.id) === id)?.file_name)
         .filter((n): n is string => Boolean(n))
     : undefined;
@@ -416,7 +525,10 @@ const CaseViewPage: React.FC = () => {
               onDocumentDeleted={handleDocumentDeleted}
               onViewOriginal={handleViewOriginal}
               onRenameDocument={setDocumentToRename}
-              onVerifyDocumentLaws={handleVerifyDocumentLaws}
+              onVerifyDocumentLaws={(doc) => {
+                setSelectedDocumentIds([String(doc.id)]);
+                handleTriggerSelectedDocAudit();
+              }}
               selectedDocumentId={selectedDocObj ? String(selectedDocObj.id) : ''}
               onSelectDocument={handleSelectDocument}
               activeSubTab={vaultSubTab}
@@ -446,6 +558,8 @@ const CaseViewPage: React.FC = () => {
               clientPosition={clientPosition}
               onAnalyzeDocument={handleTriggerSelectedDocAudit}
               selectedDocName={selectedDocObj?.file_name}
+              isAuditGenerating={isAuditGenerating}
+              auditProgressText={auditProgressText}
             />
           </div>
         </div>
@@ -467,7 +581,6 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* V108: Auto-start i aktivizuar — analiza fillon me 1 klik */}
       <CaseDossierAuditModal
         isOpen={isDossierAuditModalOpen}
         onClose={handleCloseDossierModal}
@@ -475,9 +588,11 @@ const CaseViewPage: React.FC = () => {
         caseName={(caseData.details as any)?.title || 'Fashikulli i Lëndës'}
         clientName={clientName}
         documentCount={liveDocuments.length}
-        documentIds={dossierDocumentIds || undefined}
+        documentIds={pendingAuditDocIds || undefined}
         documentNames={dossierDocumentNames}
-        autoStart={true}
+        preGeneratedReport={pendingAuditReport}
+        preGeneratedSource={pendingAuditSource}
+        onRegenerate={handleRegenerateAudit}
       />
     </motion.div>
   );

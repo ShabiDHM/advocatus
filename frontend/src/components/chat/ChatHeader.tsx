@@ -1,10 +1,10 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V39.0 (ZERO HARDCODED COLORS + TAB BUG FIX)
-// V39.0: Fix — tab character brenda var(--status-success). Hardcoded rgba/rose → semantic.
-// V38.0: Renamed button label "Analizo Fashikullin" → "Analizo Rastin"
+// PHOENIX PROTOCOL - CHAT HEADER V40.0 (BACKGROUND AUDIT BUTTON)
+// V40.0: Butoni "Analizo" shfaq spinner + status gjatë gjenerimit background.
+// V39.0: Fix — tab character brenda var(--status-success).
 
 import React from 'react';
-import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles } from 'lucide-react';
+import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles, Loader2 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
 interface ChatHeaderProps {
@@ -21,6 +21,9 @@ interface ChatHeaderProps {
   onDocumentSelectionChange?: (ids: string[]) => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  // V40.0: Background generation state
+  isAuditGenerating?: boolean;
+  auditProgressText?: string;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -31,22 +34,30 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   selectedDocName,
   isFullscreen = false,
   onToggleFullscreen,
+  isAuditGenerating = false,
+  auditProgressText = '',
 }) => {
   const hasSelectedDoc = !!selectedDocName && selectedDocName.trim().length > 0;
 
   return (
     <div className="flex flex-row items-center justify-between px-3 sm:px-5 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none shadow-xs">
-      {/* 1. MAJTAS: Drita LED e Statusit dhe Emri i Dokumentit Aktiv */}
-      <div className="flex items-center gap-2 shrink-0">
+      {/* 1. MAJTAS: Drita LED + Emri i Dokumentit / Statusi i gjenerimit */}
+      <div className="flex items-center gap-2 shrink-0 min-w-0">
         <span
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
             connectionStatus === 'CONNECTED'
               ? 'bg-success-start shadow-md shadow-success-start/50 animate-pulse'
               : 'bg-danger-start animate-pulse'
           }`}
-          title={connectionStatus === 'CONNECTED' ? 'Lidhja aktive me DeepSeek' : 'Lidhja e shkëputur'}
+          title={connectionStatus === 'CONNECTED' ? 'Lidhja aktive' : 'Lidhja e shkëputur'}
         />
-        {selectedDocName ? (
+
+        {isAuditGenerating ? (
+          <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-primary-start/10 border border-primary-start/30 text-[11px] font-bold text-primary-start max-w-[260px] sm:max-w-[400px] truncate animate-pulse">
+            <Loader2 size={12} className="animate-spin shrink-0" />
+            <span className="truncate">{auditProgressText || 'Duke analizuar...'}</span>
+          </span>
+        ) : selectedDocName ? (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-main text-[11px] font-medium text-text-secondary max-w-[180px] sm:max-w-[300px] truncate" title={`Shkresa aktive: ${selectedDocName}`}>
             <FileText size={12} className="text-primary-start shrink-0" />
             <span className="truncate">{selectedDocName}</span>
@@ -58,31 +69,44 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </div>
 
-      {/* 2. DJATHTAS: Butoni dinamik 'Analizo', Ikona Zgjero/Zvogëlo, Eksporti dhe Koshi */}
+      {/* 2. DJATHTAS: Butoni dinamik, Fullscreen, Eksporti, Koshi */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
 
-        {/* Butoni Dinamik: Analizo Rastin (pa selektim) / Analizo Dokumentin (me selektim) */}
+        {/* Butoni Dinamik: Analizo Rastin / Analizo Dokumentin */}
         {onAnalyzeDocument && (
           <button
             type="button"
             onClick={onAnalyzeDocument}
-            className="h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer mr-1"
+            disabled={isAuditGenerating}
+            className={`h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none border cursor-pointer mr-1 ${
+              isAuditGenerating
+                ? 'bg-primary-start/15 border-primary-start/30 text-primary-start cursor-wait'
+                : 'bg-surface hover:bg-hover text-primary-start hover:text-primary-end border-main hover:border-primary-start/40'
+            }`}
             title={
-              hasSelectedDoc
-                ? `Kryej pasqyrën e shkresës: ${selectedDocName}`
-                : `Kryej doktrinën e rastit të plotë (të gjitha shkresat)`
+              isAuditGenerating
+                ? 'Analiza është në progres...'
+                : hasSelectedDoc
+                  ? `Kryej pasqyrën e shkresës: ${selectedDocName}`
+                  : `Kryej doktrinën e rastit të plotë (të gjitha shkresat)`
             }
           >
-            {hasSelectedDoc ? (
+            {isAuditGenerating ? (
+              <Loader2 size={12} className="shrink-0 animate-spin" />
+            ) : hasSelectedDoc ? (
               <FileText size={12} className="shrink-0 text-primary-start" />
             ) : (
               <Sparkles size={12} className="shrink-0 text-primary-start" />
             )}
             <span className="hidden sm:inline">
-              {hasSelectedDoc ? 'Analizo Dokumentin' : 'Analizo Rastin'}
+              {isAuditGenerating
+                ? 'Duke analizuar...'
+                : hasSelectedDoc
+                  ? 'Analizo Dokumentin'
+                  : 'Analizo Rastin'}
             </span>
             <span className="sm:hidden">
-              {hasSelectedDoc ? 'Analizo' : 'Rast'}
+              {isAuditGenerating ? '...' : hasSelectedDoc ? 'Analizo' : 'Rast'}
             </span>
           </button>
         )}

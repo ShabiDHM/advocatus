@@ -1,6 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V96.0 (STATIC DISCLAIMER FOOTER)
-// ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • 100% COMPLETE CODE • ULTRA 60FPS TYPING
+// PHOENIX PROTOCOL - CHAT PANEL V97.0 (BACKGROUND AUDIT PROPS)
+// V97.0: Props të reja për background audit (isAuditGenerating, auditProgressText).
+// V96.0: Static disclaimer footer.
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -54,6 +55,9 @@ interface ChatPanelProps {
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
   onAnalyzeDocument?: () => void;
   selectedDocName?: string;
+  // V97.0: Background audit
+  isAuditGenerating?: boolean;
+  auditProgressText?: string;
 }
 
 type FileCategory = 'audio' | 'spreadsheet' | 'image' | 'document';
@@ -175,7 +179,7 @@ const resolveSuggestionCardUI = (query: string) => {
 };
 
 // ============================================================================
-// KOMPONENTI I MEMOIZUAR I MESAZHIT (ADAPTIV PËR FULLSCREEN)
+// KOMPONENTI I MEMOIZUAR I MESAZHIT
 // ============================================================================
 interface ClientMessageBubbleProps {
   msg: ChatMessage;
@@ -348,7 +352,7 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
 ClientMessageBubble.displayName = 'ClientMessageBubble';
 
 // ============================================================================
-// KOMPONENTI KRYESOR CHAT PANEL (ME PORTAL FULLSCREEN OVERLAY)
+// KOMPONENTI KRYESOR CHAT PANEL
 // ============================================================================
 export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
   const {
@@ -368,17 +372,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     isPro = true,
     onAnalyzeDocument,
     selectedDocName,
+    isAuditGenerating = false,
+    auditProgressText = '',
   } = props;
 
   const [input, setInput] = useState('');
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
-
-  // Gjendja e Zgjerimit në Ekran të Plotë (Fullscreen Expand)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  // Gjendja e bashkëngjitjes së skedarit me 📎
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState<boolean>(false);
   const [uploadStatusText, setUploadStatusText] = useState<string>('');
@@ -389,7 +391,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Mbyllja e Fullscreen me tastin ESC
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isFullscreen) {
@@ -529,7 +530,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     );
   };
 
-  // PËRMBAJTJA E PLOTË E CHAT-IT
   const chatContent = (
     <div 
       className={`flex flex-col glass-panel overflow-hidden bg-canvas transition-all duration-200 ${
@@ -549,9 +549,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         selectedDocName={selectedDocName}
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen(prev => !prev)}
+        isAuditGenerating={isAuditGenerating}
+        auditProgressText={auditProgressText}
       />
 
-      {/* BODY CONTEXT ME SHTRIRJE TË PLOTË */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
         {displayMessages.length === 0 && !isSendingMessage ? (
           <div className="flex-1 min-h-full flex items-center justify-center w-full">
@@ -609,7 +610,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         )}
       </div>
 
-      {/* V96.0: DISCLAIMER FOOTER STATIK — shfaqet vetëm kur ka mesazhe */}
+      {/* V96.0: DISCLAIMER FOOTER STATIK */}
       {displayMessages.length > 0 && (
         <div className="px-3 sm:px-4 py-2 bg-surface/50 border-t border-main/60 shrink-0">
           <p className="text-[9px] sm:text-[10px] text-text-muted leading-snug text-center max-w-5xl mx-auto">
@@ -628,10 +629,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
           }}
           className={`w-full ${isFullscreen ? 'max-w-6xl mx-auto' : ''}`}
         >
-          {/* BADGE I SKEDARIT TË BASHKANGJITUR */}
           {renderAttachedBadge()}
 
-          {/* INPUT I FSHEHUR PËR SKEDARIN */}
           <input
             type="file"
             ref={fileInputRef}
@@ -691,11 +690,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     </div>
   );
 
-  // Kur është në Fullscreen, përdor Portal të shkëputur mbi të gjithë ekranin (z-[999999])
   if (isFullscreen) {
     return (
       <>
-        {/* Hapësira placeholder në faqe për të mos prishur layout-in */}
         <div className={`h-full w-full border border-dashed border-main/40 rounded-2xl sm:rounded-3xl flex items-center justify-center p-8 text-text-muted text-xs ${className || ''}`}>
           <span>Biseda është e hapur në ekran të plotë...</span>
         </div>
@@ -714,7 +711,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     );
   }
 
-  // Pamja normale në split-screen
   return chatContent;
 };
 

@@ -1,10 +1,9 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V276.0
-# V276.0: Prompt i zgjeruar anti-halucinacion:
-#         - Ndalohet zëvendësimi i ligjit me numër (03/L-182 ≠ 08/L-185).
-#         - Kërkohet raportim i kontradiktave të brendshme (6 vs 12 muaj).
-# V275.0: Prompt i fortë anti-halucinacion + rregulla strikte për citimet ligjore.
-# V274.0: Chat-i kalon në FAST_SEARCH_MODEL (gpt-4o-mini).
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V281.0
+# V281.0: QueryDepthDetector — logjikë automatike faktike vs analitike.
+#         Nëse dokument i zgjedhur + pyetje faktike → VETËM dokumenti (pa bazë ligjore).
+#         Nëse dokument i zgjedhur + pyetje analitike → dokument + bazë ligjore.
+# V280.0: Prompt rule #11 për "ligje të dyfishta".
 
 import os
 import logging
@@ -15,22 +14,23 @@ from bson import ObjectId
 
 from app.core.config import settings
 
-from app.services.rag.intent_detector import IntentDetector
+from app.services.rag.intent_detector import IntentDetector, QueryDepthDetector
 from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
+from app.services.rag.chat_post_processor import build_correction_section
 from app.services.pillars.base_pillar_service import BasePillarService
 
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
-from app.services.llm.llm_client import FAST_SEARCH_MODEL
+from app.services.llm.llm_client import DEEP_ANALYSIS_MODEL
 
 logger = logging.getLogger(__name__)
 
 CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# UDHËZIMI I BASHKËPUNIMIT + ANTI-HALUDINACIONI I FORTË (V276.0)
+# UDHËZIMI I BASHKËPUNIMIT + ANTI-HALUDINACIONI (V280.0)
 # ═══════════════════════════════════════════════════════════════════════════
 NATURAL_COUNSEL_INSTRUCTION = """
 UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
@@ -53,75 +53,68 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
 
 2. IDENTIFIKO SAKTËSISHT LIGJIN — KURRË MOS I NDËRRO:
    - **KPK**  = Kodi i Procedurës Penale (Nr. 08/L-032) → PROCEDURA PENALE
-   - **KPRK** = Kodi Penal (Nr. 06/L-074)             → DËNIME, REHABILITIM, VEPRA PENALE
+   - **KPRK** = Kodi Penal (Nr. 06/L-074)             → DËNIME, REHABILITIM
    - **LPK**  = Ligji për Procedurën Kontestimore (Nr. 03/L-006) → PROCEDURA CIVILE
-   - **LMD**  = Ligji për Marrëdhëniet e Detyrimeve (Nr. 04/L-077) → DETYRIME, DËME, KONTRATA
+   - **LMD**  = Ligji për Marrëdhëniet e Detyrimeve (Nr. 04/L-077) → DETYRIME, DËME
    - **LMDHF** = Ligji për Mbrojtjen nga Dhuna në Familje (Nr. 03/L-182 → 08/L-185) → URDHRA MBROJTJEJE
    - **LFK**  = Ligji për Familjen (Nr. 2004/32)      → ÇËSHTJE FAMILJARE
    - **Kushtetuta** e Republikës së Kosovës           → TË DREJTAT THEMELORE
 
 3. KURRË MOS PËRZIJ LËMIE LIGJORE:
-   - NËSE çështja është CIVILE (prefiksi "C.nr." në numrin e lëndës, ose flet për urdhër mbrojtjeje, divorc, kujdestari) → NUK cito KPRK për dënime/rehabilitim.
-   - NËSE çështja është PENALE (prefiksi "P.nr." ose "PKR") → NUK cito LPK për procedurë civile.
-   - Rehabilitimi penal (fshirja e dënimit) NUK aplikohet në çështje civile.
+   - Çështje CIVILE (C.nr., urdhër mbrojtjeje, divorc, kujdestari) → NUK cito KPRK.
+   - Çështje PENALE (P.nr., PKR, kallëzim) → NUK cito LPK.
+   - Rehabilitimi penal NUK aplikohet në çështje civile.
 
-4. ⚠️ LIGJET ME NUMËR (KRITIKE — V276.0):
+4. ⚠️ LIGJET ME NUMËR (KRITIKE):
    - KUR dokumenti citon "Ligji Nr. XX/L-YYY" → PËRDOR ATË NUMËR TË SAKTË.
-   - NUK LEJOHET ta zëvendësosh me një version tjetër (të vjetër ose të re).
-   - SHEMBULL: Nëse dokumenti shkruan "Ligji Nr. 03/L-182" → shkruaj "Ligji Nr. 03/L-182" — EDHE nëse e di që ekziston versioni i ri 08/L-185.
-   - Roli yt është të raportosh ÇFARË THOTË DOKUMENTI, jo të përditësosh ligjin.
-   - NUK LEJOHET të "normalizosh" ligjin duke e zëvendësuar me atë që ti e di si "më aktual".
+   - NUK LEJOHET ta zëvendësosh me një version tjetër pa përmendur burimin.
+   - SHEMBULL: Nëse dokumenti shkruan "03/L-182" → shkruaj "03/L-182".
 
 5. FORMATO CITIMET SAKTËSISHT:
    - "Neni X i [Ligjit]" — KURRË "Neni X.Y".
-   - Shembull i saktë: "Neni 15 i Ligjit Nr. 03/L-182", "Neni 29 i LMDHF-së".
-   - Shembull i GABUAR: "Neni 93 i KPK-së" (kur në të vërtetë është KPRK).
-   - Shembull i GABUAR: "Neni 29 i Ligjit Nr. 08/L-185" (kur dokumenti citon 03/L-182).
+   - Shembull i GABUAR: "Neni 93 i KPK-së" (duhet KPRK).
 
 6. AFATET PROCEDURALE:
    - Cito afatin VETËM me burim: "Sipas [dokumenti/neni], afati është X".
-   - NËSE dokumentet kanë afate të ndryshme → listoji TË GJITHA me burime.
    - NËSE nuk gjendet afat → shkruaj "Afati: kontrollo manualisht".
 
-7. ⚠️ KONTRADIKTAT E BRENDSHME (KRITIKE — V276.0):
-   - NËSE dokumenti ka kontradikta të brendshme (p.sh. "6 muaj" në një pikë, "12 muaj" në një tjetër) → LISTOJI TË DYJA dhe shëno me "⚠️ KONTRADIKTË NË DOKUMENT — PËR VERIFIKIM".
-   - NUK LEJOHET të zgjedhësh njërën pa përmendur tjetrën.
-   - Kjo ndihmon avokatin të identifikojë mangësitë e aktvendimit.
+7. ⚠️ KONTRADIKTAT E BRENDSHME:
+   - NËSE dokumenti ka kontradikta (p.sh. "6 muaj" vs "12 muaj") → LISTOJI TË DYJA me "⚠️ KONTRADIKTË".
 
 8. STRUKTURA E PËRGJIGJES:
    - Fillimisht identifiko çfarë pyet përdoruesi.
-   - Pastaj jep përgjigjen e bazuar vetëm në kontekst.
-   - Në fund, nëse ka dyshime → shkruaj "Për verifikim final konsultoni burimin zyrtar."
+   - Pastaj jep përgjigjen bazuar vetëm në kontekst.
+   - Në fund: "Për verifikim final konsultoni burimin zyrtar."
 
 9. STATUSI I DOKUMENTIT:
    - NËSE dokumenti përmban "KËSHILLË JURIDIKE" ose "afat ankimi" → NUK është i plotfuqishëm.
-   - MOS e etiketo si "i plotfuqishëm" pa bazë në tekst.
 
 10. ZERO SHABLLONE TË PËRGJITHSHME:
-    - NUK LEJOHET të shkruash përkufizime të përgjithshme ligjore që nuk lidhen me lëndën konkrete.
     - ÇDO fjali duhet të ketë lidhje me shkresat ose pyetjen e avokatit.
+
+11. ⚠️ LIGJE TË DYFISHTA / TË NDRYSHME (KRITIKE — V280.0):
+    - NËSE dokumentet e fashikullit citojnë DY OSE MË SHUMË ligje të ndryshme për të njëjtën çështje → LISTOJI TË GJITHA me burimin e saktë.
+    - SHEMBULL i saktë:
+        "Vendimi i shkallës së parë (16.02.2024) bazohet në Ligjin Nr. 03/L-182.
+         Vendimi i Apelit (26.03.2024) citon Ligjin Nr. 08/L-185."
+    - NUK LEJOHET të zgjedhësh vetëm një ligj pa përmendur tjetrin.
+    - KUR pyetja i referohet një dokumenti specifik (vendim, apel, aktvendim) → cito ligjin e atij dokumenti.
+    - NËSE pyetja nuk specifikon dokument → cito ligjin e dokumentit më të hershëm (origjinal) dhe përmend versionin e apelit si referencë.
 """
 
 
 def is_valid_legal_report(text: str) -> bool:
     if not text or len(text.strip()) < 150:
         return False
-
     lower_text = text.lower()
     error_markers = [
-        "përkohësisht i ngarkuar",
-        "error code:",
-        "context_length_exceeded",
-        "max_num_tokens",
-        "upstream error",
-        "not a valid model",
-        "no endpoints found",
-        "gabim teknik"
+        "përkohësisht i ngarkuar", "error code:", "context_length_exceeded",
+        "max_num_tokens", "upstream error", "not a valid model",
+        "no endpoints found", "gabim teknik"
     ]
     for marker in error_markers:
         if marker in lower_text:
             return False
-
     return True
 
 
@@ -139,7 +132,11 @@ class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info(f"✅ [RAG] Juristi AI Natural Client Service V276.0 Initialized (chat model: {FAST_SEARCH_MODEL}).")
+        logger.info(
+            f"✅ [RAG] Juristi AI Natural Client Service V281.0 Initialized "
+            f"(chat model: {DEEP_ANALYSIS_MODEL}, judicial-docs whitelist: ON, "
+            f"dual-law rule: ON, query-depth: ON)."
+        )
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -240,6 +237,19 @@ class AlbanianRAGService:
         optimized_query = self._optimize_query(query)
         req_pillar = detect_requested_pillar(query_lower)
 
+        # ═══════════════════════════════════════════════════════════════════
+        # V281.0: VENDOS nëse duhet të shtohet baza ligjore globale
+        # ═══════════════════════════════════════════════════════════════════
+        has_document_selection = bool(document_ids and len(document_ids) > 0)
+        should_fetch_global = QueryDepthDetector.should_fetch_global_docs(query, has_document_selection)
+        query_depth = QueryDepthDetector.detect(query)
+
+        logger.info(
+            f"🎯 [QueryDepth] Depth={query_depth} | "
+            f"Doc selected={has_document_selection} | "
+            f"Fetch global={should_fetch_global}"
+        )
+
         is_case_wide_request = any(kw in query_lower for kw in [
             "analizo rastin", "analizë e rastit", "analizë standarde e rastit",
             "pasqyra ekzekutive e lëndës", "pasqyra e lëndës", "raportin master",
@@ -273,6 +283,7 @@ class AlbanianRAGService:
 
         exec_query = optimized_query
         system_prompt = ""
+        whitelist: Dict[str, Any] = {"articles": [], "articles_display": [], "laws_abbrev": [], "laws_number": [], "pairs": [], "laws_by_file": {}, "source_filter": "unknown"}
 
         if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -282,10 +293,16 @@ class AlbanianRAGService:
                 document_ids=document_ids,
                 n_results=35
             )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+            # V281.0: Vetëm nëse duhet → baza ligjore globale
+            if should_fetch_global:
+                global_docs = vector_store_service.query_global_knowledge_base(
+                    query_text=optimized_query, n_results=15
+                )
+            else:
+                global_docs = []
+                logger.info(f"⏭️ [QueryDepth] Skip global_docs (factual + document selected)")
+
+            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
 
             system_prompt = f"""
             Ti je "Juristi AI - Asistenti Ligjor dhe Këshilltari Kryesor në Kosovë".
@@ -307,6 +324,8 @@ class AlbanianRAGService:
                 dossier_blocks.append(f"SHKRESA #{idx}: {doc_title} (Faqe: {p_count})\n{raw_text}\n")
 
             context_docs = "\n".join(dossier_blocks)
+            whitelist = ContextBuilder._extract_whitelist_from_case_files(db_documents)
+
             base_prompt = StatutoryVerificationService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -330,10 +349,11 @@ class AlbanianRAGService:
                 document_ids=document_ids,
                 n_results=25
             )
+            # V281.0: DRAFTING gjithmonë shton bazë ligjore (ka nevojë për kuadër)
             global_docs = vector_store_service.query_global_knowledge_base(
                 query_text=optimized_query, n_results=15
             )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
 
             base_prompt = LegalDraftingService.build_prompt(
                 case_title=case_title,
@@ -358,10 +378,16 @@ class AlbanianRAGService:
                 document_ids=document_ids,
                 n_results=25
             )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+            # V281.0: Vetëm nëse duhet → baza ligjore globale
+            if should_fetch_global:
+                global_docs = vector_store_service.query_global_knowledge_base(
+                    query_text=optimized_query, n_results=15
+                )
+            else:
+                global_docs = []
+                logger.info(f"⏭️ [QueryDepth] Skip global_docs (factual + document selected)")
+
+            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
 
             system_prompt = f"""
             Ti je "Juristi AI - Asistenti Ligjor dhe Këshilltari Kryesor në Kosovë".
@@ -392,10 +418,30 @@ class AlbanianRAGService:
             exec_query,
             context="",
             history=history,
-            model=FAST_SEARCH_MODEL,
+            model=DEEP_ANALYSIS_MODEL,
         ):
             full_generated_response += content
             yield content
+
+        # ═══ POST-PROCESSING DETERMINISTIK (V2.1) ═══
+        try:
+            correction_section = build_correction_section(
+                output_text=full_generated_response,
+                whitelist=whitelist,
+            )
+
+            if correction_section:
+                logger.info(
+                    f"🔍 [Post-Processor V2.1] Korrigjim u shtua: {len(correction_section)} chars. "
+                    f"whitelist ({whitelist.get('source_filter')}): "
+                    f"{len(whitelist.get('articles', []))} nene, "
+                    f"{len(whitelist.get('laws_number', []))} ligje me numër, "
+                    f"{len(whitelist.get('laws_by_file', {}))} dokumente me ligje."
+                )
+                yield correction_section
+                full_generated_response += correction_section
+        except Exception as e:
+            logger.warning(f"⚠️ [Post-Processor] Dështoi: {e}")
 
         if self.db is not None and case_id and user_id and full_generated_response.strip():
             try:
