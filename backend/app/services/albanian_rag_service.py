@@ -1,7 +1,10 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V274.0
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V276.0
+# V276.0: Prompt i zgjeruar anti-halucinacion:
+#         - Ndalohet zëvendësimi i ligjit me numër (03/L-182 ≠ 08/L-185).
+#         - Kërkohet raportim i kontradiktave të brendshme (6 vs 12 muaj).
+# V275.0: Prompt i fortë anti-halucinacion + rregulla strikte për citimet ligjore.
 # V274.0: Chat-i kalon në FAST_SEARCH_MODEL (gpt-4o-mini).
-#         Hequr MANDATORY_LEGAL_DISCLAIMER (zhvendosur si footer statik në frontend).
 
 import os
 import logging
@@ -12,24 +15,23 @@ from bson import ObjectId
 
 from app.core.config import settings
 
-# Modulet RAG
 from app.services.rag.intent_detector import IntentDetector
 from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
 from app.services.pillars.base_pillar_service import BasePillarService
 
-# Shtyllat e Pavarura
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
-# Modeli i shpejtë për chat
 from app.services.llm.llm_client import FAST_SEARCH_MODEL
 
 logger = logging.getLogger(__name__)
 
 CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
 
-# 🧠 UDHËZIMI I RI I MENÇUR DHE I NATYRSHËM (ZERO SHABLLONE TË NGURTA)
+# ═══════════════════════════════════════════════════════════════════════════
+# UDHËZIMI I BASHKËPUNIMIT + ANTI-HALUDINACIONI I FORTË (V276.0)
+# ═══════════════════════════════════════════════════════════════════════════
 NATURAL_COUNSEL_INSTRUCTION = """
 UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
 1. BASHKËPUNIM I ZGJUAR DHE DIALOG I NATYRSHËM:
@@ -37,7 +39,67 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
    - MOS sajo asnjëherë raporte imagjinare kur përdoruesi ende nuk e ka dhënë tekstin apo pyetjen konkrete.
 2. SAKTËSI DHE BAZË LIGJORE:
    - Përgjigjuni në gjuhë standarde juridike të Republikës së Kosovës.
-   - Mbështetuni në faktet reale të shkresave të lëndës dhe në dispozitat përkatëse (LPK, LMD, KPK, KPPRK, Ligji për Familjen, Kushtetuta).
+   - Mbështetuni në faktet reale të shkresave të lëndës dhe në dispozitat përkatëse.
+
+═══════════════════════════════════════════════════════════════════════════
+⚠️ RREGULLA TË PAFEKSIONUESHME ANTI-HALUDINACION (TË DETYRUESHME)
+═══════════════════════════════════════════════════════════════════════════
+
+1. PËRDOR VETËM NENET QË JANË NË KONTEKST:
+   - Nëse në kontekstin e mësipërm nuk shfaqet neni konkret → NUK MUND TË CITOSH atë nen.
+   - NUK LEJOHET të shpikësh numra neni, emra ligjesh, afate ose procedura që nuk shfaqen në kontekst.
+   - Nëse informacioni mungon → thuaj:
+     "Ky informacion nuk gjendet në shkresat e fashikullit. Rekomandohet verifikim me burimin zyrtar."
+
+2. IDENTIFIKO SAKTËSISHT LIGJIN — KURRË MOS I NDËRRO:
+   - **KPK**  = Kodi i Procedurës Penale (Nr. 08/L-032) → PROCEDURA PENALE
+   - **KPRK** = Kodi Penal (Nr. 06/L-074)             → DËNIME, REHABILITIM, VEPRA PENALE
+   - **LPK**  = Ligji për Procedurën Kontestimore (Nr. 03/L-006) → PROCEDURA CIVILE
+   - **LMD**  = Ligji për Marrëdhëniet e Detyrimeve (Nr. 04/L-077) → DETYRIME, DËME, KONTRATA
+   - **LMDHF** = Ligji për Mbrojtjen nga Dhuna në Familje (Nr. 03/L-182 → 08/L-185) → URDHRA MBROJTJEJE
+   - **LFK**  = Ligji për Familjen (Nr. 2004/32)      → ÇËSHTJE FAMILJARE
+   - **Kushtetuta** e Republikës së Kosovës           → TË DREJTAT THEMELORE
+
+3. KURRË MOS PËRZIJ LËMIE LIGJORE:
+   - NËSE çështja është CIVILE (prefiksi "C.nr." në numrin e lëndës, ose flet për urdhër mbrojtjeje, divorc, kujdestari) → NUK cito KPRK për dënime/rehabilitim.
+   - NËSE çështja është PENALE (prefiksi "P.nr." ose "PKR") → NUK cito LPK për procedurë civile.
+   - Rehabilitimi penal (fshirja e dënimit) NUK aplikohet në çështje civile.
+
+4. ⚠️ LIGJET ME NUMËR (KRITIKE — V276.0):
+   - KUR dokumenti citon "Ligji Nr. XX/L-YYY" → PËRDOR ATË NUMËR TË SAKTË.
+   - NUK LEJOHET ta zëvendësosh me një version tjetër (të vjetër ose të re).
+   - SHEMBULL: Nëse dokumenti shkruan "Ligji Nr. 03/L-182" → shkruaj "Ligji Nr. 03/L-182" — EDHE nëse e di që ekziston versioni i ri 08/L-185.
+   - Roli yt është të raportosh ÇFARË THOTË DOKUMENTI, jo të përditësosh ligjin.
+   - NUK LEJOHET të "normalizosh" ligjin duke e zëvendësuar me atë që ti e di si "më aktual".
+
+5. FORMATO CITIMET SAKTËSISHT:
+   - "Neni X i [Ligjit]" — KURRË "Neni X.Y".
+   - Shembull i saktë: "Neni 15 i Ligjit Nr. 03/L-182", "Neni 29 i LMDHF-së".
+   - Shembull i GABUAR: "Neni 93 i KPK-së" (kur në të vërtetë është KPRK).
+   - Shembull i GABUAR: "Neni 29 i Ligjit Nr. 08/L-185" (kur dokumenti citon 03/L-182).
+
+6. AFATET PROCEDURALE:
+   - Cito afatin VETËM me burim: "Sipas [dokumenti/neni], afati është X".
+   - NËSE dokumentet kanë afate të ndryshme → listoji TË GJITHA me burime.
+   - NËSE nuk gjendet afat → shkruaj "Afati: kontrollo manualisht".
+
+7. ⚠️ KONTRADIKTAT E BRENDSHME (KRITIKE — V276.0):
+   - NËSE dokumenti ka kontradikta të brendshme (p.sh. "6 muaj" në një pikë, "12 muaj" në një tjetër) → LISTOJI TË DYJA dhe shëno me "⚠️ KONTRADIKTË NË DOKUMENT — PËR VERIFIKIM".
+   - NUK LEJOHET të zgjedhësh njërën pa përmendur tjetrën.
+   - Kjo ndihmon avokatin të identifikojë mangësitë e aktvendimit.
+
+8. STRUKTURA E PËRGJIGJES:
+   - Fillimisht identifiko çfarë pyet përdoruesi.
+   - Pastaj jep përgjigjen e bazuar vetëm në kontekst.
+   - Në fund, nëse ka dyshime → shkruaj "Për verifikim final konsultoni burimin zyrtar."
+
+9. STATUSI I DOKUMENTIT:
+   - NËSE dokumenti përmban "KËSHILLË JURIDIKE" ose "afat ankimi" → NUK është i plotfuqishëm.
+   - MOS e etiketo si "i plotfuqishëm" pa bazë në tekst.
+
+10. ZERO SHABLLONE TË PËRGJITHSHME:
+    - NUK LEJOHET të shkruash përkufizime të përgjithshme ligjore që nuk lidhen me lëndën konkrete.
+    - ÇDO fjali duhet të ketë lidhje me shkresat ose pyetjen e avokatit.
 """
 
 
@@ -77,7 +139,7 @@ class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info(f"✅ [RAG] Juristi AI Natural Client Service V274.0 Initialized (chat model: {FAST_SEARCH_MODEL}).")
+        logger.info(f"✅ [RAG] Juristi AI Natural Client Service V276.0 Initialized (chat model: {FAST_SEARCH_MODEL}).")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -126,7 +188,6 @@ class AlbanianRAGService:
         case_doc = None
         c_oid = None
 
-        # 1. Tërheqje e izoluar nga shkresat e lëndës së avokatit/klientit
         if case_id and self.db is not None:
             try:
                 c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -152,7 +213,6 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read client documents: {ex}")
 
-        # Historiku i bisedës
         if history is None and self.db is not None and case_id and user_id:
             try:
                 past_cursor = self.db[CASE_CHAT_HISTORY_COLLECTION].find({
@@ -291,7 +351,6 @@ class AlbanianRAGService:
             system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
-            # CHAT UNIVERSAL I KLIENTIT (I LIRË, I ZGJUAR DHE BASHKËPUNUES)
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id,
                 query_text=optimized_query,
@@ -315,7 +374,6 @@ class AlbanianRAGService:
             {context_str}
             """
 
-        # Ruhet pyetja e përdoruesit në MongoDB
         if self.db is not None and case_id and user_id:
             try:
                 self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
@@ -328,7 +386,6 @@ class AlbanianRAGService:
             except Exception as e:
                 logger.warning(f"Could not save user chat message: {e}")
 
-        # Ekzekutimi me FAST_SEARCH_MODEL (gpt-4o-mini)
         full_generated_response = ""
         async for content in self.response_generator.generate_stream(
             system_prompt,
@@ -340,7 +397,6 @@ class AlbanianRAGService:
             full_generated_response += content
             yield content
 
-        # Ruhet përgjigja e plotë e AI në MongoDB menjëherë
         if self.db is not None and case_id and user_id and full_generated_response.strip():
             try:
                 self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
@@ -352,5 +408,3 @@ class AlbanianRAGService:
                 })
             except Exception as e:
                 logger.warning(f"Could not save assistant chat message: {e}")
-
-        # V274.0: Disclaimer-i u hoq nga këtu — shfaqet vetëm si footer statik në frontend.
