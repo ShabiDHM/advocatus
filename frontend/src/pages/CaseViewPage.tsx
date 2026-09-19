@@ -1,13 +1,15 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V109.5
-// V109.5: FIX KRITIK — rikthyer handler-i section_chunk (humbur gjatë refaktorimit).
-//         Shtuar handler për report_ready edhe në fresh run.
-//         Shtuar logging diagnostikues për accumulated bosh.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V109.6
+// V109.6: FIX KRITIK RACE CONDITION — fetchCaseData rifetchohej pas stream-it,
+//         duke mbishkruar chatMessages lokale me version stale nga serveri
+//         (para se backend-i të ruante AI-message). Tani: ref-based guard —
+//         vetëm 1 fetch për caseId.
+// V109.5: FIX KRITIK — rikthyer handler-i section_chunk.
 // V109.4: Hequr auditSubLabel + auditIsDocumentMode.
 // V109.3: Progress bar inline në ChatHeader.
 // V109.0: Background audit generation.
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
@@ -63,6 +65,11 @@ const CaseViewPage: React.FC = () => {
   const [auditStartTime, setAuditStartTime] = useState<number | null>(null);
 
   const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // V109.6: REF GUARD — parandalon rifetchim të case-it pas stream-it
+  // ═══════════════════════════════════════════════════════════════════════
+  const loadedCaseIdRef = useRef<string | null>(null);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -134,9 +141,19 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, t, setLiveDocuments, saveToLocalStorage]);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // V109.6: FIX — fetch VETËM 1 herë për caseId (ref-based guard)
+  // Pavarësisht nëse fetchCaseData identity ndryshon (p.sh. nga setLiveDocuments),
+  // nuk rifetchohet për të njëjtin caseId.
+  // ═══════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (isReadyForData) fetchCaseData(true);
-  }, [isReadyForData, fetchCaseData]);
+    if (!isReadyForData || !caseId) return;
+    if (loadedCaseIdRef.current === caseId) return;
+
+    loadedCaseIdRef.current = caseId;
+    console.debug('[CaseViewPage V109.6] Initial fetch for caseId:', caseId);
+    fetchCaseData(true);
+  }, [isReadyForData, caseId, fetchCaseData]);
 
   useEffect(() => {
     const hasProcessingDocs = liveDocuments.some(
@@ -297,17 +314,12 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // V109.5: Background generation + Progress tracking
-  // ═══════════════════════════════════════════════════════════════════════
-
   const _runBackgroundAudit = useCallback(async (docIds: string[] | null) => {
     if (!currentCaseId) return;
 
     const isDocMode = !!docIds;
     const startedAt = Date.now();
 
-    // Reset progress state
     setIsAuditGenerating(true);
     setAuditProgressText(isDocMode ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
     setAuditStartTime(startedAt);
@@ -385,16 +397,12 @@ const CaseViewPage: React.FC = () => {
           const title = evt.section_title || evt.section_key || '';
           sectionsStarted++;
           setAuditProgressText(`Seksioni: ${title}`);
-          // V109.5: Shto titullin në accumulated për strukturë
           if (title) {
             accumulated += `\n\n## ${title}\n\n`;
           }
           continue;
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // V109.5: FIX — handler-i section_chunk u rikthye
-        // ═══════════════════════════════════════════════════════════════
         if (evtType === 'section_chunk') {
           const chunk = evt.chunk || evt.content || evt.text || '';
           if (chunk) {
@@ -419,7 +427,6 @@ const CaseViewPage: React.FC = () => {
         if (evtType === 'report_ready') {
           const content = evt.content || '';
           const fromCache = evt.from_cache === true;
-          // V109.5: Prano report_ready edhe për fresh nëse accumulated është bosh
           if (content.trim() && !accumulated) {
             detectedSource = fromCache ? 'cache' : 'fresh';
             accumulated = content;
@@ -450,14 +457,12 @@ const CaseViewPage: React.FC = () => {
         throw new Error('Raporti nuk u gjenerua. Provoni përsëri.');
       }
 
-      // Save në server
       try {
         await apiService.saveCaseDossierAudit(currentCaseId, finalReport);
       } catch (saveErr) {
         console.error('Save audit error:', saveErr);
       }
 
-      // Set progress 100% + hap modal
       setAuditProgressPercent(100);
       setAuditPhaseLabel('Përfundoi');
       setAuditProgressText('Raporti u gjenerua me sukses');

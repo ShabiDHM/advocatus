@@ -13,7 +13,7 @@ export default {
         'card': 'var(--bg-card)',
         'surface': 'rgb(var(--bg-surface-rgb) / <alpha-value>)',
         'surface-secondary': 'var(--bg-surface-secondary)',
-        'input-bg': 'var(--bg-input)',
+        'input': 'var(--bg-input)',
         
         // Typography - Simplified keys for standard utilities
         'primary': 'var(--accent-primary)',

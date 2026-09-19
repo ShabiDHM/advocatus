@@ -1,5 +1,8 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - AUDITOR MODAL V2.0 (CENTRALIZED COLORS)
+// PHOENIX PROTOCOL - AUDITOR MODAL V2.2 (INPUT CLASS FIX)
+// V2.2: Rikthyer `bg-input` — tani funksionon pas fix-it në tailwind.config.js
+//       (ndryshuar 'input-bg' → 'input').
+// V2.1: FIX përkohshëm me bg-canvas (u zëvendësua).
 // V2.0: Zero ngjyra hardcoded. Të gjitha referencat nga semantike classes.
 
 import React, { useEffect, useState, useRef } from 'react';

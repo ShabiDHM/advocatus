@@ -1,10 +1,11 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V41.0 (INLINE PROGRESS BAR)
-// V41.0: Progress bar inline zëvendëson label-in "Sesioni: ..." gjatë analizës.
-// V40.0: Background audit button me spinner.
+// PHOENIX PROTOCOL - CHAT HEADER V43.0 (SINGLE CIRCULAR PROGRESS)
+// V43.0: Hequr progress bar-in majtas. Butoni djathtas është i vetmi tregues progresi.
+//        Shtuar faza (phase label) si tooltip.
+// V42.0: Circular progress + përqindje.
 
 import React, { useEffect, useState } from 'react';
-import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles, Loader2 } from 'lucide-react';
+import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles } from 'lucide-react';
 import { TFunction } from 'i18next';
 
 interface ChatHeaderProps {
@@ -21,7 +22,6 @@ interface ChatHeaderProps {
   onDocumentSelectionChange?: (ids: string[]) => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
-  // V41.0: Progress data
   isAuditGenerating?: boolean;
   auditProgressText?: string;
   auditProgressPercent?: number;
@@ -43,8 +43,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   auditStartTime = null,
 }) => {
   const hasSelectedDoc = !!selectedDocName && selectedDocName.trim().length > 0;
-
-  // V41.0: Koha e kaluar live — tik çdo sekondë
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -67,9 +65,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   const safePercent = Math.min(100, Math.max(0, Math.round(auditProgressPercent)));
 
+  // Circular progress parameters
+  const ringRadius = 7;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCircumference * (1 - safePercent / 100);
+
   return (
     <div className="flex flex-row items-center justify-between px-3 sm:px-5 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none shadow-xs">
-      {/* 1. MAJTAS: LED + Progress bar (gjatë analizës) ose Emri i dokumentit */}
+      {/* 1. MAJTAS: LED + Emri i dokumentit / Statusi */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
         <span
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -81,37 +84,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         />
 
         {isAuditGenerating ? (
-          // V41.0: Progress bar inline në vend të "Sesioni: ..."
-          <div className="flex-1 min-w-0 max-w-[280px] sm:max-w-[520px]">
-            <div className="relative h-7 bg-canvas border border-primary-start/40 rounded-full overflow-hidden">
-              {/* Fill background */}
-              <div
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary-start/25 to-primary-start/45 transition-all duration-300 ease-out"
-                style={{ width: `${safePercent}%` }}
-              />
-
-              {/* Text overlay */}
-              <div className="relative h-full flex items-center justify-between gap-1.5 sm:gap-2 px-2.5 sm:px-3">
-                {/* Përqindja */}
-                <span className="text-[10px] font-black text-primary-start tabular-nums shrink-0">
-                  {safePercent}%
-                </span>
-
-                {/* Faza — e fshehur në mobile shumë të vogël, e dukshme në sm+ */}
-                <span
-                  className="text-[10px] font-bold text-text-primary truncate flex-1 text-center hidden xs:block"
-                  title={auditPhaseLabel}
-                >
-                  {auditPhaseLabel || 'Duke analizuar...'}
-                </span>
-
-                {/* Koha */}
-                <span className="text-[10px] font-mono font-bold text-text-muted tabular-nums shrink-0">
-                  {formatElapsed(elapsed)}
-                </span>
-              </div>
-            </div>
-          </div>
+          // V43.0: Vetëm teksti i fazës — pa progress bar
+          <span
+            className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-primary-start/10 border border-primary-start/30 text-[11px] font-bold text-primary-start max-w-[180px] sm:max-w-[400px] truncate"
+            title={auditPhaseLabel || 'Duke analizuar...'}
+          >
+            <span className="truncate">{auditPhaseLabel || 'Duke analizuar...'}</span>
+            <span className="text-[10px] font-mono text-primary-start/70 shrink-0">
+              {formatElapsed(elapsed)}
+            </span>
+          </span>
         ) : selectedDocName ? (
           <span
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-main text-[11px] font-medium text-text-secondary max-w-[180px] sm:max-w-[300px] truncate"
@@ -127,44 +109,73 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </div>
 
-      {/* 2. DJATHTAS: Butoni dinamik, Fullscreen, Eksporti, Koshi */}
+      {/* 2. DJATHTAS: Butoni dinamik me circular progress, Fullscreen, Eksporti, Koshi */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-        {/* Butoni Dinamik: Analizo Rastin / Analizo Dokumentin */}
+
+        {/* V43.0: Butoni Dinamik me circular progress */}
         {onAnalyzeDocument && (
           <button
             type="button"
             onClick={onAnalyzeDocument}
             disabled={isAuditGenerating}
-            className={`h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none border cursor-pointer mr-1 ${
+            className={`h-8 px-2 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none border cursor-pointer mr-1 ${
               isAuditGenerating
                 ? 'bg-primary-start/15 border-primary-start/30 text-primary-start cursor-wait'
                 : 'bg-surface hover:bg-hover text-primary-start hover:text-primary-end border-main hover:border-primary-start/40'
             }`}
             title={
               isAuditGenerating
-                ? 'Analiza është në progres...'
+                ? `Duke analizuar... ${safePercent}% — ${auditPhaseLabel || ''}`
                 : hasSelectedDoc
                   ? `Kryej pasqyrën e shkresës: ${selectedDocName}`
                   : `Kryej doktrinën e rastit të plotë (të gjitha shkresat)`
             }
           >
             {isAuditGenerating ? (
-              <Loader2 size={12} className="shrink-0 animate-spin" />
+              // V43.0: Circular progress + përqindje
+              <>
+                <svg
+                  className="w-4 h-4 shrink-0 -rotate-90"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                >
+                  <circle
+                    cx="10"
+                    cy="10"
+                    r={ringRadius}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="opacity-20"
+                  />
+                  <circle
+                    cx="10"
+                    cy="10"
+                    r={ringRadius}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeDasharray={ringCircumference}
+                    strokeDashoffset={ringOffset}
+                    className="transition-all duration-300 ease-out"
+                  />
+                </svg>
+                <span className="tabular-nums font-black text-[11px] min-w-[28px] text-right">
+                  {safePercent}%
+                </span>
+              </>
             ) : hasSelectedDoc ? (
-              <FileText size={12} className="shrink-0 text-primary-start" />
+              <>
+                <FileText size={12} className="shrink-0 text-primary-start" />
+                <span className="hidden sm:inline">Analizo Dokumentin</span>
+                <span className="sm:hidden">Analizo</span>
+              </>
             ) : (
-              <Sparkles size={12} className="shrink-0 text-primary-start" />
+              <>
+                <Sparkles size={12} className="shrink-0 text-primary-start" />
+                <span className="hidden sm:inline">Analizo Rastin</span>
+                <span className="sm:hidden">Rast</span>
+              </>
             )}
-            <span className="hidden sm:inline">
-              {isAuditGenerating
-                ? 'Duke analizuar...'
-                : hasSelectedDoc
-                  ? 'Analizo Dokumentin'
-                  : 'Analizo Rastin'}
-            </span>
-            <span className="sm:hidden">
-              {isAuditGenerating ? '...' : hasSelectedDoc ? 'Analizo' : 'Rast'}
-            </span>
           </button>
         )}
 
