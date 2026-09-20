@@ -1,9 +1,13 @@
 # FILE: backend/app/services/synthesis/guardrails.py
-# PHOENIX PROTOCOL - GUARDRAILS V1.0
-# Ekstraktuar nga synthesis_service.py V3.8 — ZERO ndryshim funksional.
-# Guardrail #3 (LLM correction), #4 (citation check), #5 (attribution), #5b (deadlines)
+# PHOENIX PROTOCOL - GUARDRAILS V1.1
+# V1.1: FIX konsistence me citation_extraction V1.2 (split article/paragraph).
+#       (A) verify_attribution: normalizo "1.2" ↔ "1, par. 2" përpara krahasimit
+#       (B) verify_citations: normalizo "1.2" → "1" për krahasim me doc_articles
+#       (C) correct_citations_with_llm: përfshi paragraph në articles_list
+# V1.0: Ekstraktuar nga synthesis_service.py V3.8.
 
 import logging
+import re
 from typing import Any, Dict, List, Set, Tuple
 from collections import defaultdict
 
@@ -16,6 +20,54 @@ from .patterns import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.1: HELPERS — unifikim me citation_extraction
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _normalize_article_display(
+    article_raw: str,
+    paragraph_raw: str = None,
+) -> str:
+    """
+    V1.1: Ndan + formaton numrin e nenit njësoj si citation_extraction V1.2.
+
+    Rastet:
+      ("1.2", None) → "1, par. 2"
+      ("1",   "2")  → "1, par. 2"
+      ("1",   None) → "1"
+      ("1.2.3", None) → "1.2.3"  (format i panjohur, ruaj)
+
+    Përdoret për krahasim me article_law_pairs të formatuara.
+    """
+    art = (article_raw or "").strip()
+    par = (paragraph_raw or "").strip() if paragraph_raw else None
+
+    if par:
+        return f"{art}, par. {par}"
+
+    m = re.match(r'^(\d+)\.(\d+)$', art)
+    if m:
+        return f"{m.group(1)}, par. {m.group(2)}"
+
+    return art
+
+
+def _extract_base_article_number(article_raw: str) -> str:
+    """
+    V1.1: Nxjerr VETËM numrin bazë të nenit (pa paragraf).
+    Përdoret për krahasim me doc_articles_available.
+
+      "1.2" → "1"
+      "1"   → "1"
+      "1/2" → "1/2"  (jo format paragrafi)
+    """
+    art = (article_raw or "").strip()
+    m = re.match(r'^(\d+)\.(\d+)$', art)
+    if m:
+        return m.group(1)
+    return art
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -46,26 +98,29 @@ def verify_attribution_word_by_word(
     seen: Set[Tuple[str, str]] = set()
 
     for match in CITATION_WITH_LAW_PATTERN.finditer(output_text):
-        article_num = match.group(1)
-        paragraph = match.group(2)
+        article_raw = match.group(1)
+        paragraph_raw = match.group(2)
         law = match.group(3).upper()
 
+        # V1.1: Normalizo article në formatin "1, par. 2" (i njëjti si citation_extraction)
+        article_normalized = _normalize_article_display(article_raw, paragraph_raw)
+
         law_normalized = law.strip()
-        key = (article_num, law_normalized)
+        key = (article_normalized, law_normalized)
         if key in seen:
             continue
         seen.add(key)
 
         entry = {
-            "article": article_num,
-            "paragraph": paragraph,
+            "article": article_normalized,
+            "paragraph": paragraph_raw,
             "law": law_normalized,
             "raw": match.group(0).strip(),
         }
 
         found = False
         for pair_art, pair_law in article_law_pairs:
-            if pair_art != article_num:
+            if pair_art != article_normalized:
                 continue
             if pair_law.upper() == law_normalized:
                 found = True
@@ -168,7 +223,12 @@ def verify_citations_word_by_word(
     seen: Set[str] = set()
 
     for match in VERIFIED_ARTICLE_PATTERN.finditer(output_text):
-        num = match.group(1)
+        num_raw = match.group(1)
+
+        # V1.1: Normalizo "1.2" → "1" për krahasim me doc_articles_available
+        # (i cili tani përmban numrat e bazë, jo format "1.2")
+        num = _extract_base_article_number(num_raw)
+
         if num in seen:
             continue
         seen.add(num)
@@ -208,10 +268,14 @@ def correct_citations_with_llm(
         return output_text
 
     laws_list = ", ".join(verified_citations.get("laws", [])) or "asnjë"
+
+    # V1.1: Përfshi paragraph në listën e neneve
     articles_list = ", ".join(
-        f"Neni {a['number']}" for a in verified_citations.get("articles", [])[:50]
+        f"Neni {a['number']}" + (f", par. {a['paragraph']}" if a.get("paragraph") else "")
+        for a in verified_citations.get("articles", [])[:50]
     ) or "asnjë"
 
+    # article_law_pairs tani vjen i formatuar "1, par. 2" nga V1.2
     pairs_list = " | ".join(
         f"Neni {a} i {l}" for a, l in verified_citations.get("article_law_pairs", [])[:50]
     ) or "asnjë"

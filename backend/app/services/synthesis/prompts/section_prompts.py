@@ -1,11 +1,11 @@
 # FILE: backend/app/services/synthesis/prompts/section_prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V1.3
+# PHOENIX PROTOCOL - SECTION PROMPTS V1.4
+# V1.4: Fix typo — "RREZIQET" → "RREZIQET" (LLM e kopjon verbatim).
 # V1.3: Fix-e pas raportit të Shtator 2026:
 #       - "Next Step" → "Hapi i Ardhshëm" (shqip)
-#       - "Afati: kontrollo manualisht" → formulim profesional (jo instruksion)
+#       - "Afati: kontrollo manualisht" → formulim profesional
 #       - legal_framework: Jurisprudenca kushtëzohet nga ekzistenca në digest
 #       - Të gjitha: udhëzim për të mos shkruar titullin kryesor të seksionit
-#         (shtohet automatikisht nga frontend — shmang duplikimin)
 # V1.2: Shtuar FEW-SHOT EXAMPLES në executive_summary + parties_and_roles.
 # V1.1: Struktura dual-matter.
 

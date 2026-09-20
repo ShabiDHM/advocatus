@@ -1,6 +1,12 @@
 # FILE: backend/app/services/synthesis/citation_extraction.py
-# PHOENIX PROTOCOL - CITATION EXTRACTION V1.0
-# Ekstraktuar nga synthesis_service.py V3.8 — ZERO ndryshim funksional.
+# PHOENIX PROTOCOL - CITATION EXTRACTION V1.2
+# V1.2: FIX i plotë "Neni 1.2" → "Neni 1, par. 2" në TË TRE vendet:
+#       (1) VERIFIED_ARTICLE_PATTERN path — split në (number, paragraph)
+#       (2) CITATION_WITH_LAW_PATTERN path — split + format pair
+#       (3) _process_document_articles (SINGLE + MULTI) — string format
+#       Helper i përbashkët: _split_article_and_paragraph()
+# V1.1: FIX "Neni 1.2" → "Neni 1, par. 2" (vetëm në _process_document_articles).
+# V1.0: Ekstraktuar nga synthesis_service.py V3.8.
 
 import re
 import logging
@@ -20,6 +26,54 @@ from .patterns import (
 from .constants import MAX_ARTICLE_DESCRIPTIONS, LAW_CONTEXT_WINDOW
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.2: HELPERS — normalizim i numrit të nenit
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _split_article_and_paragraph(
+    article_raw: str,
+    paragraph_raw: Optional[str] = None,
+) -> Tuple[str, Optional[str]]:
+    """
+    V1.2: Ndan numrin e nenit në (article, paragraph).
+
+    Rastet e trajtuara:
+      ("1",   None)    → ("1",   None)
+      ("1",   "2")     → ("1",   "2")
+      ("1.2", None)    → ("1",   "2")     ← ndan pikën (bug-u kryesor)
+      ("1.2.3", None)  → ("1.2.3", None)  ← nuk hamendësoj për 3 nivele
+      ("1/2", None)    → ("1/2", None)    ← jo format paragrafi
+      ("",    None)    → ("",    None)
+
+    Konventa ligjore shqipe: "Neni X, par. Y".
+    """
+    art = (article_raw or "").strip()
+    par = (paragraph_raw or "").strip() if paragraph_raw else None
+
+    # Nëse paragrafi është eksplicit → ruaj
+    if par:
+        return (art, par)
+
+    # Nëse art="X.Y" (vetëm një pikë) → ndaj
+    m = re.match(r'^(\d+)\.(\d+)$', art)
+    if m:
+        return (m.group(1), m.group(2))
+
+    # Çdo format tjetër → ruaj si është
+    return (art, None)
+
+
+def _format_article_display(article: str, paragraph: Optional[str]) -> str:
+    """
+    V1.2: Formatimi përfundimtar për shfaqje.
+      ("1", None) → "1"
+      ("1", "2")  → "1, par. 2"
+    """
+    if paragraph:
+        return f"{article}, par. {paragraph}"
+    return article
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -84,9 +138,15 @@ def extract_verified_citations_from_documents(db, case_id: str) -> Dict[str, Any
                     laws.add(abbr_up)
                     document_laws[doc_id].add(abbr_up)
 
+            # ═══════════════════════════════════════════════════════════════
+            # V1.2: VERIFIED_ARTICLE — split (number, paragraph)
+            # ═══════════════════════════════════════════════════════════════
             for match in VERIFIED_ARTICLE_PATTERN.finditer(text):
-                article_num = match.group(1)
-                paragraph = match.group(2)
+                article_raw = match.group(1)
+                paragraph_raw = match.group(2)
+                article_num, paragraph = _split_article_and_paragraph(
+                    article_raw, paragraph_raw
+                )
                 all_articles.append({
                     "number": article_num,
                     "paragraph": paragraph,
@@ -95,10 +155,19 @@ def extract_verified_citations_from_documents(db, case_id: str) -> Dict[str, Any
                 })
                 articles_by_doc[doc_id].append(article_num)
 
+            # ═══════════════════════════════════════════════════════════════
+            # V1.2: CITATION_WITH_LAW — split + format pair
+            # ═══════════════════════════════════════════════════════════════
             for match in CITATION_WITH_LAW_PATTERN.finditer(text):
-                article_num = match.group(1)
+                article_raw = match.group(1)
+                paragraph_raw = match.group(2)
                 law = match.group(3).upper()
-                article_law_pairs.add((article_num, law))
+
+                article_num, paragraph = _split_article_and_paragraph(
+                    article_raw, paragraph_raw
+                )
+                pair_article = _format_article_display(article_num, paragraph)
+                article_law_pairs.add((pair_article, law))
 
     except Exception as e:
         logger.warning(f"⚠️ [GUARDRAIL #2] extraction failed: {e}")
@@ -210,11 +279,16 @@ def _process_document_articles(
         else:
             description = None
 
-        for num in numbers:
-            all_articles.append((match.start(), f"Neni {num}", description))
+        # V1.2: Split + format
+        for num_raw in numbers:
+            art, par = _split_article_and_paragraph(num_raw, None)
+            display = _format_article_display(art, par)
+            all_articles.append(
+                (match.start(), f"Neni {display}", description)
+            )
 
     for match in SINGLE_ARTICLE_PATTERN.finditer(text):
-        article_num = match.group(1).strip()
+        article_raw = match.group(1).strip()
         law_hint = (match.group(3) or "").strip()
         if law_hint:
             law_hint = re.sub(
@@ -232,7 +306,12 @@ def _process_document_articles(
         else:
             description = None
 
-        all_articles.append((match.start(), f"Neni {article_num}", description))
+        # V1.2: Split + format
+        art, par = _split_article_and_paragraph(article_raw, None)
+        display = _format_article_display(art, par)
+        all_articles.append(
+            (match.start(), f"Neni {display}", description)
+        )
 
     for article_pos, article_key, description in all_articles:
         attributed_law = _find_nearest_law(law_positions, article_pos)
