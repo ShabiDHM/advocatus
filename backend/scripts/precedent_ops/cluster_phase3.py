@@ -1,10 +1,20 @@
-# -*- coding: utf-8 -*-
-"""Shtresa 2.1 - Faza 3: update MongoDB me topic_id + topic_label."""
+# FILE: backend/scripts/precedent_ops/cluster_phase3.py
+# PHOENIX PROTOCOL - TOPIC CLUSTERING PHASE 3 (UPDATE MONGODB)
+
 import os
+import sys
 import json
 import time
 import logging
-from pymongo import UpdateOne, MongoClient
+from pathlib import Path
+
+# Shto backend/ ne sys.path
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_BACKEND_DIR = _SCRIPT_DIR.parent.parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+
+from pymongo import MongoClient, UpdateOne
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("update")
@@ -111,9 +121,6 @@ def main():
         print(f"  Matched:  {total_matched}")
         print(f"  Modified: {total_modified}")
         print(f"  Koha:     {elapsed}s")
-        print()
-        print("Verifiko me:")
-        print("  python -c \"from app.core.db import get_db; c=get_db()['legal_knowledge_base']; print('Me topic_id:', c.count_documents({'category':'caselaw', 'topic_id': {'$exists': True}}))\"")
     finally:
         client.close()
 

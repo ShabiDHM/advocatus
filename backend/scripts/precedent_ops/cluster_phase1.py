@@ -1,10 +1,20 @@
-# -*- coding: utf-8 -*-
-"""Shtresa 2.1 - Faza 1: K-means clustering mbi caselaw embeddings."""
+# FILE: backend/scripts/precedent_ops/cluster_phase1.py
+# PHOENIX PROTOCOL - TOPIC CLUSTERING PHASE 1 (K-MEANS)
+# Zhvendosur ne scripts/precedent_ops/ - shtuar sys.path per te gjetur app.
+
 import os
+import sys
 import json
 import time
 import logging
+from pathlib import Path
 import numpy as np
+
+# Shto backend/ ne sys.path
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_BACKEND_DIR = _SCRIPT_DIR.parent.parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
 
 from pymongo import MongoClient
 
@@ -23,7 +33,6 @@ EMBEDDING_DIM = 1536
 
 
 def _get_dedicated_db():
-    """Client i vecante me timeout te gjate (per operacione te medha)."""
     uri = settings.DATABASE_URI or os.getenv("DATABASE_URI")
     db_name = settings.MONGO_DB_NAME or os.getenv("MONGO_DB_NAME", "advocatus_db")
     if not uri:
@@ -95,7 +104,6 @@ def main():
         return
 
     client, db = _get_dedicated_db()
-
     try:
         embeddings, chunk_ids = _fetch_embeddings(db)
         km, labels = _run_kmeans(embeddings)
@@ -130,7 +138,7 @@ def main():
 
         print()
         print(f"Faza 1 perfundoi. Output: {ASSIGNMENTS_FILE}")
-        print(f"Hapi tjeter: python _cluster_phase2.py")
+        print(f"Hapi tjeter: python scripts/precedent_ops/cluster_phase2.py")
     finally:
         client.close()
 

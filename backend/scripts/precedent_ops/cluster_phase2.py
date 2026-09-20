@@ -1,10 +1,19 @@
-# -*- coding: utf-8 -*-
-"""Shtresa 2.1 - Faza 2: etiketon cluster-et me LLM."""
+# FILE: backend/scripts/precedent_ops/cluster_phase2.py
+# PHOENIX PROTOCOL - TOPIC CLUSTERING PHASE 2 (LLM LABELING)
+
 import os
+import sys
 import json
 import time
 import logging
+from pathlib import Path
 import numpy as np
+
+# Shto backend/ ne sys.path
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_BACKEND_DIR = _SCRIPT_DIR.parent.parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
 
 from pymongo import MongoClient
 
@@ -38,7 +47,6 @@ def _get_dedicated_db():
 
 
 def _get_representative_texts(db, assignments):
-    """Per cdo cluster, merr SAMPLES_PER_CLUSTER dokumentet me te afert me centroid."""
     coll = db[LEGAL_KB]
 
     by_topic = {}
@@ -80,7 +88,6 @@ def _get_representative_texts(db, assignments):
 
 
 def _label_cluster(topic_id, samples):
-    """Thirr DeepSeek per te etiketuar nje cluster."""
     from app.services.llm.llm_client import _call_llm, clean_and_parse_json, DEEP_ANALYSIS_MODEL
 
     sys_p = """Ti je ekspert i jurisprudences se Gjykates Supreme te Kosoves.
@@ -116,7 +123,7 @@ Kthe VETEM JSON:
 
 def main():
     if not os.path.exists(ASSIGNMENTS_FILE):
-        log.error(f"{ASSIGNMENTS_FILE} mungon. Ekzekuto _cluster_phase1.py para.")
+        log.error(f"{ASSIGNMENTS_FILE} mungon. Ekzekuto cluster_phase1.py para.")
         return
 
     if os.path.exists(LABELS_FILE):
@@ -160,11 +167,10 @@ def main():
             kws = ", ".join(info.get("keywords", [])[:4])
             print(f"  [{tid:2d}] {info['label']}")
             print(f"         ({kws})")
-            print(f"         {info.get('description', '')}")
 
         print()
         print(f"Faza 2 perfundoi. Output: {LABELS_FILE}")
-        print(f"Hapi tjeter: python _cluster_phase3.py")
+        print(f"Hapi tjeter: python scripts/precedent_ops/cluster_phase3.py")
     finally:
         client.close()
 
