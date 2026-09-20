@@ -1,10 +1,11 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.2
-# V1.2: FIX — _extract_cases rstrip(".,;:") mbi num_part. CASE_NUMBER_PATTERN
-#       perfshin '.' ne karakteret e lejuara, duke gelltitur piken e fjalisë:
-#       "P.nr.123/2024." -> num_part="123/2024." -> false-positive 'suspect'.
-# V1.1: FIX — _build_allowed normalizon numrat e lendeve (symetrik me
-#       _extract_cases).
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.4
+# V1.4: FIX - _extract_abbrevs tani SKIP prefixes te numrave te lendeve
+#       (PML, ARJ, REV, PA1, ...). Keto jane prefikse lendeje, jo akronime
+#       ligjesh -> shmangim false-positive 'low' ne seksionin supreme_court_precedents.
+# V1.3: PRECEDENTE TE VERTETA - shtuar extra_allowed_cases argument.
+# V1.2: FIX — _extract_cases rstrip(".,;:") mbi num_part.
+# V1.1: FIX — _build_allowed normalizon numrat e lendeve.
 # V1.0: Post-check mbi output-in e LLM.
 
 import re
@@ -33,11 +34,43 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACTORS (nga teksti i LLM)
+# V1.4: PREFIXE NUMRASH LENDEJSH (nuk jane akronime ligjesh)
+# ═══════════════════════════════════════════════════════════════════════════
+
+CASE_NUMBER_PREFIXES: Set[str] = {
+    "PA1", "PKR", "PML", "REV", "KMLP", "ANR", "PZR",
+    "CP", "AC", "PN", "KP", "ARJ", "A", "P",
+    # Forma te zgjeruara te shfaqura ne praktike
+    "KPK", "KPPRK", "KPRK",
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.3: NORMALIZIM PRECEDENTESH (DB -> format i njejte si _extract_cases)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _normalize_precedent_case(case_number: str) -> Optional[str]:
+    """V1.3: Normalizon nje case_number te precedentit (nga DB)."""
+    if not case_number:
+        return None
+
+    m = CASE_NUMBER_PATTERN.search(case_number)
+    if m:
+        prefix = m.group(1).upper()
+        num_part = m.group(2).rstrip(".,;:")
+        if not num_part:
+            return None
+        raw = f"{prefix}.nr.{num_part}"
+        return normalize_case_number(raw)
+
+    return normalize_case_number(case_number) or case_number.upper().strip()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXTRACTORS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_dates_iso(text: str) -> Set[str]:
-    """Nxjerr datat (numerike + shqip) ne format ISO."""
     found: Set[str] = set()
     if not text:
         return found
@@ -59,7 +92,6 @@ def _extract_dates_iso(text: str) -> Set[str]:
 
 
 def _extract_articles(text: str) -> Set[str]:
-    """Nxjerr numrat e neneve (pa paragraph)."""
     found: Set[str] = set()
     if not text:
         return found
@@ -74,7 +106,6 @@ def _extract_articles(text: str) -> Set[str]:
 
 
 def _extract_laws(text: str) -> Set[str]:
-    """Nxjerr numrat e ligjeve (normalizuar)."""
     found: Set[str] = set()
     if not text:
         return found
@@ -93,19 +124,13 @@ def _extract_laws(text: str) -> Set[str]:
 
 
 def _extract_cases(text: str) -> Set[str]:
-    """
-    Nxjerr numrat e lendeve (normalizuar).
-
-    V1.2: rstrip(".,;:") per te hequr piken e fjalisë qe CASE_NUMBER_PATTERN
-    e gelltit per shkak te '.' brenda karaktereve te lejuara.
-    """
+    """V1.2: rstrip per te hequr piken e fjalisë."""
     found: Set[str] = set()
     if not text:
         return found
 
     for m in CASE_NUMBER_PATTERN.finditer(text):
         prefix = m.group(1).upper()
-        # V1.2: heq pikat/presjet ne fund
         num_part = m.group(2).rstrip(".,;:")
         if not num_part:
             continue
@@ -118,25 +143,33 @@ def _extract_cases(text: str) -> Set[str]:
 
 
 def _extract_abbrevs(text: str) -> Set[str]:
-    """Nxjerr akronimet e vlefshme ligjore."""
+    """
+    V1.4: Nxjerr akronimet e vlefshme ligjore.
+    SKIP nese akronimi eshte prefiks numri lendeje (PML, ARJ, REV, ...).
+    """
     found: Set[str] = set()
     if not text:
         return found
 
     for m in ABBREV_PATTERN.finditer(text):
         abbr = m.group(1)
+        abbr_up = abbr.upper()
+
+        # V1.4: skip prefixes lendeje
+        if abbr_up in CASE_NUMBER_PREFIXES:
+            continue
+
         if is_valid_law_abbrev(abbr):
-            found.add(abbr.upper())
+            found.add(abbr_up)
 
     return found
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CONTEXT SNIPPET (per debugging)
+# CONTEXT SNIPPET
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _find_snippet(text: str, value: str, window: int = 80) -> str:
-    """Gjen nje fragment teksti rreth vleres se dhene."""
     if not text or not value:
         return ""
     idx = text.find(value)
@@ -153,22 +186,21 @@ def _find_snippet(text: str, value: str, window: int = 80) -> str:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class HallucinationChecker:
-    """
-    Kontrollon output-in e LLM kunder listes se vlerave te lejuara.
-    Ndertohet nje here, perdoret per shume seksione.
-    """
-
     def __init__(
         self,
         citation_profile: Dict[str, Any],
         fact_profile: Dict[str, Any],
         verification_report: Dict[str, Any],
+        extra_allowed_cases: Optional[Set[str]] = None,
     ):
         self.allowed = self._build_allowed(
-            citation_profile, fact_profile, verification_report
+            citation_profile,
+            fact_profile,
+            verification_report,
+            extra_allowed_cases=extra_allowed_cases,
         )
         logger.info(
-            f"[HALLUCINATION V1.2] Allowed values: "
+            f"[HALLUCINATION V1.4] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])}, "
             f"articles={len(self.allowed['articles'])}, "
@@ -181,12 +213,8 @@ class HallucinationChecker:
         citation_profile: Dict[str, Any],
         fact_profile: Dict[str, Any],
         verification_report: Dict[str, Any],
+        extra_allowed_cases: Optional[Set[str]] = None,
     ) -> Dict[str, Set[str]]:
-        """
-        Mbledh vlerat e lejuara nga profilet.
-        Normalizon te gjitha vlerat ne te njejten menyre si _extract_*(),
-        per te shmangur false-positives nga mospershtatje formati.
-        """
         dates_iso: Set[str] = set()
         for d in fact_profile.get("dates", []) or []:
             if d.get("iso"):
@@ -207,12 +235,20 @@ class HallucinationChecker:
             if a.get("number"):
                 articles.add(a["number"])
 
-        # V1.1: normalizuar (symetrik me _extract_cases)
         cases: Set[str] = set()
         for c in citation_profile.get("case_numbers", []) or []:
             if c.get("case_number"):
                 n = normalize_case_number(c["case_number"]) or c["case_number"]
                 cases.add(n)
+
+        if extra_allowed_cases:
+            for cn in extra_allowed_cases:
+                if not cn:
+                    continue
+                norm = _normalize_precedent_case(cn)
+                if norm:
+                    cases.add(norm)
+                cases.add(cn.upper().strip())
 
         abbrevs: Set[str] = set()
         for a in citation_profile.get("abbreviations", []) or []:
@@ -225,10 +261,6 @@ class HallucinationChecker:
             "cases": cases,
             "abbrevs": abbrevs,
         }
-
-    # ─────────────────────────────────────────────────────────────────────
-    # CHECKS PER TIP
-    # ─────────────────────────────────────────────────────────────────────
 
     def _check_dates(self, content: str) -> List[Dict[str, Any]]:
         found = _extract_dates_iso(content)
@@ -300,18 +332,11 @@ class HallucinationChecker:
             })
         return issues
 
-    # ─────────────────────────────────────────────────────────────────────
-    # CHECK SEKTION
-    # ─────────────────────────────────────────────────────────────────────
-
     def check_section(
         self,
         section_key: str,
         content: str,
     ) -> Dict[str, Any]:
-        """
-        Kontrollon nje seksion. Kthen raport te strukturuar.
-        """
         if not content or not content.strip():
             return {
                 "section_key": section_key,
@@ -378,12 +403,13 @@ def check_all_sections(
     citation_profile: Dict[str, Any],
     fact_profile: Dict[str, Any],
     verification_report: Dict[str, Any],
+    extra_allowed_cases: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
-    """
-    Kontrollon te gjitha seksionet e nje raporti.
-    """
     checker = HallucinationChecker(
-        citation_profile, fact_profile, verification_report
+        citation_profile,
+        fact_profile,
+        verification_report,
+        extra_allowed_cases=extra_allowed_cases,
     )
 
     per_section: Dict[str, Any] = {}
@@ -411,7 +437,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.2] Status={global_status}, "
+        f"[HALLUCINATION V1.4] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "
