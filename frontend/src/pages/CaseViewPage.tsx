@@ -1,11 +1,13 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V109.7
-// V109.7: FIX PARALLEL SECTIONS — buffer per section_key. Ne V4.1 (paralel),
-//         section_started dhe section_chunk vijne te interleavuar. Tani:
-//         (1) sectionsByKey: Record<string, string> buffer
-//         (2) sectionOrder: string[] ruan renditjen e paraqitjes
-//         (3) Ne fund, bashkohen sipas rendit → accumulated
-//         Fix-i mbulon edhe document_review edhe synthesis.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V109.8
+// V109.8: FIX DEFENSIVE — strip titulli i dyfishuar nga LLM.
+//         Edhe pse prompts V1.3 i thonë LLM-së të mos shkruajë titullin,
+//         LLM-të nuk janë 100% të bindshme. Ky fix:
+//         (1) Ruan sectionTitles: Record<string, string> (titulli per key)
+//         (2) Aplikon stripDuplicateHeading() per çdo section në fund
+//         (3) Nëse titujt përputhen (case-insensitive, pa diakritikë) →
+//             heq titullin e dytë (nga LLM), ruan të parin (nga frontend)
+// V109.7: FIX PARALLEL SECTIONS — buffer per section_key.
 // V109.6: FIX KRITIK RACE CONDITION — fetchCaseData rifetchohej pas stream-it.
 // V109.5: FIX KRITIK — rikthyer handler-i section_chunk.
 // V109.4: Hequr auditSubLabel + auditIsDocumentMode.
@@ -34,6 +36,61 @@ import { CaseDossierAuditModal } from '../components/case/CaseDossierAuditModal'
 type CaseData = { details: Case | null };
 
 type MobileMainTab = 'DOCS' | 'MEDIA' | 'CHAT';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// V109.8: HELPERS — strip titulli i dyfishuar
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * V109.8: Normalizo titullin për krahasim.
+ * Heq diakritikët (ë→e, ç→c), pikësimin, bën lowercase.
+ */
+const _normalizeHeading = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[ëéè]/g, 'e')
+    .replace(/[ç]/g, 'c')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * V109.8: Heq një titull të dyfishuar në fillim të section-it.
+ * Ruan titullin e PARË (nga frontend), heq të DYTIN (nga LLM) nëse
+ * përputhen (case-insensitive, pa diakritikë).
+ *
+ * Shembull:
+ *   input:  "\n\n## PASQYRA EKZEKUTIVE\n\n## PASQYRËN EKZEKUTIVE\nKjo është..."
+ *   output: "\n\n## PASQYRA EKZEKUTIVE\n\nKjo është..."
+ */
+const _stripDuplicateHeading = (content: string, expectedTitle: string): string => {
+  if (!content || !expectedTitle) return content;
+
+  const normalizedExpected = _normalizeHeading(expectedTitle);
+
+  // Kërko: whitespace + heading1 + whitespace + heading2
+  const m = content.match(/^(\s*#{1,4}\s+.+?\n\s*)(#{1,4}\s+(.+?))(\n|$)/);
+  if (!m) return content;
+
+  const firstHeadingLine = m[1];
+  const secondTitle = m[3];
+  const trailing = m[4] || '';
+
+  const normalizedSecond = _normalizeHeading(secondTitle);
+
+  // Përputhje: exact, ose njëri përmban tjetrin (LLM mund të shtojë "PASQYRA" vs "PASQYRËN")
+  const matches =
+    normalizedSecond === normalizedExpected ||
+    normalizedSecond.includes(normalizedExpected) ||
+    normalizedExpected.includes(normalizedSecond);
+
+  if (!matches) return content;
+
+  // Hiq heading-un e dytë, ruaj të parin + trailing newline
+  return firstHeadingLine + trailing + content.slice(m[0].length);
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -152,7 +209,7 @@ const CaseViewPage: React.FC = () => {
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V109.7] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V109.8] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
@@ -337,11 +394,10 @@ const CaseViewPage: React.FC = () => {
 
     // ═══════════════════════════════════════════════════════════════════════
     // V109.7: BUFFER PER SECTION — mbrojtje kundër interleaving paralel
-    // Kur sections gjenerohen paralel (backend V4.1 / V5.7), section_started
-    // dhe section_chunk vijnë te interleavuar. Buffer per-key + rend i
-    // regjistruar → bashkim i saktë në fund.
+    // V109.8: sectionTitles: Record<string,string> për strip titulli të dyfishuar
     // ═══════════════════════════════════════════════════════════════════════
     const sectionsByKey: Record<string, string> = {};
+    const sectionTitles: Record<string, string> = {};
     const sectionOrder: string[] = [];
     let anonCounter = 0;
 
@@ -405,7 +461,7 @@ const CaseViewPage: React.FC = () => {
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // V109.7: section_started — regjistro key + title ne buffer
+        // V109.8: section_started — regjistro key + TITLE
         // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'section_started') {
           const title = evt.section_title || '';
@@ -417,15 +473,14 @@ const CaseViewPage: React.FC = () => {
 
           if (sectionsByKey[sKey] === undefined) {
             sectionOrder.push(sKey);
-            // Inicializo me titullin (nese ka)
+            sectionTitles[sKey] = title;
             sectionsByKey[sKey] = title ? `\n\n## ${title}\n\n` : '';
           }
           continue;
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // V109.7: section_chunk — append ne buffer-in e section_key
-        // (jo ne accumulated global, qe interleaving te mos prish renditjen)
+        // V109.8: section_chunk — append ne buffer (pa strip, behet ne fund)
         // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'section_chunk') {
           const chunk = evt.chunk || evt.content || evt.text || '';
@@ -435,11 +490,11 @@ const CaseViewPage: React.FC = () => {
             chunksReceived++;
 
             if (rawKey && sectionsByKey[rawKey] !== undefined) {
-              // Rruga normale: section_key i njohur
               sectionsByKey[rawKey] += chunk;
             } else if (rawKey) {
               // Fallback: section_chunk para section_started (nuk duhet te ndodhe)
               sectionOrder.push(rawKey);
+              sectionTitles[rawKey] = '';
               sectionsByKey[rawKey] = chunk;
             } else {
               // Fallback ekstrem: pa section_key
@@ -463,7 +518,6 @@ const CaseViewPage: React.FC = () => {
 
         // ═══════════════════════════════════════════════════════════════════
         // V109.7: report_ready — perdoret vetem nese s'ka sections te grumbulluara
-        // (cache hit → content i plote; fresh → sections do bashkohen me poshte)
         // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'report_ready') {
           const content = evt.content || '';
@@ -485,11 +539,18 @@ const CaseViewPage: React.FC = () => {
       }
 
       // ═══════════════════════════════════════════════════════════════════════
-      // V109.7: Bashko sections sipas rendit te regjistruar
-      // Vetem nese kemi marrë sections (jo cache hit me report_ready)
+      // V109.8: Bashko sections sipas rendit + STRIP TITULLI TË DYFISHUAR
+      // Aplikohet per çdo section: nese buffer ka "## X\n\n## Y\n" dhe X≈Y,
+      // hiq Y (titulli i LLM), ruan X (titulli i frontend-it).
       // ═══════════════════════════════════════════════════════════════════════
       if (sectionOrder.length > 0) {
-        const combined = sectionOrder.map((k) => sectionsByKey[k] || '').join('');
+        const combined = sectionOrder
+          .map((k) => {
+            const raw = sectionsByKey[k] || '';
+            const title = sectionTitles[k] || '';
+            return _stripDuplicateHeading(raw, title);
+          })
+          .join('');
         if (combined.trim()) {
           accumulated = combined;
         }
@@ -497,7 +558,7 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit V109.7] Accumulated content is empty!', {
+        console.error('[Background Audit V109.8] Accumulated content is empty!', {
           isDocMode,
           docsTotal,
           sectionsStarted,
@@ -526,7 +587,7 @@ const CaseViewPage: React.FC = () => {
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error V109.7]', err);
+      console.error('[Background Audit Error V109.8]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {

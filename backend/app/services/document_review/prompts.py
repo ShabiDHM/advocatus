@@ -1,15 +1,15 @@
 # FILE: backend/app/services/document_review/prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V4.2 (LEGAL AUDIT, ASCII-SAFE)
+# PHOENIX PROTOCOL - SECTION PROMPTS V4.3 (LEGAL AUDIT, ASCII-SAFE)
+# V4.3: Fix-e pas raportit të Shtator 2026:
+#       - "Next step" → "Hapi i ardhshëm" (shqip)
+#       - "Afati: kontrollo manualisht" → formulim profesional
+#       - Të gjitha prompts: udhëzim "mos shkruaj titullin kryesor"
+#         (shtohet automatikisht nga frontend — shmang duplikimin)
 # V4.2: Shtuar _block_antihallucination() — liste e mbyllur e vlerave te lejuara
-#       (data, ligje, nene, numra lende). Blloku shfaqet GJITHMONE pas meta.
-#       Perditesuar _block_contradictions() per te shfaqur zonen (Fakte/Arsyetim/
-#       Dispozitiv/Propozim) — ndihmon LLM te kuptoje pse kontradikta vlen.
-# V4.1: FIX i vetem ndaj V4.0 — formatimi i paragrafit ne _block_articles:
-#       ", par.2" -> " par. 2" (ne perputhje me konventen ligjore shqipe).
-# V4.0: Fokus "auditim ligjor" (jo permbledhje) + 5 blloqe te reja konteksti:
-#       dispositive, medical, tests, convictions, judge_court.
-# V3.1: build_verified_context(section_key) + blloqe te vecanta.
-# V3.0: Arkitekture e re: LLM NUK verifikon - vetem interpreton/shkruan.
+# V4.1: FIX formatimi i paragrafit ne _block_articles (", par.2" -> " par. 2")
+# V4.0: Fokus "auditim ligjor" + 5 blloqe te reja konteksti
+# V3.1: build_verified_context(section_key) + blloqe te vecanta
+# V3.0: Arkitekture e re: LLM NUK verifikon - vetem interpreton/shkruan
 
 from typing import Dict, Any, List, Optional, Set
 
@@ -21,6 +21,9 @@ DOCUMENT_REVIEW_PROMPTS = {
         "title": "PERMBLEDHJE EKZEKUTIVE E AUDITIMIT",
         "max_tokens": 1400,
         "prompt": """Ti je "Auditues Ligjor i Gjykates Supreme te Kosoves" ne zyre keshilluese.
+
+⚠️ MOS shkruaj titullin kryesor ("PERMBLEDHJE EKZEKUTIVE E AUDITIMIT") —
+   shtohet automatikisht nga sistemi. Fillo DIREKT me seksionin 1.
 
 DETYRA: Harto nje PERMBLEDHJE EKZEKUTIVE te dokumentit - jo nje rrefim, por nje
 diagnoze profesionale per avokatin qe do te veproje me kete dokument.
@@ -54,7 +57,7 @@ RREGULLA:
 - Perdor VETEM faktet ne "FAKTET E VERIFIKUARA"
 - Mos shpik asnje detaj
 - Fokus ne ate qe Ndryshon vendimin, jo narrative
-- Perfundim: 1-2 rreshta "Next step" i sugjeruar""",
+- Perfundim: 1-2 rreshta "Hapi i ardhshëm" i sugjeruar""",
     },
 
     # ===========================================================
@@ -64,6 +67,9 @@ RREGULLA:
         "title": "VERIFIKIMI DHE AUDITIMI I NENEVE LIGJORE",
         "max_tokens": 3500,
         "prompt": """Ti je "Verifikues i Neneve Ligjore" ne Gjykaten Supreme te Kosoves.
+
+⚠️ MOS shkruaj titullin kryesor ("VERIFIKIMI DHE AUDITIMI I NENEVE LIGJORE")
+   — shtohet automatikisht nga sistemi. Fillo DIREKT me nenet.
 
 DETYRA: Harto nje raport te plote verifikimi per CDO nen te cituar.
 
@@ -105,6 +111,9 @@ MOS perfshi introduksione. Fillo direkt me nenet.""",
         "max_tokens": 2400,
         "prompt": """Ti je "Analist i Precedenteve" ne Gjykaten Supreme te Kosoves.
 
+⚠️ MOS shkruaj titullin kryesor ("PRECEDENTET E GJYKATES SUPREME") —
+   shtohet automatikisht nga sistemi. Fillo DIREKT me "### A. ...".
+
 DETYRA: Analizo cdo numer lende te cituar dhe sugjero precedente relevante.
 
 KLASIFIKIMI I SISTEMIT:
@@ -141,6 +150,9 @@ Pse keta precedente jane te rendesishem per avokatin.""",
         "title": "ANALIZA E CILESISE SE HARTIMIT",
         "max_tokens": 2400,
         "prompt": """Ti je "Revizor i Cilesise se Akteve Gjyqesore" ne Gjykaten Supreme te Kosoves.
+
+⚠️ MOS shkruaj titullin kryesor ("ANALIZA E CILESISE SE HARTIMIT") —
+   shtohet automatikisht nga sistemi. Fillo DIREKT me "### A. ...".
 
 DETYRA: Vlereso cilesine formale dhe permbajtesore te dokumentit.
 
@@ -181,6 +193,9 @@ NUK LEJOHET te shpikesh mangesi qe nuk shfaqen ne fakte.""",
         "max_tokens": 3000,
         "prompt": """Ti je "Auditues i Akteve Gjyqesore" ne Gjykaten Supreme te Kosoves.
 
+⚠️ MOS shkruaj titullin kryesor ("GABIME, KONTRADIKTA DHE KORRIGJIME") —
+   shtohet automatikisht nga sistemi. Fillo DIREKT me "### A. ...".
+
 DETYRA: Raporto CDO gabim, kontradikte dhe propozo korrigjime konkrete.
 
 FORMATI I DETYRUAR:
@@ -220,6 +235,9 @@ RREGULLA ABSOLUTE:
         "max_tokens": 2800,
         "prompt": """Ti je "Strateg i Larte Ligjor" ne Gjykaten Supreme te Kosoves.
 
+⚠️ MOS shkruaj titullin kryesor ("PLANI I VEPRIMIT DHE REKOMANDIMET") —
+   shtohet automatikisht nga sistemi. Fillo DIREKT me "### A. ...".
+
 DETYRA: Harto plan veprimi praktik per avokatin qe ka marre kete dokument.
 
 STRUKTURA:
@@ -234,7 +252,11 @@ STRUKTURA:
 
 RREGULLA PER AFATET:
 - Nese dokumenti permend afat (p.sh. "8 dite per ankese") -> cituoje
-- Nese nuk permendet -> shkruaj "Afati: kontrollo manualisht"
+  ME BURIMIN E SAKTE: "Sipas [emri i dokumentit], afati eshte N dite."
+- NESE dokumenti NUK permend afat -> shkruaj SAKTESISHT:
+    "Afati ligjor nuk u identifikua ne dokumentet e ngarkuara —
+     kerkohet verifikim nga avokati."
+- NUK LEJOHET te shkruash "Afati: kontrollo manualisht" (instruksion i brendshem)
 - NUK LEJOHET te shpikesh afate
 
 ### C. Hapat Afatgjate (1-3 muaj)
@@ -258,7 +280,7 @@ Listo 3-5 rreziqe ME BAZE NE FAKTE:
 
 RREGULLA:
 - CDO veprim duhet te kete baze ne fakte
-- CDO afat duhet te cituar ose te flagohet "kontrollo manualisht"
+- CDO afat duhet te cituar me burim te sakte
 - CDO ligj duhet te jete ne fakte""",
     },
 }
@@ -707,7 +729,7 @@ def _block_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
 
 
 # ===========================================================
-# MAIN - build_verified_context (per-section) V4.2
+# MAIN - build_verified_context (per-section) V4.3
 # ===========================================================
 
 def build_verified_context(
@@ -719,7 +741,7 @@ def build_verified_context(
     section_key: Optional[str] = None,
 ) -> str:
     """
-    V4.2: Nderton tekstin me faktet e verifikuara.
+    V4.3: Nderton tekstin me faktet e verifikuara.
     Perfshin blloqet: meta, antihallucination (gjithmone), contradictions,
     dispositive, medical, tests, convictions, judge_court, articles, laws,
     case_numbers, parties, dates, deadlines.

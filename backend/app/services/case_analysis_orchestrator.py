@@ -1,10 +1,14 @@
 # FILE: backend/app/services/case_analysis_orchestrator.py
-# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.5
+# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.6
+# V1.6: CACHE INVALIDATION DINAMIK — kur shtohet/fshihet/ndryshohet dokument,
+#       fingerprint ndryshon → cache i synthesis + cross_reference invalidate-ohet
+#       automatikisht. Sistemi nuk kthen me output stale nga cache.
 # V1.5: Removed document_ids param from synthesis call (V3.3 is case-only).
 #   - case scope → SynthesisService.synthesize()
 #   - document scope → DocumentReviewService.review()
 
 import asyncio
+import hashlib
 import logging
 import time
 from datetime import datetime, timezone
@@ -47,9 +51,7 @@ DOCUMENT_REVIEW_SECTION_ORDER = [
 
 class CaseAnalysisOrchestrator:
     """
-    V1.5 — Routing:
-    - document_ids jepet → DocumentReviewService.review()
-    - document_ids null  → SynthesisService.synthesize() (case scope)
+    V1.6 — Routing + cache invalidation dinamik.
     """
 
     def __init__(self, db):
@@ -58,6 +60,84 @@ class CaseAnalysisOrchestrator:
         self.xref_service = get_cross_reference_service(db)
         self.synthesis = get_synthesis_service(db)
         self.document_review = get_document_review_service(db)
+
+    # ────────────────────────────────────────────────────────────────────
+    # V1.6: FINGERPRINT — cache invalidation
+    # ────────────────────────────────────────────────────────────────────
+
+    def _compute_docs_fingerprint(self, case_id: str) -> str:
+        """
+        V1.6: Hash i dokumenteve aktive (id + updated_at + status).
+        Ndryshon kur shtohet, fshihet, ose modifikohet nje dokument.
+        """
+        try:
+            case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+            query = {
+                "$or": [
+                    {"case_id": case_id},
+                    {"case_id": case_oid},
+                    {"case_id": str(case_oid)},
+                ],
+                "status": {"$ne": "DELETED"},
+            }
+            cursor = self.db.documents.find(
+                query,
+                {"_id": 1, "updated_at": 1, "created_at": 1, "status": 1},
+            ).sort([("_id", 1)])
+
+            parts: List[str] = []
+            for d in cursor:
+                doc_id = str(d["_id"])
+                ts = d.get("updated_at") or d.get("created_at")
+                ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts or "")
+                status = d.get("status", "")
+                parts.append(f"{doc_id}:{ts_str}:{status}")
+
+            raw = "|".join(parts)
+            return hashlib.md5(raw.encode("utf-8")).hexdigest()
+        except Exception as e:
+            logger.warning(f"⚠️ [ORCH V1.6] fingerprint compute failed: {e}")
+            return ""
+
+    def _is_cache_valid(
+        self,
+        cached: Optional[Dict[str, Any]],
+        current_fp: str,
+        label: str = "cache",
+    ) -> bool:
+        """
+        V1.6: Kontrollon nese cache eshte ende e vlefshme.
+        - Pa cache → False
+        - Pa current_fp → True (backward compat: s'mund te verifikojme)
+        - Cache pa fingerprint → False (invalido per refresh te sigurt)
+        - Fingerprint i ndryshem → False
+        """
+        if not cached:
+            return False
+
+        if not current_fp:
+            return True
+
+        stored_fp = (
+            cached.get("docs_fingerprint")
+            or cached.get("stats", {}).get("docs_fingerprint")
+        )
+
+        if not stored_fp:
+            logger.info(
+                f"🔄 [ORCH V1.6] {label} pa docs_fingerprint → invalidate "
+                f"(refresh i sigurt)"
+            )
+            return False
+
+        if stored_fp != current_fp:
+            logger.info(
+                f"🔄 [ORCH V1.6] {label} INVALIDATED — docs changed "
+                f"(stored={stored_fp[:8]}... current={current_fp[:8]}...)"
+            )
+            return False
+
+        return True
 
     async def run(
         self,
@@ -73,11 +153,13 @@ class CaseAnalysisOrchestrator:
         case_title = case.get("title") or case.get("case_name") or "Lënda"
         is_single_doc = bool(document_ids and len(document_ids) >= 1)
 
-        # ═══ SCOPE DETECTION ═══
         if is_single_doc:
             scope = "document"
         else:
             scope = "case"
+
+        # V1.6: Compute fingerprint i dokumenteve per cache validation
+        current_fp = self._compute_docs_fingerprint(case_id)
 
         yield {
             "event": "start",
@@ -87,6 +169,7 @@ class CaseAnalysisOrchestrator:
             "force_reprocess": force_reprocess,
             "document_ids": document_ids,
             "is_single_document": is_single_doc,
+            "docs_fingerprint": current_fp[:8],  # Vetëm prefiks per log
         }
 
         # ═══════════════════════════════════════════════════════════════
@@ -101,6 +184,7 @@ class CaseAnalysisOrchestrator:
                 case_title=case_title,
                 start_time=start_time,
                 loop=loop,
+                current_fp=current_fp,
             ):
                 yield evt
             return
@@ -152,12 +236,13 @@ class CaseAnalysisOrchestrator:
         # ═══ PHASE 2 — CROSS-REFERENCE ═══
         xref_stats: Dict[str, Any] = {}
         existing_xref = self._get_existing_xref(case_id)
+        xref_valid = self._is_cache_valid(existing_xref, current_fp, label="xref")
 
-        if existing_xref and not force_reprocess:
+        if existing_xref and xref_valid and not force_reprocess:
             yield {
                 "event": "phase_skipped",
                 "phase": "cross_reference",
-                "reason": "existing_cross_reference",
+                "reason": "existing_cross_reference_valid",
             }
             xref_stats = existing_xref.get("stats", {})
         else:
@@ -168,6 +253,16 @@ class CaseAnalysisOrchestrator:
                     lambda: self.xref_service.build(str(case_id)),
                 )
                 xref_stats = xref_result.get("stats", {})
+
+                # V1.6: Save fingerprint
+                try:
+                    self.db[CROSS_REF_COLLECTION].update_one(
+                        {"case_id": str(case_id), "status": "completed"},
+                        {"$set": {"docs_fingerprint": current_fp}},
+                    )
+                except Exception as fp_err:
+                    logger.warning(f"⚠️ [ORCH V1.6] xref fingerprint save failed: {fp_err}")
+
                 yield {
                     "event": "phase_completed",
                     "phase": "cross_reference",
@@ -183,17 +278,24 @@ class CaseAnalysisOrchestrator:
         is_cache_hit = False
 
         existing_synth = self._get_existing_case_synthesis(case_id)
+        synth_valid = self._is_cache_valid(existing_synth, current_fp, label="synthesis")
 
-        if existing_synth and not force_reprocess:
+        if existing_synth and synth_valid and not force_reprocess:
             is_cache_hit = True
             yield {
                 "event": "phase_skipped",
                 "phase": "synthesis",
-                "reason": "existing_synthesis",
+                "reason": "existing_synthesis_valid",
             }
             synthesis_stats = existing_synth.get("stats", {})
             synthesis_result_for_markdown = existing_synth
         else:
+            # V1.6: Log reason
+            if existing_synth and not synth_valid:
+                logger.info(
+                    f"🔄 [ORCH V1.6] Re-generating case synthesis (cache invalidated)"
+                )
+
             try:
                 yield {"event": "phase_started", "phase": "synthesis"}
 
@@ -217,7 +319,6 @@ class CaseAnalysisOrchestrator:
                     except Exception as e:
                         logger.warning(f"⚠️ [ORCH] stream bridge failed: {e}")
 
-                # V1.5: Thirrja pa document_ids (case-only)
                 synth_future = loop.run_in_executor(
                     None,
                     lambda: self.synthesis.synthesize(
@@ -251,6 +352,23 @@ class CaseAnalysisOrchestrator:
                 synthesis_result = synth_future.result()
                 synthesis_stats = synthesis_result.get("stats", {})
                 synthesis_result_for_markdown = synthesis_result
+
+                # V1.6: Save fingerprint ne synthesis doc
+                try:
+                    self.db[SYNTHESIS_COLLECTION].update_one(
+                        {
+                            "case_id": str(case_id),
+                            "status": "completed",
+                            "scope": "case",
+                        },
+                        {"$set": {"docs_fingerprint": current_fp}},
+                    )
+                    logger.info(
+                        f"💾 [ORCH V1.6] Saved docs_fingerprint={current_fp[:8]}... "
+                        f"to synthesis cache"
+                    )
+                except Exception as fp_err:
+                    logger.warning(f"⚠️ [ORCH V1.6] synthesis fingerprint save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -293,6 +411,7 @@ class CaseAnalysisOrchestrator:
             "from_cache": is_cache_hit,
             "is_single_document": False,
             "document_ids": None,
+            "docs_fingerprint": current_fp[:8],
             "extraction": extraction_summary,
             "cross_reference": xref_stats,
             "synthesis": synthesis_stats,
@@ -300,8 +419,9 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH] Complete: case={case_id}, scope=case, "
-            f"duration={total_duration}s, from_cache={is_cache_hit}"
+            f"✅ [ORCH V1.6] Complete: case={case_id}, scope=case, "
+            f"duration={total_duration}s, from_cache={is_cache_hit}, "
+            f"fp={current_fp[:8]}..."
         )
 
         yield {"event": "complete", "summary": final_summary}
@@ -319,6 +439,7 @@ class CaseAnalysisOrchestrator:
         case_title: str,
         start_time: float,
         loop,
+        current_fp: str = "",
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Rruga për review të një dokumenti të vetëm.
@@ -370,16 +491,21 @@ class CaseAnalysisOrchestrator:
         review_result_for_markdown: Optional[Dict[str, Any]] = None
         is_cache_hit = False
 
-        existing_review = self._get_existing_document_review(
-            case_id, document_id
+        existing_review = self._get_existing_document_review(case_id, document_id)
+
+        # V1.6: Also validate fingerprint per document review
+        # (nëse dokumenti u modifikua, ri-review)
+        doc_fp = self._compute_docs_fingerprint(case_id)  # Case-wide fp
+        review_valid = self._is_cache_valid(
+            existing_review, doc_fp, label="document_review"
         )
 
-        if existing_review and not force_reprocess:
+        if existing_review and review_valid and not force_reprocess:
             is_cache_hit = True
             yield {
                 "event": "phase_skipped",
                 "phase": "document_review",
-                "reason": "existing_document_review",
+                "reason": "existing_document_review_valid",
             }
             review_stats = existing_review.get("stats", {})
             review_result_for_markdown = existing_review
@@ -442,6 +568,20 @@ class CaseAnalysisOrchestrator:
                 review_stats = review_result.get("stats", {})
                 review_result_for_markdown = review_result
 
+                # V1.6: Save fingerprint ne synthesis doc (document scope)
+                try:
+                    self.db[SYNTHESIS_COLLECTION].update_one(
+                        {
+                            "case_id": str(case_id),
+                            "status": "completed",
+                            "scope": "document",
+                            "document_ids": [document_id],
+                        },
+                        {"$set": {"docs_fingerprint": doc_fp}},
+                    )
+                except Exception as fp_err:
+                    logger.warning(f"⚠️ [ORCH V1.6] review fingerprint save failed: {fp_err}")
+
                 yield {
                     "event": "phase_completed",
                     "phase": "document_review",
@@ -493,7 +633,7 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH] Complete: case={case_id}, scope=document, "
+            f"✅ [ORCH V1.6] Complete: case={case_id}, scope=document, "
             f"doc={document_id}, duration={total_duration}s, "
             f"from_cache={is_cache_hit}"
         )

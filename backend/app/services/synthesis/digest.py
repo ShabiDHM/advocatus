@@ -1,9 +1,17 @@
 # FILE: backend/app/services/synthesis/digest.py
-# PHOENIX PROTOCOL - DIGEST BUILDER V1.0
-# Ekstraktuar nga synthesis_service.py V3.8 — ZERO ndryshim funksional.
+# PHOENIX PROTOCOL - DIGEST BUILDER V1.3
+# V1.3: Shtuar bllok "📅 AFATET ME BURIME" — çdo afat me dokumentin burimor.
+#       Parandalon atribuimin e gabuar të afatit (8 vs 10 ditë).
+# V1.2: (1) Hequr client_position nga KLIENTI block — konflikton me rolin real
+#       në dokumente (Shaban=DEFENDANT në case por PLAINTIFF në case.client_position).
+#       (2) Dedup i emrave me parenthetical: "Sanije (Azem) Bala" == "Sanije Bala".
+#       (3) Filtrim i noise: heq rolet e atribuuara gabimisht fëmijëve (Andi, Elda, Elsa).
+# V1.1: Shtuar bllok KLIENTI + PALËT ME ROLE nga metadata.parties.
+# V1.0: Ekstraktuar nga synthesis_service.py V3.8.
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
+from collections import defaultdict
 
 from .constants import MAX_DIGEST_CHARS
 
@@ -27,9 +35,11 @@ def build_digest(
     lines.append("TË DHËNAT E LËNDËS")
     lines.append("=" * 70)
     lines.append(f"Titulli: {case.get('title') or case.get('case_name') or 'N/A'}")
-    lines.append(f"Klienti: {case.get('client_name') or 'N/A'}")
     lines.append(f"Numri i dokumenteve: {len(extractions)}")
     lines.append("")
+
+    # V1.2: KLIENTI pa client_position
+    _append_client_block(lines, case)
 
     if verified_citations:
         _append_verified_citations(lines, verified_citations)
@@ -65,10 +75,16 @@ def build_digest(
         )
     lines.append("")
 
+    # V1.2: PARTIES ME ROLE (dedup + filter children)
+    _append_parties_with_roles(lines, extractions, defendants_groups)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # V1.3: AFATET ME BURIME — parandalon atribuimin e gabuar
+    # ═══════════════════════════════════════════════════════════════════════
+    _append_deadlines_with_sources(lines, extractions)
+
     if defendants_groups:
         _append_defendants_groups(lines, defendants_groups)
-
-    _append_parties_excluding_defendants(lines, extractions, defendants_groups)
 
     if articles_by_law:
         _append_articles_by_law(lines, articles_by_law)
@@ -91,6 +107,356 @@ def build_digest(
         digest = digest[:MAX_DIGEST_CHARS] + "\n\n[...digest truncated...]"
 
     return digest
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.2: HELPERS — name normalization + child detection
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _normalize_name_key(name: str) -> str:
+    """
+    V1.2: Normalizo emrin për dedupe.
+    "Sanije (Azem) Bala" → "sanije bala"
+    "Sanije Bala" → "sanije bala"
+    """
+    if not name:
+        return ""
+    n = re.sub(r'\([^)]*\)', '', name)          # Heq (Azem)
+    n = re.sub(r'[.,;:"]', '', n)
+    n = " ".join(n.split()).strip().lower()
+    return n
+
+
+def _extract_child_names(extractions: List[Dict[str, Any]]) -> Set[str]:
+    """
+    V1.2: Nxjerr emrat e fëmijëve nga rolet 'Fëmijët' / 'Fëmijë'.
+    Kthen set me emra individualë (lowercase): {"andi", "elda", "elsa"}
+    """
+    child_tokens: Set[str] = set()
+    for ext in extractions:
+        meta = ext.get("metadata") or {}
+        if not isinstance(meta, dict):
+            continue
+        for p in meta.get("parties", []) or []:
+            if not isinstance(p, dict):
+                continue
+            role = (p.get("role") or "").lower()
+            name = (p.get("name") or "").strip()
+            if "fëmijë" in role or "femije" in role or "fëmij" in role:
+                # Split "Elda dhe Andi" → ["elda", "andi"]
+                parts = re.split(r'\s+(?:dhe|e|dhe\/ose|,)\s+', name, flags=re.IGNORECASE)
+                for part in parts:
+                    part = part.strip(" .,;:")
+                    # Vetëm emri i parë (për të shmangur "dhe andi")
+                    first_word = part.split()[0] if part.split() else ""
+                    if len(first_word) >= 3:
+                        child_tokens.add(first_word.lower())
+    return child_tokens
+
+
+def _is_child_name(display_name: str, child_names: Set[str]) -> bool:
+    """Kontrollo nëse emri përputhet me fëmijë."""
+    first_word = display_name.strip().split()[0].lower() if display_name.strip() else ""
+    return first_word in child_names
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.3: DEADLINES WITH SOURCES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Pattern: "X ditë" / "X muaj" / "X vjet" — për nxjerrjen e afateve
+_DEADLINE_UNIT_PATTERN = re.compile(
+    r'\b(\d{1,3})\s*(dit[ëe]|muaj|vjet|or[ëe]|jav[ëe])\b',
+    re.IGNORECASE,
+)
+
+# Fjalë kyçe që tregojnë se është afat (jo kohëzgjatje e ngjarjes)
+_DEADLINE_KEYWORDS = re.compile(
+    r'\b(afat|afati|ankim|ankesa|kundërshtim|kundërshtimi|gjyq|'
+    r'paraqitje|paraqitja|dorëzim|dorëzimi|apel|apeli|'
+    r'afatligjor|brenda)\b',
+    re.IGNORECASE,
+)
+
+
+def _extract_deadlines_from_extractions(
+    extractions: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    V1.3: Nxjerr afatet nga metadata.deadlines ose legal_deadlines.
+    Kthen listë me dict: {display, context, source_document}.
+    Dedup sipas (value, source_document).
+    """
+    results: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+
+    for ext in extractions:
+        file_name = ext.get("file_name") or "?"
+        meta = ext.get("metadata") or {}
+        if not isinstance(meta, dict):
+            continue
+
+        # Burimet e mundshme të afateve
+        deadline_lists = []
+        for key in ("legal_deadlines", "deadlines", "afatet", "afate"):
+            if isinstance(meta.get(key), list):
+                deadline_lists.append(meta.get(key))
+
+        for dlist in deadline_lists:
+            for d in dlist:
+                if not isinstance(d, dict):
+                    continue
+                display = (
+                    d.get("display")
+                    or d.get("value")
+                    or d.get("text")
+                    or ""
+                ).strip()
+                if not display:
+                    continue
+
+                context = (d.get("context") or "").strip()
+                key = f"{display.lower()}|{file_name.lower()}"
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                results.append({
+                    "display": display,
+                    "context": context,
+                    "source_document": file_name,
+                })
+
+    # Fallback: nëse skema e metadave nuk ka deadlines,
+    # skano tekstin e secilit dokument për "X ditë/muaj/vjet" + "afat/ankim"
+    if not results:
+        for ext in extractions:
+            text = ext.get("text") or ext.get("raw_text") or ""
+            if not text or len(text) < 20:
+                continue
+            file_name = ext.get("file_name") or "?"
+            # Ndaj në fjali të thjeshta
+            sentences = re.split(r'(?<=[.!?])\s+|\n{2,}', text)
+            for sent in sentences:
+                sent = sent.strip()
+                if not sent or len(sent) > 500:
+                    continue
+                if not _DEADLINE_KEYWORDS.search(sent):
+                    continue
+                for m in _DEADLINE_UNIT_PATTERN.finditer(sent):
+                    num, unit = m.group(1), m.group(2).lower()
+                    display = f"{num} {unit}"
+                    key = f"{display.lower()}|{file_name.lower()}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    results.append({
+                        "display": display,
+                        "context": sent[:250],
+                        "source_document": file_name,
+                    })
+
+    return results
+
+
+def _append_deadlines_with_sources(
+    lines: List[str],
+    extractions: List[Dict[str, Any]],
+) -> None:
+    """
+    V1.3: Shton bllokun me afatet + dokumentin burimor.
+
+    Shembull output:
+    ═══════════════════════════════════════════════════════════════════
+    📅 AFATET E IDENTIFIKUARA ME BURIME
+    ═══════════════════════════════════════════════════════════════════
+    ⚠️ ÇDO afat DUHET cituar ME BURIMIN e saktë në raport.
+    ⚠️ NËSE ka dy afate kontradiktore → listoji TË GJITHA me burime.
+
+      • 10 ditë — [Refuzimi_e_hedhjes_se_akuzes.pdf]
+          Konteksti: "Kundër këtij vendimi është i lejuar ankim..."
+      • 8 ditë — [KERKESE_PER_HUDHJE_Akuzes.pdf]
+          Konteksti: "...afat prej 8 ditësh..."
+    """
+    deadlines = _extract_deadlines_from_extractions(extractions)
+
+    if not deadlines:
+        return
+
+    lines.append("=" * 70)
+    lines.append(f"📅 AFATET E IDENTIFIKUARA ME BURIME ({len(deadlines)})")
+    lines.append("=" * 70)
+    lines.append(
+        "⚠️ ÇDO afat i cituar në raport DUHET të ketë BURIMIN e saktë "
+        "(emri i dokumentit ku shfaqet)."
+    )
+    lines.append(
+        "⚠️ NËSE ka dy afate kontradiktore për të njëjtën çështje → "
+        "listoji TË GJITHA me burime, shto shënimin "
+        "'[KONTRADIKTË — verifiko manualisht]'."
+    )
+    lines.append(
+        "⚠️ MOS i atribuo afatin një dokumenti që NUK e përmend atë."
+    )
+    lines.append("")
+
+    # Grupim sipas burimit — më i lexueshëm
+    by_source: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for d in deadlines:
+        by_source[d["source_document"]].append(d)
+
+    for source in sorted(by_source.keys()):
+        items = by_source[source]
+        for d in items:
+            lines.append(f"  • {d['display']} — [{source}]")
+            if d.get("context"):
+                lines.append(f"      Konteksti: \"{d['context'][:200]}\"")
+        lines.append("")
+
+    # Nëse ka afate të njëjtë numerikisht nga burime të ndryshme → flago
+    display_to_sources: Dict[str, Set[str]] = defaultdict(set)
+    for d in deadlines:
+        display_to_sources[d["display"].lower()].add(d["source_document"])
+
+    multi_source = {
+        disp: srcs for disp, srcs in display_to_sources.items() if len(srcs) > 1
+    }
+    if multi_source:
+        lines.append("⚠️ AFATE TË NJËJTA NË BURIME TË NDRYSHME (konfirmo saktësinë):")
+        for disp, srcs in multi_source.items():
+            lines.append(f"  • '{disp}' shfaqet në: {sorted(srcs)}")
+        lines.append("")
+
+    lines.append(
+        "⚠️ RREGULL: Në raport shkruaj 'Sipas [dokumenti X], afati është N ditë.' "
+        "KURRË mos atribuo afatin dokumentit të gabuar."
+    )
+    lines.append("")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.2: CLIENT BLOCK (pa client_position)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _append_client_block(lines: List[str], case: Dict[str, Any]) -> None:
+    """
+    V1.2: Blloku i klientit — VETËM emri. Roli real merret nga PALËT ME ROLE.
+    NUK shfaqim client_position sepse shpesh është i pasaktë.
+    """
+    client_name = (case.get("client_name") or "").strip()
+    client = case.get("client") or {}
+    if not client_name and isinstance(client, dict):
+        client_name = (client.get("name") or "").strip()
+
+    if not client_name:
+        return
+
+    lines.append("=" * 70)
+    lines.append("🎯 KLIENTI I AVOKATIT")
+    lines.append("=" * 70)
+    lines.append(f"Emri: {client_name}")
+    lines.append(
+        "⚠️ Roli i saktë i klientit MERRET nga blloku "
+        "'👥 PALËT NDËRGYQËSE ME ROLE' poshtë."
+    )
+    lines.append("")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.2: PARTIES WITH ROLES (dedup + child filter)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _append_parties_with_roles(
+    lines: List[str],
+    extractions: List[Dict[str, Any]],
+    defendants_groups: List[Dict[str, Any]],
+) -> None:
+    """
+    V1.2: Nxjerr palët ME ROLE nga metadata.parties.
+    - Dedup: "Sanije (Azem) Bala" == "Sanije Bala"
+    - Filter: heq rolet e gabuara të fëmijëve (Andi, Elda, Elsa)
+    """
+    defendant_names: Set[str] = set()
+    for group in defendants_groups:
+        for d in group.get("defendants", []):
+            n = (d.get("name") or "").strip().lower()
+            if n:
+                defendant_names.add(n)
+
+    child_names = _extract_child_names(extractions)
+
+    # Mblidh roles + display per canonical key (i normalizuar)
+    # canonical_key -> {"display": str, "roles": Set[str], "variants": [str]}
+    merged: Dict[str, Dict[str, Any]] = {}
+
+    for ext in extractions:
+        meta = ext.get("metadata") or {}
+        if not isinstance(meta, dict):
+            continue
+        for p in meta.get("parties", []) or []:
+            if not isinstance(p, dict):
+                continue
+            name = (p.get("name") or "").strip()
+            role = (p.get("role") or "").strip()
+
+            if not name or name.lower() in ("null", "none", "n/a"):
+                continue
+            if len(name) < 3:
+                continue
+
+            # V1.2: Skip fëmijët
+            if _is_child_name(name, child_names):
+                continue
+
+            # V1.2: Skip fëmijët edhe kur roli është "Fëmijët" (mos mbaj si palë)
+            role_lower = role.lower()
+            if "fëmij" in role_lower or "femij" in role_lower:
+                continue
+
+            norm_key = _normalize_name_key(name)
+            if not norm_key:
+                continue
+
+            if norm_key not in merged:
+                merged[norm_key] = {
+                    "display": name,
+                    "roles": set(),
+                    "variants": [name],
+                }
+            entry = merged[norm_key]
+            entry["variants"].append(name)
+            # Prefer longer display name (me parenthetical)
+            if len(name) > len(entry["display"]):
+                entry["display"] = name
+            if role:
+                entry["roles"].add(role)
+
+    if not merged:
+        return
+
+    lines.append("=" * 70)
+    lines.append("👥 PALËT NDËRGYQËSE ME ROLE (nga NER i dokumenteve)")
+    lines.append("=" * 70)
+    lines.append(
+        "⚠️ KY ËSHTË BURIMI I VETËM I SË VËRTETËS për rolet e palëve. "
+        "ÇDO rol që nuk shfaqet këtu KONSIDEROHET HALUDINACION."
+    )
+    lines.append(
+        "⚠️ KURRË mos i ndrysho rolet. Nëse një person ka role të ndryshme "
+        "në dokumente të ndryshme (faza civile vs penale), LISTOJI TË GJITHA."
+    )
+    lines.append("")
+
+    for norm_key in sorted(merged.keys(), key=lambda k: merged[k]["display"]):
+        entry = merged[norm_key]
+        name = entry["display"]
+        roles = entry["roles"]
+        if roles:
+            role_str = " / ".join(sorted(roles))
+            lines.append(f"  • {name} — Roli: {role_str}")
+        else:
+            lines.append(f"  • {name} — (roli nuk u specifikua në NER)")
+    lines.append("")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -179,40 +545,6 @@ def _append_articles_by_law(
                 lines.append(f"  • {article_key} — [KONTEKST DOKUMENTI: {desc}]")
             else:
                 lines.append(f"  • {article_key} (pa kontekst)")
-        lines.append("")
-
-
-def _append_parties_excluding_defendants(
-    lines: List[str],
-    extractions: List[Dict[str, Any]],
-    defendants_groups: List[Dict[str, Any]],
-) -> None:
-    defendant_names = set()
-    for group in defendants_groups:
-        for d in group.get("defendants", []):
-            name = (d.get("name") or "").strip().lower()
-            if name:
-                defendant_names.add(name)
-
-    parties_raw: Dict[str, str] = {}
-    for ext in extractions:
-        ebt = ext.get("entities_by_type", {})
-        for item in ebt.get("PARTY", []):
-            text = (item.get("text") or "").strip()
-            if not text:
-                continue
-            key = text.lower()
-            if key not in parties_raw:
-                parties_raw[key] = text
-
-    filtered = [v for k, v in parties_raw.items() if k not in defendant_names]
-
-    if filtered:
-        lines.append("=" * 70)
-        lines.append("👥 PALËT NDËRGYQËSE")
-        lines.append("=" * 70)
-        for p in sorted(filtered):
-            lines.append(f"  • {p}")
         lines.append("")
 
 

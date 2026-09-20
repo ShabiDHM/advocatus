@@ -1,6 +1,9 @@
 # FILE: backend/app/services/synthesis/case_types.py
-# PHOENIX PROTOCOL - CASE TYPE DETECTION V1.0
-# Ekstraktuar nga synthesis_service.py V3.8 — ZERO ndryshim funksional.
+# PHOENIX PROTOCOL - CASE TYPE DETECTION V1.1
+# V1.1: FIX — shtuar variante "hudhje" (typo i shpeshtë i "hedhje") + "kerkese"
+#       pa diakritikë. Pa to, file "KERKESE_PER_HUDHJE_Akuzes.pdf" nuk
+#       klasifikohej si penale → case_type mbeti vetëm "civile".
+# V1.0: Ekstraktuar nga synthesis_service.py V3.8.
 
 import re
 import logging
@@ -51,6 +54,9 @@ CASE_TYPE_PATTERNS = {
             r"prokuror(?:i|ia|in)",
             r"i\s+pandehur",
             r"e\s+pandehur",
+            r"hudhje\s+(?:e\s+)?akuz",       # V1.1: variant typo
+            r"hedhje\s+(?:e\s+)?akuz",       # V1.1: variant
+            r"k[eë]rkes[eë]\s+p[eë]r\s+h[ue]dhje",
         ],
         "weight": 2.0,
     },
@@ -89,12 +95,18 @@ CASE_TYPE_FAMILIES = {
     "penal_family": {
         "label": "Procedurë Penale",
         "filename_keywords": [
-            "aktakuz", "aktakuze",
+            # V1.0
+            "aktakuz", "aktakuze", "aktakuza",
             "kallzim", "kallëzim",
             "hedhje_akuz", "hedhjes_se_akuz",
             "penale", "penal",
             "prokuror",
             "pandehur", "padisur",
+            # V1.1: variante typo + pa diakritikë
+            "hudhje", "hudhje_akuz", "hudhjes_se_akuz",
+            "kerkese_per_hudhje", "kërkesë_per_hudhje",
+            "kerkese_per_hedhje", "kërkesë_per_hedhje",
+            "kerkes_hedhje", "kërkes_hedhje",
         ],
     },
 }
@@ -110,7 +122,7 @@ def detect_case_type(
     extractions: List[Dict[str, Any]],
 ) -> Optional[str]:
     """
-    Zbulon llojin e lëndës. Bllok i ekstraktuar nga _detect_case_type V3.8.
+    Zbulon llojin e lëndës. Nëse ka 2+ familje → kthen "X → Y".
     """
     civil_found = False
     penal_found = False
@@ -154,6 +166,10 @@ def detect_case_type(
                 f"{CASE_TYPE_FAMILIES['civil_family']['label']} → "
                 f"{CASE_TYPE_FAMILIES['penal_family']['label']}"
             )
+            logger.info(
+                f"🎯 [CASE_TYPE V1.1] Dual matter: {dual_type} "
+                f"(civil={civil_evidence!r}, penal={penal_evidence!r})"
+            )
             return dual_type
         elif civil_found:
             return CASE_TYPE_FAMILIES["civil_family"]["label"]
@@ -163,6 +179,7 @@ def detect_case_type(
     except Exception as e:
         logger.warning(f"⚠️ [SYNTHESIS] Override scan failed: {e}")
 
+    # Fallback: score patterns në përmbajtje
     scores = defaultdict(float)
     try:
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id

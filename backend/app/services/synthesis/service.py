@@ -1,13 +1,12 @@
 # FILE: backend/app/services/synthesis/service.py
-# PHOENIX PROTOCOL - SYNTHESIS SERVICE V4.1 (modular + parallel sections)
-# V4.1: PARALLEL SECTIONS — ThreadPoolExecutor me max_workers=3 (env override).
-#       Guardrails dhe post-processing mbeten brenda worker-it.
-#       Callbacks (progress + stream) jane thread-safe (caller perdor
-#       loop.call_soon_threadsafe).
+# PHOENIX PROTOCOL - SYNTHESIS SERVICE V4.2 (modular + parallel + role fix)
+# V4.2: Shtuar forbidden_parties detection — fëmijët dhe anëtarët familjarë
+#       nuk klasifikohen si palë nga post-processing. Deterministik, jo-LLM.
+# V4.1: PARALLEL SECTIONS — ThreadPoolExecutor me max_workers=5 (env override).
 # V4.0: Modularizuar nga synthesis_service.py V3.8 — ZERO ndryshim funksional.
-# Vetëm orchestration. Logjika në modulët përkatës.
 
 import os
+import re
 import time
 import logging
 import concurrent.futures
@@ -54,9 +53,53 @@ GUARDRAIL_SECTIONS = {
 }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V4.2: FORBIDDEN PARTY NAMES — nga metadata.parties me role "Fëmijët"
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _extract_forbidden_party_names(
+    extractions: List[Dict[str, Any]],
+) -> Set[str]:
+    """
+    V4.2: Nxjerr emrat që NUK duhet të klasifikohen si palë ndërgjyqëse.
+    Bazuar në rolet "Fëmijët" / "Fëmijë" nga metadata.parties.
+
+    Kthen: set me emra (lowercase, emri i parë + emri i plotë).
+    """
+    forbidden: Set[str] = set()
+    for ext in extractions or []:
+        meta = ext.get("metadata") or {}
+        if not isinstance(meta, dict):
+            continue
+        for p in meta.get("parties", []) or []:
+            if not isinstance(p, dict):
+                continue
+            role = (p.get("role") or "").lower()
+            name = (p.get("name") or "").strip()
+            if not name:
+                continue
+            if "fëmij" in role or "femij" in role:
+                # Split "Elda dhe Andi" → ["Elda", "Andi"]
+                parts = re.split(
+                    r'\s+(?:dhe|dhe\/ose|,|e)\s+',
+                    name,
+                    flags=re.IGNORECASE,
+                )
+                for part in parts:
+                    part = part.strip(" .,;:")
+                    if not part:
+                        continue
+                    forbidden.add(part)
+                    # Gjithashtu shto emrin e parë
+                    first = part.split()[0] if part.split() else ""
+                    if first and len(first) >= 3:
+                        forbidden.add(first)
+    return forbidden
+
+
 class SynthesisService:
     """
-    V4.1 (modular + parallel) — orchestration vetem.
+    V4.2 (modular + parallel + role fix) — orchestration vetem.
     """
 
     def __init__(self, db):
@@ -90,10 +133,10 @@ class SynthesisService:
         )
 
         case_type = detect_case_type(self.db, case_id, extractions)
-        logger.info(f"🎯 [SYNTHESIS V4.1] Case type detected: {case_type}")
+        logger.info(f"🎯 [SYNTHESIS V4.2] Case type detected: {case_type}")
 
         canonical = self._build_canonical_entities(extractions, defendants_groups)
-        logger.info(f"🎯 [SYNTHESIS V4.1] Canonical entities: {canonical.stats()}")
+        logger.info(f"🎯 [SYNTHESIS V4.2] Canonical entities: {canonical.stats()}")
 
         articles_by_law = extract_articles_by_law(self.db, case_id)
         total_articles = sum(len(v) for v in articles_by_law.values())
@@ -115,7 +158,7 @@ class SynthesisService:
             articles_by_law, case_type, verified_citations
         )
         logger.info(
-            f"🔍 [SYNTHESIS V4.1] Digest built: {len(digest)} chars, "
+            f"🔍 [SYNTHESIS V4.2] Digest built: {len(digest)} chars, "
             f"case_type={case_type or 'unknown'}, "
             f"docs={len(extractions)}, "
             f"verified_laws={verified_citations['total_laws']}, "
@@ -123,6 +166,20 @@ class SynthesisService:
             f"verified_pairs={verified_citations['total_pairs']}, "
             f"case={case_id}"
         )
+
+        # ═══════════════════════════════════════════════════════════════
+        # V4.2: Forbidden parties (fëmijët) — për post-processing
+        # ═══════════════════════════════════════════════════════════════
+        forbidden_parties = _extract_forbidden_party_names(extractions)
+        if forbidden_parties:
+            logger.info(
+                f"🚫 [SYNTHESIS V4.2] Forbidden party names (children): "
+                f"{sorted(forbidden_parties)}"
+            )
+        else:
+            logger.info(
+                f"🚫 [SYNTHESIS V4.2] No forbidden party names detected"
+            )
 
         # ═══════════════════════════════════════════════════════════════
         # V4.1: Procesim PARALEL i seksioneve
@@ -138,9 +195,10 @@ class SynthesisService:
         total_prefix_fixes = 0
         total_citation_fixes = 0
         total_attribution_fixes = 0
+        total_misattributed_roles_fixed = 0
 
         logger.warning(
-            f"🚀 [SYNTHESIS V4.1] Nisur {len(SECTION_PROMPTS)} seksione "
+            f"🚀 [SYNTHESIS V4.2] Nisur {len(SECTION_PROMPTS)} seksione "
             f"me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -179,12 +237,20 @@ class SynthesisService:
                     stream_callback=section_stream_callback,
                 )
 
-                content, fix_stats = post_process_output(raw_content, canonical)
+                # ═══════════════════════════════════════════════════════
+                # V4.2: post_process_output me forbidden_parties
+                # ═══════════════════════════════════════════════════════
+                content, fix_stats = post_process_output(
+                    raw_content,
+                    canonical,
+                    forbidden_parties=forbidden_parties,
+                )
 
                 fixes = {
                     "hallucinations_fixed": fix_stats.get("hallucinations_fixed", 0),
                     "institutions_fixed": fix_stats.get("institutions_fixed", 0),
                     "prefix_fixes": fix_stats.get("prefix_fixes", 0),
+                    "misattributed_roles_fixed": fix_stats.get("misattributed_roles_fixed", 0),
                     "citation_fixes": 0,
                     "attribution_fixes": 0,
                 }
@@ -263,6 +329,7 @@ class SynthesisService:
                     "hallucinations_fixed": fixes["hallucinations_fixed"],
                     "institutions_fixed": fixes["institutions_fixed"],
                     "prefix_fixes": fixes["prefix_fixes"],
+                    "misattributed_roles_fixed": fixes["misattributed_roles_fixed"],
                 }
 
                 if progress_callback:
@@ -276,7 +343,7 @@ class SynthesisService:
                         pass
 
             except Exception as e:
-                logger.error(f"❌ [SYNTHESIS V4.1] Section {section_key} failed: {e}")
+                logger.error(f"❌ [SYNTHESIS V4.2] Section {section_key} failed: {e}")
                 section_entry = {
                     "title": section_title,
                     "content": "",
@@ -315,7 +382,7 @@ class SynthesisService:
                         res = fut.result()
                     except Exception as e:
                         logger.error(
-                            f"❌ [SYNTHESIS V4.1] Future failed for {section_key}: {e}"
+                            f"❌ [SYNTHESIS V4.2] Future failed for {section_key}: {e}"
                         )
                         sections[section_key] = {
                             "title": SECTION_PROMPTS[section_key]["title"],
@@ -337,14 +404,15 @@ class SynthesisService:
                     total_prefix_fixes += fixes.get("prefix_fixes", 0)
                     total_citation_fixes += fixes.get("citation_fixes", 0)
                     total_attribution_fixes += fixes.get("attribution_fixes", 0)
+                    total_misattributed_roles_fixed += fixes.get("misattributed_roles_fixed", 0)
 
                     if res.get("deadline_contradictions"):
                         all_deadline_contradictions.extend(res["deadline_contradictions"])
 
         except Exception as e:
-            logger.error(f"❌ [SYNTHESIS V4.1] ThreadPoolExecutor failed: {e}")
+            logger.error(f"❌ [SYNTHESIS V4.2] ThreadPoolExecutor failed: {e}")
             # Fallback: sequential
-            logger.warning("🔄 [SYNTHESIS V4.1] Fallback në sequential mode")
+            logger.warning("🔄 [SYNTHESIS V4.2] Fallback në sequential mode")
             for section_key, section_cfg in SECTION_PROMPTS.items():
                 try:
                     res = _run_section_worker(section_key, section_cfg)
@@ -358,6 +426,7 @@ class SynthesisService:
                     total_prefix_fixes += fixes.get("prefix_fixes", 0)
                     total_citation_fixes += fixes.get("citation_fixes", 0)
                     total_attribution_fixes += fixes.get("attribution_fixes", 0)
+                    total_misattributed_roles_fixed += fixes.get("misattributed_roles_fixed", 0)
                     if res.get("deadline_contradictions"):
                         all_deadline_contradictions.extend(res["deadline_contradictions"])
                 except Exception as e2:
@@ -398,6 +467,7 @@ class SynthesisService:
                 "hallucinations_fixed": total_hallucinations_fixed,
                 "institutions_fixed": total_institutions_fixed,
                 "prefix_fixes": total_prefix_fixes,
+                "misattributed_roles_fixed": total_misattributed_roles_fixed,
                 "citation_hallucinations_fixed": total_citation_fixes,
                 "attribution_hallucinations_fixed": total_attribution_fixes,
                 "deadline_contradictions": len(all_deadline_contradictions),
@@ -407,6 +477,7 @@ class SynthesisService:
                 "sections_total": len(SECTION_PROMPTS),
                 "duration_sec": duration,
                 "execution_mode": f"parallel_x{MAX_CONCURRENT_SECTIONS}",
+                "forbidden_parties": sorted(forbidden_parties) if forbidden_parties else [],
             },
             "guardrail_reports": guardrail_reports,
             "regex_verified_citations": verified_citations,
@@ -418,9 +489,10 @@ class SynthesisService:
         persist(self.db, result)
 
         logger.info(
-            f"✅ [SYNTHESIS V4.1] Complete: case={case_id}, "
+            f"✅ [SYNTHESIS V4.2] Complete: case={case_id}, "
             f"case_type={case_type}, "
             f"hallucinations_fixed={total_hallucinations_fixed}, "
+            f"misattributed_roles_fixed={total_misattributed_roles_fixed}, "
             f"citation_hallucinations_fixed={total_citation_fixes}, "
             f"attribution_hallucinations_fixed={total_attribution_fixes}, "
             f"deadline_contradictions={len(all_deadline_contradictions)}, "
