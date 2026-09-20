@@ -1,6 +1,9 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - AI VISION OCR ENGINE V31.0 (ZERO CLAUDE • ZERO GPT-4O-MINI • ECONOMICAL GEMINI SUITE)
-# 100% COMPLETE CODE • ZERO CREDIT LEAKAGE • BULLETPROOF VISION RECOGNITION
+# PHOENIX PROTOCOL - AI VISION OCR ENGINE V31.1 (ZERO CLAUDE • ZERO GPT-4O-MINI • ECONOMICAL GEMINI SUITE)
+# V31.1: FIX — hequr google/gemini-2.0-flash-001 (deprecated nga OpenRouter,
+#        kthente 404 "No endpoints found"). Renditur google/gemini-2.5-flash
+#        si model parësor (i verifikuar punues në prodhim).
+# V31.0: 100% COMPLETE CODE • ZERO CREDIT LEAKAGE • BULLETPROOF VISION RECOGNITION
 
 import os
 import json
@@ -16,10 +19,10 @@ from app.services.llm.llm_client import _get_sync_client, _get_api_key
 logger = logging.getLogger(__name__)
 
 # 🛡️ HIERARKIA E VERIFIKUAR EKONOMIKE E AI VISION (ZERO CLAUDE • ZERO GPT-4O-MINI)
+# V31.1: google/gemini-2.0-flash-001 u hoq — OpenRouter kthen 404 "No endpoints found".
 VISION_MODELS_HIERARCHY = [
-    "google/gemini-2.0-flash-001",     # Modeli parësor me shpejtësi ekstreme dhe kosto minimale ($0.10/1M)
-    "google/gemini-2.5-flash",         # Fallback me inteligjencë të lartë vizuale
-    "google/gemini-flash-1.5"          # Fallback i fundit i qëndrueshëm
+    "google/gemini-2.5-flash",         # Modeli parësor — i verifikuar punues (Shtator 2026)
+    "google/gemini-flash-1.5"          # Fallback i qëndrueshëm
 ]
 
 class SmartOCRResult:

@@ -1,5 +1,7 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V18.0 (DIARIZATION SEGMENTS PERSISTENCE)
+# PHOENIX PROTOCOL - MEDIA ROUTER V19.0 (ORG-AWARE ACCESS CONTROL)
+# V19.0: ORG-AWARE — user me org mund të ngarkojë/shikojë/fshijë media në case të përbashkët.
+#        Përdor _build_case_access_query nga case_service për konsistencë.
 # V18.0: Ruajtja e segmenteve të diarizimit (folës + sekonda) në MongoDB.
 #        Përditësuar komentet "Whisper" → "AssemblyAI".
 # V17.0: AUDIO/VIDEO DETECTION + CLEAN MIME STREAMING
@@ -16,6 +18,7 @@ import tempfile
 import os
 import shutil
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from jose import jwt, JWTError
 import redis.asyncio as aioredis
 import json
@@ -26,6 +29,7 @@ from app.services import storage_service
 from app.services.video_service import compress_video_for_storage, video_service
 from app.services.pillars.role_guard_service import RoleGuardService
 from app.services.vector_store_service import delete_document_embeddings, create_and_store_embeddings_from_chunks
+from app.services.case_service import _build_case_access_query
 from app.core.config import settings
 
 router = APIRouter(tags=["Media Evidence"])
@@ -152,15 +156,16 @@ async def get_case_media(
     db: Database = Depends(get_db)
 ):
     case_oid = validate_object_id(case_id)
-    user_oid = ObjectId(current_user.id)
     
-    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    # V19.0: ORG-AWARE — të njëjtin kontroll aksesi si case_service
+    case = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
     
     role = RoleGuardService.get_role_from_case(case_id, db)
     
-    cursor = db.media_evidence.find({"case_id": case_oid, "owner_id": user_oid}).sort("created_at", -1)
+    # V19.0: heq owner_id — aksesi verifikohet përmes case-it më lart
+    cursor = db.media_evidence.find({"case_id": case_oid}).sort("created_at", -1)
     items = []
     for item in cursor:
         serialized = serialize_media_doc(item)
@@ -184,7 +189,8 @@ async def upload_case_media(
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
     
-    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    # V19.0: ORG-AWARE — user me org mund të ngarkojë në case të përbashkët
+    case = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
     
@@ -340,14 +346,26 @@ async def stream_case_media(
     case_oid = validate_object_id(case_id)
     media_oid = validate_object_id(media_id)
     
-    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    # V19.0: ORG-AWARE — lexo user nga DB dhe apliko të njëjtin kontroll si case_service
+    # (ky endpoint përdor JWT token nga query param, jo Depends(get_current_user))
+    user_doc = db.users.find_one({"_id": user_oid}) if user_oid else None
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="I paautorizuar.")
+    
+    stream_user = SimpleNamespace(
+        id=user_doc["_id"],
+        org_id=user_doc.get("org_id"),
+        org_access_level=user_doc.get("org_access_level", "FULL")
+    )
+    
+    case = db.cases.find_one(_build_case_access_query(stream_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
     
+    # V19.0: heq owner_id — aksesi u verifikua përmes case-it më lart
     media_item = db.media_evidence.find_one({
         "_id": media_oid,
-        "case_id": case_oid,
-        "owner_id": user_oid
+        "case_id": case_oid
     })
     if not media_item:
         raise HTTPException(status_code=404, detail="Regjistrimi nuk u gjet.")
@@ -396,14 +414,15 @@ async def delete_case_media(
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
 
-    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    # V19.0: ORG-AWARE — user me org mund të fshijë media e org-ut
+    case = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
 
+    # V19.0: heq owner_id — aksesi u verifikua përmes case-it më lart
     media_item = db.media_evidence.find_one({
         "_id": media_oid,
-        "case_id": case_oid,
-        "owner_id": user_oid
+        "case_id": case_oid
     })
     if not media_item:
         raise HTTPException(status_code=404, detail="Regjistrimi nuk u gjet.")
@@ -417,8 +436,8 @@ async def delete_case_media(
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
+    # V19.0: fshirje e vektorëve — owner-agnostic, mbulon të gjitha rastet
     try:
-        delete_document_embeddings(user_id=str(current_user.id), document_id=media_id)
         db.user_vectors.delete_many({
             "$or": [
                 {"document_id": media_id},

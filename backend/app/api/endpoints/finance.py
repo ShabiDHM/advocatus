@@ -1,5 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V51.0 (FORENSIC REPORT ENDPOINT REMOVED)
+# PHOENIX PROTOCOL - FINANCE ROUTER V52.1 (ORG-AWARE + ADMIN ROLE GUARD)
+# V52.1: FIX — admin_manual_unlock_case tani bllokon me 403 në vend të 'pass' bosh.
+# V52.0: ORG-AWARE — checkout endpoints verifikojnë akses përmes _build_case_access_query.
 # V51.0: Hequr endpoint-i /forensic-report/archive + klasa ArchiveForensicReportRequest.
 #        Hequr importi create_pdf_from_text.
 
@@ -31,6 +33,7 @@ from app.services.ocr_service import extract_text_from_image_bytes
 from app.services.llm_service import extract_expense_details_from_text
 from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
 from app.api.endpoints.cases.cases_helpers import validate_object_id
+from app.services.case_service import _build_case_access_query
 
 router = APIRouter(tags=["Finance"])
 logger = structlog.get_logger(__name__)
@@ -41,6 +44,9 @@ BANK_NAME = os.getenv("COMPANY_BANK_NAME", "Raiffeisen Bank Kosova")
 BANK_ACCOUNT_HOLDER = os.getenv("COMPANY_ACCOUNT_HOLDER", "Juristi AI / Advocatus SH.P.K.")
 BANK_IBAN = os.getenv("RAIFFEISEN_IBAN", "XK051501001000000000")
 BANK_SWIFT = os.getenv("RAIFFEISEN_SWIFT", "RBKOXKPR")
+
+# V52.1: Rolet e lejuara për veprime administrative
+ADMIN_ROLES = {"ADMIN", "SUPERADMIN", "STAFF"}
 
 
 # ========== MODELET PYDANTIC PËR PAGESAT ==========
@@ -81,7 +87,8 @@ async def get_case_unlock_info(
     Kthen të dhënat e pagesës dhe llogarisë së Raiffeisen Bank për zhbllokimin e një lënde.
     """
     case_oid = validate_object_id(case_id)
-    case_doc = db.cases.find_one({"_id": case_oid, "owner_id": current_user.id})
+    # V52.0: ORG-AWARE
+    case_doc = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case_doc:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
 
@@ -113,7 +120,8 @@ async def create_mbanking_order(
     Regjistron kërkesën për pagesë me m-Banking dhe kthen udhëzimet me IBAN.
     """
     case_oid = validate_object_id(body.case_id)
-    case_doc = db.cases.find_one({"_id": case_oid, "owner_id": current_user.id})
+    # V52.0: ORG-AWARE
+    case_doc = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case_doc:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
 
@@ -149,10 +157,19 @@ async def admin_manual_unlock_case(
 ):
     """
     Zhbllokon lëndën manualisht (p.sh. kur klienti paguan me CASH në zyrë ose konfirmohet m-Banking).
+    Vetëm ADMIN / SUPERADMIN / STAFF.
     """
+    # V52.1: FIX — bllokim real për user jo-admin
     user_role = getattr(current_user, "role", "USER").upper()
-    if user_role not in ["ADMIN", "SUPERADMIN", "STAFF"]:
-        pass
+    if user_role not in ADMIN_ROLES:
+        logger.warning(
+            f"🚫 [Case Unlock DENIED] User {current_user.id} (role={user_role}) "
+            f"u përpoq të zhbllokojë lëndën {body.case_id} pa autorizim."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nuk keni autorizim për të zhbllokuar lëndët."
+        )
 
     case_oid = validate_object_id(body.case_id)
     case_doc = db.cases.find_one({"_id": case_oid})
@@ -184,7 +201,7 @@ async def admin_manual_unlock_case(
     }
     db.case_orders.insert_one(order_record)
 
-    logger.info(f"✅ [Case Unlocked] Lënda {body.case_id} u zhbllokua me sukses ({body.payment_method.upper()}).")
+    logger.info(f"✅ [Case Unlocked] Lënda {body.case_id} u zhbllokua me sukses ({body.payment_method.upper()}) nga {current_user.id}.")
     return {
         "status": "success",
         "message": f"Lënda '{case_doc.get('title', 'Lëndë')}' u zhbllokua me sukses.",

@@ -1,5 +1,6 @@
 // FILE: src/services/adminService.ts
-// PHOENIX PROTOCOL - ADMIN, ORGANIZATIONS & SUPPORT SERVICE MODULE
+// PHOENIX PROTOCOL - ADMIN, ORGANIZATIONS & SUPPORT SERVICE MODULE V52.0
+// V52.0: + getAdminCases, unlockCase, lockCase — kalojnë përmes apiClient (me auth refresh automatik)
 
 import { apiClient } from './apiClient';
 import type {
@@ -10,6 +11,29 @@ import type {
   SubscriptionUpdate,
   PromoteRequest
 } from '../data/types';
+
+// V52.0: Tipet për admin cases
+export interface AdminCaseView {
+  _id: string;
+  title: string;
+  client_name: string;
+  client_position: string;
+  is_unlocked: boolean;
+  unlocked_at?: string;
+  unlock_payment_method?: string;
+  unlock_amount?: number;
+  owner_email?: string;
+  owner_name?: string;
+  owner_role?: string;
+  document_count: number;
+  created_at?: string;
+}
+
+export interface UnlockCaseRequest {
+  payment_method: string;
+  amount: number;
+  note?: string;
+}
 
 export class AdminService {
   public async getOrganizations(): Promise<Organization[]> {
@@ -68,6 +92,22 @@ export class AdminService {
 
   public async promoteToFirm(userId: string, data: PromoteRequest): Promise<{ message: string }> {
     const response = await apiClient.post(`/admin/users/${userId}/promote`, data);
+    return response.data;
+  }
+
+  // V52.0: Admin Cases — përmes apiClient për auth + refresh automatik
+  public async getAdminCases(): Promise<AdminCaseView[]> {
+    const response = await apiClient.get<AdminCaseView[]>('/admin/cases');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  public async unlockCase(caseId: string, data: UnlockCaseRequest): Promise<any> {
+    const response = await apiClient.post(`/admin/cases/${caseId}/unlock`, data);
+    return response.data;
+  }
+
+  public async lockCase(caseId: string): Promise<any> {
+    const response = await apiClient.post(`/admin/cases/${caseId}/lock`);
     return response.data;
   }
 

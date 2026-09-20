@@ -1,5 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V71.0
+// PHOENIX PROTOCOL - MASTER API FACADE V72.0
+// V72.0: + getAdminCases, unlockCase, lockCase — Admin Cases bindings (org-aware + apiClient auth)
 // V71.0: Hequr bindings për mobile flow (5 metoda të vdekura).
 // V70.0: Hequr forensicService (i fshirë) — 2 bindings + import + export.
 // V69.0: Removed bindings for dead spreadsheet methods.
@@ -164,6 +165,10 @@ class ApiService {
   public deleteUser = adminService.deleteUser.bind(adminService);
   public updateSubscription = adminService.updateSubscription.bind(adminService);
   public promoteToFirm = adminService.promoteToFirm.bind(adminService);
+  // V72.0: Admin Cases bindings
+  public getAdminCases = adminService.getAdminCases.bind(adminService);
+  public unlockCase = adminService.unlockCase.bind(adminService);
+  public lockCase = adminService.lockCase.bind(adminService);
   public getSupportMessages = adminService.getSupportMessages.bind(adminService);
   public sendSupportReply = adminService.sendSupportReply.bind(adminService);
   public sendContactForm = adminService.sendContactForm.bind(adminService);

@@ -1,9 +1,12 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V109.6
-// V109.6: FIX KRITIK RACE CONDITION — fetchCaseData rifetchohej pas stream-it,
-//         duke mbishkruar chatMessages lokale me version stale nga serveri
-//         (para se backend-i të ruante AI-message). Tani: ref-based guard —
-//         vetëm 1 fetch për caseId.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V109.7
+// V109.7: FIX PARALLEL SECTIONS — buffer per section_key. Ne V4.1 (paralel),
+//         section_started dhe section_chunk vijne te interleavuar. Tani:
+//         (1) sectionsByKey: Record<string, string> buffer
+//         (2) sectionOrder: string[] ruan renditjen e paraqitjes
+//         (3) Ne fund, bashkohen sipas rendit → accumulated
+//         Fix-i mbulon edhe document_review edhe synthesis.
+// V109.6: FIX KRITIK RACE CONDITION — fetchCaseData rifetchohej pas stream-it.
 // V109.5: FIX KRITIK — rikthyer handler-i section_chunk.
 // V109.4: Hequr auditSubLabel + auditIsDocumentMode.
 // V109.3: Progress bar inline në ChatHeader.
@@ -143,15 +146,13 @@ const CaseViewPage: React.FC = () => {
 
   // ═══════════════════════════════════════════════════════════════════════
   // V109.6: FIX — fetch VETËM 1 herë për caseId (ref-based guard)
-  // Pavarësisht nëse fetchCaseData identity ndryshon (p.sh. nga setLiveDocuments),
-  // nuk rifetchohet për të njëjtin caseId.
   // ═══════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isReadyForData || !caseId) return;
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V109.6] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V109.7] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
@@ -334,6 +335,16 @@ const CaseViewPage: React.FC = () => {
     let sectionsStarted = 0;
     let chunksReceived = 0;
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // V109.7: BUFFER PER SECTION — mbrojtje kundër interleaving paralel
+    // Kur sections gjenerohen paralel (backend V4.1 / V5.7), section_started
+    // dhe section_chunk vijnë te interleavuar. Buffer per-key + rend i
+    // regjistruar → bashkim i saktë në fund.
+    // ═══════════════════════════════════════════════════════════════════════
+    const sectionsByKey: Record<string, string> = {};
+    const sectionOrder: string[] = [];
+    let anonCounter = 0;
+
     const SECTIONS_TOTAL = 6;
 
     try {
@@ -393,21 +404,47 @@ const CaseViewPage: React.FC = () => {
           continue;
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // V109.7: section_started — regjistro key + title ne buffer
+        // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'section_started') {
-          const title = evt.section_title || evt.section_key || '';
+          const title = evt.section_title || '';
+          const rawKey = evt.section_key || '';
+          const sKey = rawKey || `__anon_${anonCounter++}`;
+
           sectionsStarted++;
-          setAuditProgressText(`Seksioni: ${title}`);
-          if (title) {
-            accumulated += `\n\n## ${title}\n\n`;
+          setAuditProgressText(`Seksioni: ${title || rawKey}`);
+
+          if (sectionsByKey[sKey] === undefined) {
+            sectionOrder.push(sKey);
+            // Inicializo me titullin (nese ka)
+            sectionsByKey[sKey] = title ? `\n\n## ${title}\n\n` : '';
           }
           continue;
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // V109.7: section_chunk — append ne buffer-in e section_key
+        // (jo ne accumulated global, qe interleaving te mos prish renditjen)
+        // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'section_chunk') {
           const chunk = evt.chunk || evt.content || evt.text || '';
+          const rawKey = evt.section_key || '';
+
           if (chunk) {
             chunksReceived++;
-            accumulated += chunk;
+
+            if (rawKey && sectionsByKey[rawKey] !== undefined) {
+              // Rruga normale: section_key i njohur
+              sectionsByKey[rawKey] += chunk;
+            } else if (rawKey) {
+              // Fallback: section_chunk para section_started (nuk duhet te ndodhe)
+              sectionOrder.push(rawKey);
+              sectionsByKey[rawKey] = chunk;
+            } else {
+              // Fallback ekstrem: pa section_key
+              accumulated += chunk;
+            }
           }
           continue;
         }
@@ -424,10 +461,14 @@ const CaseViewPage: React.FC = () => {
           continue;
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // V109.7: report_ready — perdoret vetem nese s'ka sections te grumbulluara
+        // (cache hit → content i plote; fresh → sections do bashkohen me poshte)
+        // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'report_ready') {
           const content = evt.content || '';
           const fromCache = evt.from_cache === true;
-          if (content.trim() && !accumulated) {
+          if (content.trim() && sectionOrder.length === 0 && !accumulated.trim()) {
             detectedSource = fromCache ? 'cache' : 'fresh';
             accumulated = content;
           }
@@ -443,14 +484,26 @@ const CaseViewPage: React.FC = () => {
         }
       }
 
+      // ═══════════════════════════════════════════════════════════════════════
+      // V109.7: Bashko sections sipas rendit te regjistruar
+      // Vetem nese kemi marrë sections (jo cache hit me report_ready)
+      // ═══════════════════════════════════════════════════════════════════════
+      if (sectionOrder.length > 0) {
+        const combined = sectionOrder.map((k) => sectionsByKey[k] || '').join('');
+        if (combined.trim()) {
+          accumulated = combined;
+        }
+      }
+
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit] Accumulated content is empty!', {
+        console.error('[Background Audit V109.7] Accumulated content is empty!', {
           isDocMode,
           docsTotal,
           sectionsStarted,
           sectionsCompleted,
           chunksReceived,
+          sectionOrderLength: sectionOrder.length,
           currentPhase,
           detectedSource
         });
@@ -473,7 +526,7 @@ const CaseViewPage: React.FC = () => {
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error]', err);
+      console.error('[Background Audit Error V109.7]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {

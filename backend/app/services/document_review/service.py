@@ -1,13 +1,24 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.1 (REBUILD)
-# Arkitekturë e re: Regex (Laborator) + MongoDB (Arkiva) + LLM (Narrative).
-# V5.1: Hequr import i vjetër MAX_KB_LOOKUPS (nuk përdoret më).
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.7
+# V5.7: PARALLEL SECTIONS — ThreadPoolExecutor me max_workers=3 (env override).
+#       Emetim per-section sapo perfundon, pa interleaving. Rendi final mbahet
+#       sipas DOCUMENT_REVIEW_PROMPTS.keys() (para paraqitjes).
+#       Perdorim threading.Lock per callbacks (thread-safe SSE emission).
+#       Nuk prek strukturen e result/stats — vetem shpejtesine.
+# V5.6: Integrimi i hallucination_checker.
+# V5.5: SEQUENTIAL + STREAMING OFF.
+# V5.4: Parallel sections (problematik per SSE).
+# V5.3: Context per-section.
+# V5.2: Instrumentim timing.
 # V5.0: Rishkruar nga e para.
 
+import os
 import time
 import logging
+import threading
+import concurrent.futures
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Callable, Set, Tuple
+from typing import Any, Dict, List, Optional, Callable, Tuple
 
 from .citation_extractor import build_citation_profile
 from .fact_extractor import build_fact_profile
@@ -15,6 +26,7 @@ from .mongo_verifier import verify_all
 from .prompts import DOCUMENT_REVIEW_PROMPTS, build_verified_context
 from .streaming import synthesize_section_streaming
 from .report_builder import build_full_report
+from .hallucination_checker import check_all_sections
 from .persistence import (
     load_document,
     load_extraction,
@@ -24,19 +36,24 @@ from .persistence import (
 
 logger = logging.getLogger(__name__)
 
+# V5.7: Konfigurim paralelizmi
+MAX_CONCURRENT_SECTIONS = int(os.getenv("DOC_REVIEW_MAX_WORKERS", "3"))
+DEFAULT_SECTION_MAX_TOKENS = 3000
+
 
 class DocumentReviewService:
     """
-    V5.1 (rebuild) — Orkestruesi.
-    Arkitekturë: Fakte nga Python → Narrative nga LLM.
+    V5.7 — Orkestruesi paralel me buffered output + hallucination check.
+
+    Arkitekture:
+      Fakte nga Python → Narrative nga LLM (parallel per-section) →
+      Post-check anti-hallucination.
+
+    Perdor ThreadPoolExecutor me MAX_CONCURRENT_SECTIONS workers.
     """
 
     def __init__(self, db):
         self.db = db
-
-    # ═══════════════════════════════════════════════════════════════════
-    # PUBLIC — review
-    # ═══════════════════════════════════════════════════════════════════
 
     def review(
         self,
@@ -48,9 +65,16 @@ class DocumentReviewService:
     ) -> Dict[str, Any]:
         start = time.time()
 
+        def _lap(label: str, t_start: float) -> float:
+            elapsed = time.time() - t_start
+            logger.warning(f"⏱️ [TIMING] {label}: {elapsed:.2f}s")
+            return elapsed
+
         # ═══ 1. LOAD ═══
+        t0 = time.time()
         document = load_document(self.db, case_id, document_id)
         extraction = load_extraction(self.db, case_id, document_id)
+        _lap("load_document+extraction", t0)
 
         if not document and not extraction:
             return empty_result(case_id, document_id, "Document not found.")
@@ -73,12 +97,12 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.7] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, "
-            f"len={len(doc_text)} chars"
+            f"len={len(doc_text)} chars, parallel x{MAX_CONCURRENT_SECTIONS}"
         )
 
-        # ═══ 2. LABORATORI — Ekstraktim deterministik ═══
+        # ═══ 2. LABORATORI ═══
         if progress_callback:
             try:
                 progress_callback("section_started", {
@@ -88,8 +112,13 @@ class DocumentReviewService:
             except Exception:
                 pass
 
+        t0 = time.time()
         citation_profile = build_citation_profile(doc_text)
+        citation_time = _lap("build_citation_profile", t0)
+
+        t0 = time.time()
         fact_profile = build_fact_profile(doc_text)
+        fact_time = _lap("build_fact_profile", t0)
 
         logger.info(
             f"🔬 [EXTRACT] Articles={citation_profile['stats']['total_articles']}, "
@@ -99,7 +128,7 @@ class DocumentReviewService:
             f"Parties={fact_profile['stats']['total_parties']}"
         )
 
-        # ═══ 3. ARKIVA — Verifikim në MongoDB ═══
+        # ═══ 3. ARKIVA ═══
         if progress_callback:
             try:
                 progress_callback("section_started", {
@@ -109,7 +138,9 @@ class DocumentReviewService:
             except Exception:
                 pass
 
+        t0 = time.time()
         verification_report = verify_all(self.db, citation_profile)
+        verify_time = _lap("verify_all (MongoDB)", t0)
 
         logger.info(
             f"📚 [VERIFY] Articles {verification_report['stats']['articles_verified']}/"
@@ -120,80 +151,237 @@ class DocumentReviewService:
             f"{verification_report['stats']['case_numbers_cited']}"
         )
 
-        # ═══ 4. NARRATIVE — Gjenero section by section ═══
-        verified_context = build_verified_context(
-            citation_profile=citation_profile,
-            fact_profile=fact_profile,
-            verification_report=verification_report,
-            document_type=document_type,
-            file_name=file_name,
-        )
-
-        logger.info(f"📝 [CONTEXT] Verified context built: {len(verified_context)} chars")
-
+        # ═══ 4. NARRATIVE — V5.7: PARALLEL ═══
         sections: Dict[str, Any] = {}
         section_stats: Dict[str, Any] = {}
 
-        for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
-            section_start = time.time()
-            section_title = section_cfg["title"]
+        sections_start = time.time()
 
-            if progress_callback:
+        logger.warning(
+            f"🚀 [PARALLEL V5.7] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
+            f"seksione me max_workers={MAX_CONCURRENT_SECTIONS}"
+        )
+
+        # V5.7: Thread-safe locks per callbacks
+        _callback_lock = threading.Lock()
+
+        def _emit_progress(event: str, payload: Dict[str, Any]) -> None:
+            if not progress_callback:
+                return
+            with _callback_lock:
                 try:
-                    progress_callback("section_started", {
-                        "section_key": section_key,
-                        "section_title": section_title,
-                    })
+                    progress_callback(event, payload)
                 except Exception:
                     pass
 
+        def _emit_section(section_key: str, content: str) -> None:
+            if not section_stream_callback or not content:
+                return
+            with _callback_lock:
+                try:
+                    section_stream_callback(section_key, content)
+                except Exception:
+                    pass
+
+        def _run_section(
+            section_key: str,
+            section_cfg: Dict[str, Any],
+        ) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+            """
+            V5.7: Ekzekuton nje seksion te vetem ne thread te pavarur.
+            Kthen: (section_key, section_entry, stats_entry, timing_info)
+            """
+            section_start = time.time()
+            section_title = section_cfg["title"]
+            section_max_tokens = section_cfg.get("max_tokens", DEFAULT_SECTION_MAX_TOKENS)
+
+            # Ndërto context per-section
+            t_ctx = time.time()
             try:
+                verified_context = build_verified_context(
+                    citation_profile=citation_profile,
+                    fact_profile=fact_profile,
+                    verification_report=verification_report,
+                    document_type=document_type,
+                    file_name=file_name,
+                    section_key=section_key,
+                )
+            except Exception as e:
+                logger.error(f"❌ [SECTION {section_key}] Context build failed: {e}")
+                return (
+                    section_key,
+                    {
+                        "title": section_title,
+                        "content": "",
+                        "error": f"context_build_failed: {e}",
+                    },
+                    {
+                        "duration_sec": round(time.time() - section_start, 2),
+                        "error": f"context_build_failed: {e}",
+                        "max_tokens": section_max_tokens,
+                    },
+                    {"context_build_time": 0.0},
+                )
+
+            context_build_time = time.time() - t_ctx
+
+            logger.warning(
+                f"▶️ [SECTION START] {section_key} "
+                f"(max_tokens={section_max_tokens}, context={len(verified_context)} chars, "
+                f"ctx_build={context_build_time*1000:.1f}ms) — {section_title}"
+            )
+
+            _emit_progress("section_started", {
+                "section_key": section_key,
+                "section_title": section_title,
+            })
+
+            try:
+                # V5.7: Streaming OFF per section — emit whole content at end
                 content = synthesize_section_streaming(
                     section_key=section_key,
                     section_cfg=section_cfg,
                     verified_context=verified_context,
                     file_name=file_name,
                     document_type=document_type,
-                    stream_callback=section_stream_callback,
+                    stream_callback=None,
                 )
 
-                sections[section_key] = {
-                    "title": section_title,
-                    "content": content,
-                }
-                section_stats[section_key] = {
-                    "duration_sec": round(time.time() - section_start, 2),
-                    "content_length": len(content),
-                }
+                elapsed = round(time.time() - section_start, 2)
 
-                if progress_callback:
-                    try:
-                        progress_callback("section_completed", {
-                            "section_key": section_key,
-                            "section_title": section_title,
-                            "content_length": len(content),
-                        })
-                    except Exception:
-                        pass
+                logger.warning(
+                    f"✅ [SECTION DONE] {section_key}: {elapsed}s, "
+                    f"{len(content)} chars out (context={len(verified_context)} in, "
+                    f"max_tokens={section_max_tokens})"
+                )
+
+                return (
+                    section_key,
+                    {"title": section_title, "content": content},
+                    {
+                        "duration_sec": elapsed,
+                        "content_length": len(content),
+                        "context_chars": len(verified_context),
+                        "max_tokens": section_max_tokens,
+                    },
+                    {"context_build_time": context_build_time},
+                )
 
             except Exception as e:
-                logger.error(f"❌ [DOC_REVIEW] Section {section_key} failed: {e}")
-                sections[section_key] = {
-                    "title": section_title,
-                    "content": "",
-                    "error": str(e),
-                }
-                section_stats[section_key] = {
-                    "duration_sec": round(time.time() - section_start, 2),
-                    "error": str(e),
+                elapsed = round(time.time() - section_start, 2)
+                logger.error(
+                    f"❌ [DOC_REVIEW] Section {section_key} failed after {elapsed}s: {e}"
+                )
+                return (
+                    section_key,
+                    {"title": section_title, "content": "", "error": str(e)},
+                    {
+                        "duration_sec": elapsed,
+                        "error": str(e),
+                        "max_tokens": section_max_tokens,
+                    },
+                    {"context_build_time": context_build_time},
+                )
+
+        # ═══ V5.7: Ekzekutim paralel ═══
+        try:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=MAX_CONCURRENT_SECTIONS,
+                thread_name_prefix="doc_review",
+            ) as executor:
+                futures = {
+                    executor.submit(_run_section, k, c): k
+                    for k, c in DOCUMENT_REVIEW_PROMPTS.items()
                 }
 
-        # ═══ 5. MONTIMI FINAL — Report i plotë ═══
+                for fut in concurrent.futures.as_completed(futures):
+                    section_key = futures[fut]
+                    try:
+                        key, sec_entry, stat_entry, _timing = fut.result()
+                        sections[key] = sec_entry
+                        section_stats[key] = stat_entry
+
+                        # Emeto tekstin e plote per kete seksion
+                        if sec_entry.get("content"):
+                            _emit_section(key, sec_entry["content"])
+
+                        # Emeto perfundimin vetem nese s'ka gabim
+                        if not sec_entry.get("error"):
+                            _emit_progress("section_completed", {
+                                "section_key": key,
+                                "section_title": sec_entry["title"],
+                                "content_length": stat_entry.get("content_length", 0),
+                            })
+                    except Exception as e:
+                        logger.error(
+                            f"❌ [PARALLEL V5.7] Future failed for {section_key}: {e}"
+                        )
+
+        except Exception as e:
+            logger.error(f"❌ [PARALLEL V5.7] ThreadPoolExecutor failed: {e}")
+            # Fallback: sequential (nese dicka shkon keq me threading)
+            logger.warning(f"🔄 [PARALLEL V5.7] Fallback në sequential mode")
+            for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
+                try:
+                    key, sec_entry, stat_entry, _timing = _run_section(
+                        section_key, section_cfg
+                    )
+                    sections[key] = sec_entry
+                    section_stats[key] = stat_entry
+                    if sec_entry.get("content"):
+                        _emit_section(key, sec_entry["content"])
+                except Exception as e2:
+                    logger.error(f"❌ [SEQUENTIAL FALLBACK] {section_key}: {e2}")
+
+        # V5.7: Rendit seksionet sipas definicionit (jo sipas perfundimit)
+        sections = {
+            k: sections[k] for k in DOCUMENT_REVIEW_PROMPTS.keys() if k in sections
+        }
+        section_stats = {
+            k: section_stats[k] for k in DOCUMENT_REVIEW_PROMPTS.keys() if k in section_stats
+        }
+
+        sections_total_time = round(time.time() - sections_start, 2)
+        logger.warning(
+            f"⏱️ [TIMING] sections_total (parallel x{MAX_CONCURRENT_SECTIONS}): "
+            f"{sections_total_time}s"
+        )
+
+        # ═══ 4b. ANTI-HALLUCINATION CHECK (V5.6) ═══
+        if progress_callback:
+            try:
+                progress_callback("section_started", {
+                    "section_key": "hallucination_check",
+                    "section_title": "Duke kontrolluar saktësinë e fakteve...",
+                })
+            except Exception:
+                pass
+
+        t0 = time.time()
+        hallucination_report = check_all_sections(
+            sections=sections,
+            citation_profile=citation_profile,
+            fact_profile=fact_profile,
+            verification_report=verification_report,
+        )
+        hallucination_time = _lap("hallucination_check", t0)
+
+        logger.warning(
+            f"🧪 [HALLUCINATION] status={hallucination_report['status']}, "
+            f"issues={hallucination_report['total_issues']} "
+            f"(high={hallucination_report['severity_totals']['high']}, "
+            f"medium={hallucination_report['severity_totals']['medium']}, "
+            f"low={hallucination_report['severity_totals']['low']}), "
+            f"suspicious={hallucination_report['suspicious_sections']}"
+        )
+
+        # ═══ 5. MONTIMI FINAL ═══
         document_meta = {
             "file_name": file_name,
             "document_type": document_type,
         }
 
+        t0 = time.time()
         full_report = build_full_report(
             sections=sections,
             citation_profile=citation_profile,
@@ -201,6 +389,7 @@ class DocumentReviewService:
             verification_report=verification_report,
             document_meta=document_meta,
         )
+        _lap("build_full_report", t0)
 
         duration = round(time.time() - start, 2)
 
@@ -225,29 +414,51 @@ class DocumentReviewService:
                 "citation_stats": citation_profile.get("stats", {}),
                 "fact_stats": fact_profile.get("stats", {}),
                 "verification_stats": verification_report.get("stats", {}),
-                "sections_generated": len([s for s in sections.values() if s.get("content")]),
+                "sections_generated": len(
+                    [s for s in sections.values() if s.get("content")]
+                ),
                 "sections_total": len(DOCUMENT_REVIEW_PROMPTS),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}",
+                # V5.6: hallucination stats
+                "hallucination_status": hallucination_report["status"],
+                "hallucination_issues": hallucination_report["total_issues"],
+                "hallucination_suspicious_sections": hallucination_report[
+                    "suspicious_sections"
+                ],
+                "timing_breakdown": {
+                    "citation_extract_sec": round(citation_time, 2),
+                    "fact_extract_sec": round(fact_time, 2),
+                    "verify_mongo_sec": round(verify_time, 2),
+                    "sections_total_sec": sections_total_time,
+                    "hallucination_check_sec": round(hallucination_time, 2),
+                },
             },
             "verification_details": {
                 "citation_profile": citation_profile,
                 "fact_profile": fact_profile,
                 "verification_report": verification_report,
             },
+            # V5.6: raporti i plote i hallucination
+            "hallucination_report": hallucination_report,
             "section_stats": section_stats,
             "status": "completed",
         }
 
         # ═══ 7. PERSIST ═══
+        t0 = time.time()
         persist(self.db, result)
+        _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5] Complete: "
+            f"✅ [DOC_REVIEW V5.7] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"articles_verified={verification_report['stats']['articles_verified']}, "
+            f"hallucination={hallucination_report['status']} "
+            f"({hallucination_report['total_issues']} issues), "
             f"report_chars={len(full_report)}, "
-            f"duration={duration}s"
+            f"duration={duration}s, mode={result['stats']['execution_mode']}"
         )
 
         return result

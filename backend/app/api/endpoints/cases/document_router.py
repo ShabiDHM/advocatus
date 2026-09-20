@@ -1,5 +1,9 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V65.0
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V66.0 (ORG-AWARE)
+# V66.0: ORG-AWARE — user me org mund të shikojë/modifikojë/fshijë dokumentet e org-ut.
+#        Përdor _build_case_access_query nga case_service për konsistencë.
+#        Shtuar _require_case_access helper.
+#        Service calls: kalon owner-in e doc-it (jo current_user) për të shmangur mismatch org.
 # V65.0: Removed dead code — DocumentAuditPayload, save_document_audit_endpoint, clear_document_audit_endpoint.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
@@ -27,6 +31,7 @@ from app.models.archive import ArchiveItemOut
 from app.models.user import UserInDB
 from app.api.endpoints.dependencies import get_current_user, get_db, get_sync_redis
 from app.api.endpoints.cases.cases_helpers import validate_object_id, DeletedDocumentResponse, BulkDeleteDocumentsRequest
+from app.services.case_service import _build_case_access_query
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -35,11 +40,40 @@ logger = logging.getLogger(__name__)
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 
 
+def _require_case_access(db: Database, case_id: str, current_user: UserInDB) -> ObjectId:
+    """
+    V66.0: ORG-AWARE — verifikon që user-i ka akses në case (personal ose org).
+    Kthen ObjectId e case-it ose ngre HTTPException 404.
+    """
+    case_oid = validate_object_id(case_id)
+    case = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
+    if not case:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni akses.")
+    return case_oid
+
+
+def _resolve_service_owner(db: Database, doc: Dict[str, Any], current_user: UserInDB) -> UserInDB:
+    """
+    V66.0: ORG-AWARE — service pret owner si UserInDB.
+    Për të shmangur mismatch-in në org, kalon owner-in e vërtetë të doc-it.
+    """
+    doc_owner_id = doc.get("owner_id")
+    if not doc_owner_id or str(doc_owner_id) == str(current_user.id):
+        return current_user
+    owner_doc = db.users.find_one({"_id": doc_owner_id})
+    if owner_doc:
+        try:
+            return UserInDB.model_validate(owner_doc)
+        except Exception:
+            return current_user
+    return current_user
+
+
 class DocumentPillarPayload(BaseModel):
     pillar: str = Field(..., description="Çelësi i shtjellës: PILLAR_1, PILLAR_2, ose PILLAR_3")
     content: str = Field(..., description="Përmbajtja tekstuale e shtjellës forenzike")
 
-# Model i ri për kërkesën e Riemërtimit (Rename)
+
 class RenameDocumentRequest(BaseModel):
     new_name: str = Field(..., min_length=1, description="Emri i ri i dokumentit")
 
@@ -103,7 +137,7 @@ async def get_documents_for_case(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     
     cursor = db.documents.find({
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
@@ -191,13 +225,13 @@ async def get_single_document(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
 
+    # V66.0: ORG-AWARE — heq owner_id, aksesi verifikohet përmes case-it
     doc = db.documents.find_one({
         "_id": doc_oid,
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-        "owner_id": current_user.id,
         "status": {"$ne": "DELETED"}
     })
     
@@ -220,27 +254,25 @@ async def rename_document_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
     new_name = payload.new_name.strip()
-    user_id_str = str(current_user.id)
 
     if not new_name:
         raise HTTPException(status_code=400, detail="Emri i dokumentit nuk mund të jetë i zbrazët.")
 
-    # Ruajmë prapashtesën origjinale nëse ekziston
+    # V66.0: ORG-AWARE — heq owner_id nga query
     doc = db.documents.find_one({
         "_id": doc_oid,
-        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-        "owner_id": current_user.id
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}]
     })
     
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
 
     old_name = doc.get("file_name", "")
-    ext = os.path.splitext(old_name)[1]
-    if not new_name.lower().endswith(ext.lower()):
+    ext = os.path.splitext(old_name)[1] if old_name else ""
+    if ext and not new_name.lower().endswith(ext.lower()):
         new_name += ext
 
     now = datetime.now(timezone.utc)
@@ -278,13 +310,13 @@ async def get_document_pillars_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
 
+    # V66.0: ORG-AWARE — heq owner_id
     doc = db.documents.find_one({
         "_id": doc_oid,
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-        "owner_id": current_user.id,
         "status": {"$ne": "DELETED"}
     })
     if not doc:
@@ -301,18 +333,18 @@ async def save_document_pillar_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
     pillar_key = payload.pillar.strip().upper()
 
     if pillar_key not in ["PILLAR_1", "PILLAR_2", "PILLAR_3"]:
         raise HTTPException(status_code=400, detail="Shtjellë e pavlefshme.")
 
+    # V66.0: ORG-AWARE — heq owner_id
     res = db.documents.update_one(
         {
             "_id": doc_oid,
-            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-            "owner_id": current_user.id
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}]
         },
         {"$set": {
             f"pillars.{pillar_key}": payload.content,
@@ -334,18 +366,18 @@ async def delete_single_document_pillar_endpoint(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
     pillar_key = pillar.strip().upper()
 
     if pillar_key not in ["PILLAR_1", "PILLAR_2", "PILLAR_3"]:
         raise HTTPException(status_code=400, detail="Emër shtjelle i pavlefshëm.")
 
+    # V66.0: ORG-AWARE — heq owner_id
     res = db.documents.update_one(
         {
             "_id": doc_oid,
-            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-            "owner_id": current_user.id
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}]
         },
         {"$unset": {
             f"pillars.{pillar_key}": ""
@@ -385,7 +417,8 @@ async def upload_document_for_case(
     has_sub = getattr(current_user, "has_active_subscription", False) or (getattr(current_user, "subscription_status", "") == "ACTIVE")
     is_admin = user_role in ["ADMIN", "SUPERADMIN", "STAFF"]
 
-    case_doc = db.cases.find_one({"_id": case_oid, "owner_id": current_user.id})
+    # V66.0: ORG-AWARE — user me org mund të ngarkojë në case të përbashkët
+    case_doc = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case_doc:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet në sistem.")
 
@@ -426,9 +459,9 @@ async def upload_document_for_case(
     except Exception as e:
         logger.warning(f"Could not populate local preview cache: {e}")
 
+    # V66.0: ORG-AWARE — kontrollo konflikt në nivel case (jo owner)
     existing_doc = db.documents.find_one({
         "case_id": case_oid,
-        "owner_id": current_user.id,
         "file_name": filename,
         "status": {"$ne": "DELETED"}
     })
@@ -474,7 +507,7 @@ async def archive_case_document_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     validate_object_id(doc_id)
     
     service = ArchiveService(db)
@@ -505,7 +538,7 @@ async def bulk_delete_documents_endpoint(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
     
     doc_ids = []
     if body:
@@ -521,12 +554,17 @@ async def bulk_delete_documents_endpoint(
     if not doc_ids:
         return {"status": "success", "deleted_count": 0, "deleted_finding_ids": []}
 
+    # V66.0: ORG-AWARE — kaloj owner-in e doc-it të parë te service
+    # (shmang mismatch kur user B fshin doc të user A në të njëjtin org)
+    first_doc = db.documents.find_one({"_id": ObjectId(doc_ids[0])}) if doc_ids else None
+    service_owner = _resolve_service_owner(db, first_doc, current_user) if first_doc else current_user
+
     result = await asyncio.to_thread(
         document_service.bulk_delete_documents,
         db=db,
         redis_client=redis_client,
         document_ids=doc_ids,
-        owner=current_user
+        owner=service_owner
     )
     
     remaining_docs = db.documents.count_documents({
@@ -562,22 +600,27 @@ async def delete_document(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    doc = await asyncio.to_thread(
-        document_service.get_and_verify_document,
-        db,
-        doc_id,
-        current_user
-    )
-    if str(doc.case_id) != case_id:
-        raise HTTPException(status_code=403, detail="Dokumenti nuk i përket kësaj lënde.")
-        
-    case_oid = validate_object_id(case_id)
+    case_oid = _require_case_access(db, case_id, current_user)
+    doc_oid = validate_object_id(doc_id)
+
+    # V66.0: ORG-AWARE — lookup direkt (jo get_and_verify_document) për të shmangur owner filter
+    doc = db.documents.find_one({
+        "_id": doc_oid,
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+        "status": {"$ne": "DELETED"}
+    })
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
+
+    # V66.0: ORG-AWARE — kaloj owner-in e doc-it te service
+    service_owner = _resolve_service_owner(db, doc, current_user)
+
     result = await asyncio.to_thread(
         document_service.bulk_delete_documents,
         db=db,
         redis_client=redis_client,
         document_ids=[doc_id],
-        owner=current_user
+        owner=service_owner
     )
     if result.get("deleted_count", 0) > 0:
         remaining_docs = db.documents.count_documents({
@@ -636,6 +679,9 @@ async def get_document_preview(
         )
 
     user = UserInDB.model_validate(user_doc)
+
+    # V66.0: ORG-AWARE — verifiko akses në case para se të shërbejë dokumentin
+    case_oid = _require_case_access(db, case_id, user)
 
     # Use the original preview logic: first try preview_storage_key (generated PDF)
     cached_path, stream, doc, content_length = await asyncio.to_thread(
@@ -697,7 +743,6 @@ async def get_document_preview(
                         }
                     )
             except Exception as e:
-                logger.error(f"Preview conversion failed: {e}")
                 # fallback to serving original
                 return FileResponse(
                     path=cached_path,
@@ -710,55 +755,36 @@ async def get_document_preview(
                     }
                 )
 
-    # If no cached file, stream from storage
-    if stream is not None:
-        # Read entire stream to check if PDF or convert
+    # Stream fallback
+    if stream:
+        # Try to convert stream to PDF if it's not already
         try:
             file_bytes = stream.read()
-            # reset stream if possible
-            try:
-                stream.seek(0)
-            except Exception:
-                pass
-
-            if file_bytes.startswith(b'%PDF'):
+            pdf_bytes, new_filename = await asyncio.to_thread(
+                pdf_service.convert_bytes_to_pdf,
+                file_bytes,
+                filename
+            )
+            if pdf_bytes and pdf_bytes != file_bytes:
+                return StreamingResponse(
+                    io.BytesIO(pdf_bytes),
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'inline; filename="{new_filename}"',
+                        "Cache-Control": "public, max-age=3600",
+                        "Accept-Ranges": "bytes"
+                    }
+                )
+            else:
                 return StreamingResponse(
                     io.BytesIO(file_bytes),
-                    media_type="application/pdf",
+                    media_type=resolved_media_type,
                     headers={
                         "Content-Disposition": f'inline; filename="{filename}"',
                         "Cache-Control": "public, max-age=3600",
                         "Accept-Ranges": "bytes"
                     }
                 )
-            else:
-                # try conversion
-                pdf_bytes, new_filename = await asyncio.to_thread(
-                    pdf_service.convert_bytes_to_pdf,
-                    file_bytes,
-                    filename
-                )
-                if pdf_bytes != file_bytes:
-                    return StreamingResponse(
-                        io.BytesIO(pdf_bytes),
-                        media_type="application/pdf",
-                        headers={
-                            "Content-Disposition": f'inline; filename="{new_filename}"',
-                            "Cache-Control": "public, max-age=3600",
-                            "Accept-Ranges": "bytes"
-                        }
-                    )
-                else:
-                    # fallback to original
-                    return StreamingResponse(
-                        io.BytesIO(file_bytes),
-                        media_type=resolved_media_type,
-                        headers={
-                            "Content-Disposition": f'inline; filename="{filename}"',
-                            "Cache-Control": "public, max-age=3600",
-                            "Accept-Ranges": "bytes"
-                        }
-                    )
         except Exception as e:
             logger.error(f"Stream conversion failed: {e}")
             # Fall back to original stream if possible

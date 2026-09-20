@@ -1,12 +1,11 @@
 // FILE: vite.config.ts
-// PHOENIX PROTOCOL - BUILD FIX V2.3 (REMOTE PROXY TARGET)
+// PHOENIX PROTOCOL - BUILD FIX V2.4 (LOCAL PROXY FOR DEV)
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  // Enforce absolute paths for all generated assets
   base: '/', 
   
   plugins: [
@@ -46,11 +45,11 @@ export default defineConfig({
       }
     })
   ],
-  // --- PROXY CONFIGURATION (UPDATED) ---
+  // --- PROXY CONFIGURATION (V2.4 — LOCAL DEV) ---
   server: {
     proxy: {
       '/api': {
-        target: 'http://146.19.215.77:8000', // Your remote server IP:port
+        target: 'http://localhost:8000',  // V2.4: lokal per dev
         changeOrigin: true,
         secure: false,
       }

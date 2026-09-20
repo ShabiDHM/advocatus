@@ -1,7 +1,12 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.3
-# V1.3: FIX KRITIK — ligji caktohet duke gjetur ligjin MË TË AFËRT (para OSE pas)
-#       nenit, jo vetëm përpara. Kjo zgjidh formën shqipe "nenin 3, 6, 7... të Ligjit Nr. X".
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.6
+# V1.6: FIX — _build_law_position_index perfshin LAW_NAME_PATTERN. Tani ligjet e
+#       cituara pa numer e pa akronim (p.sh. "Ligji për Mbrojtjen nga Dhuna në
+#       Familje") kapen ne indeks → neni pranë tyre merr law_hint te sakte.
+#       Zgjidh false-negative "Neni 1 par. 2 NUK U GJET" ne audit.
+# V1.5: FIX — extract_case_numbers rstrip(".,;:") mbi num_part.
+# V1.4: FIX — "Neni 1.2" normalizehet ne article_num="1", paragraph="2".
+# V1.3: FIX KRITIK — ligji caktohet duke gjetur ligjin MË TË AFËRT (para OSE pas).
 # V1.2: FIX për is_likely_own + law position-aware (vetëm përpara — i gabuar).
 # V1.1: FIX për is_likely_own.
 # V1.0: Ekstraktim deterministik.
@@ -43,13 +48,15 @@ MAX_LAW_DISTANCE = 200  # Sa karaktere larg mund të jetë ligji nga neni
 
 def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
     """
-    V1.3: Krijon listë me (position, law_name) për të gjitha ligjet në tekst.
+    V1.6: Krijon listë me (position, law_name) për të gjitha ligjet në tekst.
     Renditur sipas pozicionit.
 
     Prioritet:
     1. Ligje me numër + emër ("Ligjit Nr. 03/L-182 Për X Y Z") → preferohen
     2. Vetëm numrat e ligjeve ("03/L-182") → shtohen vetëm nëse nuk ka me-emër afër
     3. Akronimet ("LPK", "LMDHF") → shtohen gjithmonë
+    4. V1.6: Emrat e ligjeve pa numer ("Ligji për Mbrojtjen nga Dhuna") → shtohen
+       vetëm nëse nuk mbivendosen me 1-3
     """
     laws: List[Tuple[int, str]] = []
 
@@ -78,6 +85,20 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
         if not is_valid_law_abbrev(abbr):
             continue
         laws.append((match.start(), abbr.upper()))
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 4. V1.6: Emrat e ligjeve pa numer (p.sh. "Ligji për Mbrojtjen nga Dhuna")
+    #    Skip nese ka nje ligj tjeter (me numer ose akronim) brenda 30 chars,
+    #    per te shmangur dublikatat ne indeks.
+    # ═══════════════════════════════════════════════════════════════════════
+    for match in LAW_NAME_PATTERN.finditer(text):
+        full_match = match.group(0).strip()
+        if len(full_match) < 15:
+            continue
+        too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
+        if too_close:
+            continue
+        laws.append((match.start(), full_match))
 
     laws.sort(key=lambda x: x[0])
     return laws
@@ -108,12 +129,52 @@ def _find_nearest_law(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT ARTICLES (sentence-aware + nearest-law)
+# V1.4: ARTICLE NUMBER NORMALIZER — "1.2" → ("1", "2")
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _normalize_article_number(
+    article_num: str,
+    paragraph: Optional[str],
+) -> Tuple[str, Optional[str]]:
+    """
+    V1.4: Normalizon numrin e nenit.
+    "Neni 1.2" -> ("1", "2") kur paragraph mungon.
+    """
+    if paragraph is not None:
+        return article_num, paragraph
+
+    if "." not in article_num:
+        return article_num, paragraph
+
+    parts = article_num.split(".")
+    if len(parts) != 2:
+        return article_num, paragraph
+
+    if not (parts[0].isdigit() and parts[1].isdigit()):
+        return article_num, paragraph
+
+    if not parts[0] or not parts[1]:
+        return article_num, paragraph
+
+    normalized_article = parts[0]
+    normalized_paragraph = parts[1]
+
+    logger.debug(
+        f"[V1.6] Normalized 'Neni {article_num}' -> "
+        f"Neni {normalized_article}, par.{normalized_paragraph}"
+    )
+
+    return normalized_article, normalized_paragraph
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXTRACT ARTICLES (sentence-aware + nearest-law + V1.4 normalizer)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
     """
-    V1.3: Nxjerr nenet me ligjin më të afërt (para ose pas).
+    V1.6: Nxjerr nenet me ligjin më të afërt (para ose pas).
+    Normalizon "Neni 1.2" → article="1", paragraph="2".
     """
     if not text:
         return []
@@ -133,15 +194,16 @@ def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
         current_pos = sentence_start + len(sentence)
 
         for match in ARTICLE_PATTERN.finditer(sentence):
-            article_num = match.group(1)
-            paragraph = match.group(2)
+            article_num_raw = match.group(1)
+            paragraph_raw = match.group(2)
 
-            # Pozicioni absolut i nenit në tekst të plotë
+            # V1.4: Normalizo "1.2" -> ("1", "2") kur paragraph mungon
+            article_num, paragraph = _normalize_article_number(
+                article_num_raw, paragraph_raw
+            )
+
             article_pos = sentence_start + match.start()
-
-            # V1.3: Gjej ligjin më të afërt (para ose pas)
             law_hint = _find_nearest_law(law_index, article_pos)
-
             context = extract_context(sentence, match.start(), window=100)
 
             key = (article_num, paragraph, law_hint.lower())
@@ -272,7 +334,12 @@ def _is_likely_own_case(text: str, position: int, context: str) -> bool:
 
 
 def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr numrat e lëndëve me klasifikim OWN/CITED."""
+    """
+    Nxjerr numrat e lëndëve me klasifikim OWN/CITED.
+
+    V1.5: rstrip(".,;:") per te hequr piken e fjalisë qe CASE_NUMBER_PATTERN
+    e gelltit per shkak te '.' brenda karaktereve te lejuara.
+    """
     if not text:
         return []
 
@@ -281,7 +348,9 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
 
     for match in CASE_NUMBER_PATTERN.finditer(text):
         prefix = match.group(1).upper()
-        num_part = match.group(2)
+        num_part = match.group(2).rstrip(".,;:")
+        if not num_part:
+            continue
         raw = f"{prefix}.nr.{num_part}"
         normalized = normalize_case_number(raw)
 
@@ -339,6 +408,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
         "unique_article_numbers": len(set(a["number"] for a in articles)),
         "articles_with_law_hint": sum(1 for a in articles if a["law_hint"]),
         "articles_without_law_hint": sum(1 for a in articles if not a["law_hint"]),
+        "articles_with_paragraph": sum(1 for a in articles if a.get("paragraph")),
         "total_laws_by_number": len(laws_by_number),
         "total_laws_by_name": len(laws_by_name),
         "total_abbreviations": len(abbreviations),
@@ -348,10 +418,12 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR] Profile built: "
+        f"🔬 [EXTRACTOR V1.6] Profile built: "
         f"articles={stats['total_articles']} "
-        f"(with_law_hint={stats['articles_with_law_hint']}), "
+        f"(with_law_hint={stats['articles_with_law_hint']}, "
+        f"with_paragraph={stats['articles_with_paragraph']}), "
         f"laws_by_number={stats['total_laws_by_number']}, "
+        f"laws_by_name={stats['total_laws_by_name']}, "
         f"abbrs={stats['total_abbreviations']}, "
         f"cases={stats['total_case_numbers']} "
         f"(own={stats['own_case_numbers']}, cited={stats['cited_case_numbers']})"

@@ -1,5 +1,7 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V8.0 (VOICE ERROR GUARD)
+# PHOENIX PROTOCOL - CALENDAR API V9.0 (ORG-AWARE VOICE PARSE)
+# V9.0: ORG-AWARE — kërkimi i titujve të lëndëve për voice-parse përdor _build_case_access_query.
+# V8.0: VOICE ERROR GUARD
 from fastapi import APIRouter, Depends, status, HTTPException, Response, Body, UploadFile, File, Form
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
@@ -16,6 +18,7 @@ from app.services.transcription_service import transcription_service
 from app.models.calendar import CalendarEventOut, CalendarEventCreate
 from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
+from app.services.case_service import _build_case_access_query
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -159,8 +162,9 @@ async def parse_voice_text(
         )
     
     try:
+        # V9.0: ORG-AWARE — mbledh titujt nga të gjitha lëndët e org-ut
         user_cases = list(db.cases.find(
-            {"owner_id": current_user.id},
+            _build_case_access_query(current_user),
             {"title": 1, "case_number": 1}
         ).limit(50))
         case_titles = [c.get("title") or c.get("case_number") or "" for c in user_cases if c.get("title") or c.get("case_number")]
@@ -245,8 +249,9 @@ async def transcribe_voice_and_parse(
         )
     
     try:
+        # V9.0: ORG-AWARE — mbledh titujt nga të gjitha lëndët e org-ut
         user_cases = list(db.cases.find(
-            {"owner_id": current_user.id},
+            _build_case_access_query(current_user),
             {"title": 1, "case_number": 1}
         ).limit(50))
         case_titles = [c.get("title") or c.get("case_number") or "" for c in user_cases if c.get("title") or c.get("case_number")]

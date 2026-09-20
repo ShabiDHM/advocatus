@@ -1,11 +1,17 @@
 # FILE: backend/app/services/extraction_pipeline.py
-# PHOENIX PROTOCOL - EXTRACTION PIPELINE V1.1
-# Integron CATEGORIZATION → kalon document_type hint në NER (V33.2).
-# Orkestron NER + Metadata + Persistencë për një fashikull të plotë.
-# Zero silent truncation. Idempotent. Progress SSE.
+# PHOENIX PROTOCOL - EXTRACTION PIPELINE V1.3
+# V1.3: PARALLEL DOCUMENTS — MAX_CONCURRENT_DOCS (env override, default 3).
+#       Asyncio Semaphore + task queue per te procesuar dokumentet njekohesisht.
+#       Events stream sipas rendit te perfundimit (jo me sekuencial).
+#       Nuk prek logjiken e cache/Hash — vetem shpejtesine.
+# V1.2: (1) NER + Metadata ekzekutohen PARALEL (jo sekuencial). -14s/doc.
+#       (2) Text-hash validation në cache skip (mbron nga stale cache).
+# V1.1: Integron CATEGORIZATION → kalon document_type hint në NER (V33.2).
 
 import asyncio
+import hashlib
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, AsyncGenerator, Tuple
@@ -25,7 +31,20 @@ logger = logging.getLogger(__name__)
 
 EXTRACTION_COLLECTION = "case_extractions"
 DOCUMENT_TIMEOUT_SEC = 600
-MAX_CONCURRENT_DOCS = 1
+
+# V1.3: Paralelizem dokumentesh — env override
+MAX_CONCURRENT_DOCS = int(os.environ.get("EXTRACT_MAX_CONCURRENT_DOCS", "3"))
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# HELPERS
+# ────────────────────────────────────────────────────────────────────────────
+
+def _compute_text_hash(text: str) -> str:
+    """V1.2: Hash deterministik i tekstit për cache validation."""
+    if not text:
+        return ""
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -36,15 +55,14 @@ class ExtractionPipeline:
     """
     Tubi i ekstraktimit për një fashikull të plotë.
 
-    Rrjedha:
+    Rrjedha (V1.3):
     1. Tërheq dokumentet nga MongoDB.
-    2. Për çdo dokument:
+    2. Përpunon dokumentet PARALEL me max_concurrent_docs (Semaphore).
+       Për çdo dokument:
        a. Kategorizo (CATEGORIZATION_SERVICE) → document_type
-       b. NER (chunk-aware, me document_type hint) → entities
-       c. Metadata (chunk-aware) → fushat strukturore
-    3. Bashkon rezultatet.
+       b. NER + Metadata PARALEL (V1.2) → entities + metadata
+    3. Emeton events progresi ne kohe reale (jo sekuencial).
     4. Persiston në `case_extractions` (idempotent — upsert).
-    5. Raporton progres përmes async generator.
     """
 
     def __init__(self, db: Any):
@@ -64,18 +82,7 @@ class ExtractionPipeline:
         document_ids: Optional[List[str]] = None,
         force_reprocess: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """
-        Async generator që yield events progresi.
-
-        Events:
-        - {"event": "start", "case_id", "total_documents"}
-        - {"event": "document_started", "document_id", "file_name", "index", "total_documents"}
-        - {"event": "document_skipped", "document_id", "index", "reason"}
-        - {"event": "document_completed", "document_id", "file_name", "stats"}
-        - {"event": "document_failed", "document_id", "file_name", "error"}
-        - {"event": "complete", "summary"}
-        - {"event": "error", "message"}
-        """
+        """Async generator që yield events progresi (V1.3: paralel)."""
         start_time = time.time()
 
         # 1. Tërheq dokumentet
@@ -95,16 +102,66 @@ class ExtractionPipeline:
             "event": "start",
             "case_id": str(case_id),
             "total_documents": total,
+            "max_concurrent_docs": MAX_CONCURRENT_DOCS,
         }
 
-        # 2. Ekstraktimet ekzistuese (cache)
-        existing: Dict[str, Any] = {}
+        # 2. Ekstraktimet ekzistuese (cache) — V1.2: fetch + hash map
+        existing_by_docid: Dict[str, Dict[str, Any]] = {}
         if not force_reprocess:
-            existing = self._fetch_existing_extractions(
+            existing_by_docid = self._fetch_existing_extractions(
                 case_id, [str(d["_id"]) for d in documents]
             )
 
-        # 3. Procesimi (sequential për SSE dhe rate-limit safety)
+        # ═══ 3. Procesimi PARALEL (V1.3) ═══
+        event_queue: asyncio.Queue = asyncio.Queue()
+        sem = asyncio.Semaphore(MAX_CONCURRENT_DOCS)
+
+        async def _worker(doc: Dict[str, Any], idx: int) -> Dict[str, Any]:
+            async with sem:
+                return await self._process_one_document(
+                    doc=doc,
+                    idx=idx,
+                    total=total,
+                    case_id=str(case_id),
+                    user_id=user_id,
+                    existing_by_docid=existing_by_docid,
+                    event_queue=event_queue,
+                )
+
+        tasks = [
+            asyncio.create_task(_worker(d, i))
+            for i, d in enumerate(documents)
+        ]
+
+        logger.info(
+            f"🚀 [EXTRACT V1.3] Nisur {total} dokumente me "
+            f"max_concurrent={MAX_CONCURRENT_DOCS}"
+        )
+
+        # Stream events while tasks run
+        pending = set(tasks)
+        try:
+            while pending:
+                done, pending = await asyncio.wait(pending, timeout=0.3)
+                while not event_queue.empty():
+                    try:
+                        yield event_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+        finally:
+            # Cancel tasks if consumer disconnects
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+
+        # Final drain
+        while not event_queue.empty():
+            try:
+                yield event_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+        # ═══ 4. Bashko rezultatet ═══
         total_entities = 0
         total_metadata_fields = 0
         total_role_conflicts = 0
@@ -113,76 +170,26 @@ class ExtractionPipeline:
         skipped = 0
         per_doc_stats: List[Dict[str, Any]] = []
 
-        for idx, doc in enumerate(documents):
-            doc_id = str(doc["_id"])
-            file_name = doc.get("file_name", f"doc_{idx}")
-
-            # Skip nëse ekziston
-            if doc_id in existing:
-                skipped += 1
-                yield {
-                    "event": "document_skipped",
-                    "document_id": doc_id,
-                    "file_name": file_name,
-                    "index": idx,
-                    "reason": "existing_extraction",
-                }
+        for t in tasks:
+            try:
+                res = t.result()
+            except (asyncio.CancelledError, Exception) as e:
+                logger.error(f"❌ [EXTRACT V1.3] Worker task error: {e}")
+                failed += 1
                 continue
 
-            yield {
-                "event": "document_started",
-                "document_id": doc_id,
-                "file_name": file_name,
-                "index": idx,
-                "total_documents": total,
-            }
-
-            try:
-                result = await asyncio.wait_for(
-                    self._process_document(doc, case_id, user_id),
-                    timeout=DOCUMENT_TIMEOUT_SEC,
-                )
-
-                # Persist
-                self._persist_extraction(result)
-
-                total_entities += result["stats"]["total_entities"]
-                total_metadata_fields += result["stats"]["metadata_fields_found"]
-                total_role_conflicts += result["stats"].get(
-                    "role_conflicts_resolved", 0
-                )
+            status = res.get("status")
+            if status == "success":
                 successful += 1
-                per_doc_stats.append(result["stats"])
-
-                yield {
-                    "event": "document_completed",
-                    "document_id": doc_id,
-                    "file_name": file_name,
-                    "stats": result["stats"],
-                }
-
-            except asyncio.TimeoutError:
+                r = res["result"]
+                total_entities += r["stats"]["total_entities"]
+                total_metadata_fields += r["stats"]["metadata_fields_found"]
+                total_role_conflicts += r["stats"].get("role_conflicts_resolved", 0)
+                per_doc_stats.append(r["stats"])
+            elif status == "skipped":
+                skipped += 1
+            else:
                 failed += 1
-                logger.warning(
-                    f"⚠️ [EXTRACT] Document {doc_id} timed out after "
-                    f"{DOCUMENT_TIMEOUT_SEC}s"
-                )
-                yield {
-                    "event": "document_failed",
-                    "document_id": doc_id,
-                    "file_name": file_name,
-                    "error": f"Timeout after {DOCUMENT_TIMEOUT_SEC}s",
-                }
-
-            except Exception as e:
-                failed += 1
-                logger.exception(f"❌ [EXTRACT] Document {doc_id} failed")
-                yield {
-                    "event": "document_failed",
-                    "document_id": doc_id,
-                    "file_name": file_name,
-                    "error": str(e),
-                }
 
         duration = round(time.time() - start_time, 2)
 
@@ -196,9 +203,10 @@ class ExtractionPipeline:
             "total_metadata_fields": total_metadata_fields,
             "total_role_conflicts_resolved": total_role_conflicts,
             "duration_sec": duration,
+            "max_concurrent_docs": MAX_CONCURRENT_DOCS,
         }
 
-        logger.info(f"✅ [EXTRACT] Pipeline complete: {summary}")
+        logger.info(f"✅ [EXTRACT V1.3] Pipeline complete: {summary}")
         yield {"event": "complete", "summary": summary}
 
     # ────────────────────────────────────────────────────────────────────
@@ -211,7 +219,7 @@ class ExtractionPipeline:
         case_id: str,
         document_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Tërheq dokumentet e lëndës nga MongoDB (me tenant isolation)."""
+        """Tërheq dokumentet e lëndës nga MongoDB."""
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
         filter_q: Dict[str, Any] = {
@@ -238,7 +246,7 @@ class ExtractionPipeline:
         case_id: str,
         document_ids: List[str],
     ) -> Dict[str, Any]:
-        """Tërheq ekstraktimet ekzistuese për skip (cache)."""
+        """V1.2: Tërheq ekstraktimet ekzistuese (me hash për validation)."""
         try:
             cursor = self.db[EXTRACTION_COLLECTION].find({
                 "case_id": str(case_id),
@@ -251,7 +259,105 @@ class ExtractionPipeline:
             return {}
 
     # ────────────────────────────────────────────────────────────────────
-    # INTERNAL — process one document
+    # V1.3: INTERNAL — process ONE document (worker)
+    # ────────────────────────────────────────────────────────────────────
+
+    async def _process_one_document(
+        self,
+        doc: Dict[str, Any],
+        idx: int,
+        total: int,
+        case_id: str,
+        user_id: str,
+        existing_by_docid: Dict[str, Dict[str, Any]],
+        event_queue: asyncio.Queue,
+    ) -> Dict[str, Any]:
+        """
+        V1.3: Përpunon nje dokument te vetem brenda worker-it.
+        Emeton events ne event_queue. Kthen summary.
+        """
+        doc_id = str(doc["_id"])
+        file_name = doc.get("file_name", f"doc_{idx}")
+
+        # ─── Cache check ───
+        current_text = (
+            doc.get("content")
+            or doc.get("extracted_text")
+            or doc.get("text")
+            or ""
+        )
+        current_hash = _compute_text_hash(current_text)
+
+        if doc_id in existing_by_docid:
+            cached = existing_by_docid[doc_id]
+            cached_hash = cached.get("text_hash", "")
+
+            if cached_hash and cached_hash != current_hash:
+                logger.info(
+                    f"🔄 [EXTRACT V1.3] Doc {doc_id}: text changed "
+                    f"(hash {cached_hash[:8]}... → {current_hash[:8]}...) "
+                    f"→ re-extracting"
+                )
+                # Fall through to process
+            else:
+                await event_queue.put({
+                    "event": "document_skipped",
+                    "document_id": doc_id,
+                    "file_name": file_name,
+                    "index": idx,
+                    "reason": "existing_extraction_text_unchanged",
+                })
+                return {"status": "skipped"}
+
+        await event_queue.put({
+            "event": "document_started",
+            "document_id": doc_id,
+            "file_name": file_name,
+            "index": idx,
+            "total_documents": total,
+        })
+
+        try:
+            result = await asyncio.wait_for(
+                self._process_document(doc, case_id, user_id),
+                timeout=DOCUMENT_TIMEOUT_SEC,
+            )
+
+            self._persist_extraction(result)
+
+            await event_queue.put({
+                "event": "document_completed",
+                "document_id": doc_id,
+                "file_name": file_name,
+                "stats": result["stats"],
+            })
+            return {"status": "success", "result": result}
+
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"⚠️ [EXTRACT V1.3] Document {doc_id} timed out after "
+                f"{DOCUMENT_TIMEOUT_SEC}s"
+            )
+            await event_queue.put({
+                "event": "document_failed",
+                "document_id": doc_id,
+                "file_name": file_name,
+                "error": f"Timeout after {DOCUMENT_TIMEOUT_SEC}s",
+            })
+            return {"status": "failed", "error": "timeout"}
+
+        except Exception as e:
+            logger.exception(f"❌ [EXTRACT V1.3] Document {doc_id} failed")
+            await event_queue.put({
+                "event": "document_failed",
+                "document_id": doc_id,
+                "file_name": file_name,
+                "error": str(e),
+            })
+            return {"status": "failed", "error": str(e)}
+
+    # ────────────────────────────────────────────────────────────────────
+    # INTERNAL — process one document (logic)
     # ────────────────────────────────────────────────────────────────────
 
     async def _process_document(
@@ -261,8 +367,8 @@ class ExtractionPipeline:
         user_id: str,
     ) -> Dict[str, Any]:
         """
-        Përpunon një dokument: Kategorizim → NER → Metadata.
-        Ekzekuton në thread pool për të mos bllokuar event loop.
+        V1.2: Përpunon një dokument.
+        Kategorizim → NER + Metadata PARALEL.
         """
         doc_id = str(doc["_id"])
         file_name = doc.get("file_name", "Document")
@@ -274,6 +380,7 @@ class ExtractionPipeline:
         )
 
         doc_start = time.time()
+        text_hash = _compute_text_hash(text)
 
         # Dokument bosh
         if not text.strip():
@@ -283,6 +390,7 @@ class ExtractionPipeline:
                 "user_id": str(user_id),
                 "file_name": file_name,
                 "text_length": 0,
+                "text_hash": text_hash,
                 "document_type": None,
                 "document_type_details": None,
                 "entities_by_type": {},
@@ -306,40 +414,43 @@ class ExtractionPipeline:
 
         loop = asyncio.get_event_loop()
 
-        # ────────────────────────────────────────────────────────────────
-        # 1. KATEGORIZIM (V1.1) — përcakto document_type
-        # ────────────────────────────────────────────────────────────────
+        # ─── 1. KATEGORIZIM ───
         categorization = await loop.run_in_executor(
             None,
             lambda: self.categorizer.categorize_document_detailed(text),
         )
         document_type = categorization.get("primary_category")
         logger.info(
-            f"📋 [EXTRACT] doc={doc_id}: categorized as "
+            f"📋 [EXTRACT V1.3] doc={doc_id}: categorized as "
             f"'{document_type}' (conf={categorization.get('confidence')})"
         )
 
-        # ────────────────────────────────────────────────────────────────
-        # 2. NER — me document_type hint (V33.2)
-        # ────────────────────────────────────────────────────────────────
-        ner_result = await loop.run_in_executor(
+        # ─── 2. NER + METADATA (PARALEL) ───
+        t_parallel = time.time()
+
+        ner_task = loop.run_in_executor(
             None,
             lambda: self.ner.extract_legal_entities(
                 text=text,
                 document_id=doc_id,
-                document_type=document_type,   # ← hint i ri V1.1
+                document_type=document_type,
             ),
         )
 
-        # ────────────────────────────────────────────────────────────────
-        # 3. METADATA
-        # ────────────────────────────────────────────────────────────────
-        meta_result = await loop.run_in_executor(
+        meta_task = loop.run_in_executor(
             None,
             lambda: self.meta.extract(
                 text=text,
                 document_id=doc_id,
             ),
+        )
+
+        ner_result, meta_result = await asyncio.gather(ner_task, meta_task)
+
+        parallel_duration = round(time.time() - t_parallel, 2)
+        logger.info(
+            f"⚡ [EXTRACT V1.3] doc={doc_id}: NER + Metadata paralel përfunduan "
+            f"në {parallel_duration}s"
         )
 
         # Pastrim metadata
@@ -364,6 +475,7 @@ class ExtractionPipeline:
             "user_id": str(user_id),
             "file_name": file_name,
             "text_length": len(text),
+            "text_hash": text_hash,
             "document_type": document_type,
             "document_type_details": categorization,
             "entities_by_type": ner_result.get("entities_by_type", {}),
@@ -381,6 +493,7 @@ class ExtractionPipeline:
                     "role_conflicts_resolved", 0
                 ),
                 "duration_sec": duration,
+                "parallel_duration_sec": parallel_duration,
             },
             "status": "completed",
             "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -391,7 +504,7 @@ class ExtractionPipeline:
     # ────────────────────────────────────────────────────────────────────
 
     def _persist_extraction(self, result: Dict[str, Any]) -> None:
-        """Ruajtja idempotente në MongoDB. Upsert sipas (case_id, document_id)."""
+        """Ruajtja idempotente në MongoDB."""
         try:
             self.db[EXTRACTION_COLLECTION].update_one(
                 {

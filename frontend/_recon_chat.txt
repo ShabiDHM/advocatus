@@ -1,0 +1,10 @@
+
+===== app/services/chat_service.py — ERROR: [Errno 2] No such file or directory: 'app/services/chat_service.py' =====
+
+===== app/services/rag/chat_post_processor.py — ERROR: [Errno 2] No such file or directory: 'app/services/rag/chat_post_processor.py' =====
+
+===== app/services/rag/chat_query_extractor.py — ERROR: [Errno 2] No such file or directory: 'app/services/rag/chat_query_extractor.py' =====
+
+===== app/services/synthesis/citation_extractor.py — ERROR: [Errno 2] No such file or directory: 'app/services/synthesis/citation_extractor.py' =====
+
+===== app/services/law_library/article_fetcher.py — ERROR: [Errno 2] No such file or directory: 'app/services/law_library/article_fetcher.py' =====

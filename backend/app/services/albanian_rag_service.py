@@ -1,5 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.9
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.10
+# V282.10: MULTI-LAW CHAT — nene me law_hint bosh ose te gabuar tani
+#          raportohen si AMBIGUOUS (jo missing) me liste ligjesh alternative.
+#          Zgjidh false-negative "Neni 42 nuk u gjet" kur ekziston ne 3 ligje.
 # V282.9: FIX — heq titujt e përsëritur KUdo në tekst (jo vetëm në krye),
 #         me _is_law_header_candidate dinamik.
 # V282.8: CLEANER DINAMIK — heq header-a të përsëritur të çdo ligji.
@@ -117,6 +120,13 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
        → NUK LEJOHET të përshkruash, përgjithësosh, ose spekulosh përmbajtjen e atij neni.
        → Vetëm njofto mungesën dhe vazhdo me pjesën tjetër të pyetjes (nëse ekziston).
        → NËSE pyetja kishte vetëm atë nen → rekomando verifikim me tekstin zyrtar.
+
+13. ⚠️ NENE QË EKZISTOJNË NË DISA LIGJE (KRITIKE — V282.10):
+    - KUR në kontekst shfaqet "⚠️ Neni X ekziston në disa ligje", NUK LEJOHET të zgjedhësh vetëm një ligj.
+    - LISTO TË GJITHA alternativat e gjetura dhe kërko sqarim nga përdoruesi cili ligj synohet.
+    - SHEMBULL i saktë:
+        "Neni 42 ekziston në: Ligji Nr. 03/L-006, Ligji Nr. 04/L-077, Kodi Penal Nr. 06/L-074.
+         Ju lutem specifikoni se cilën ligj synoni të citoni."
 """
 
 
@@ -145,15 +155,40 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
     return None
 
 
+def _format_alternative_laws(v: Dict[str, Any]) -> str:
+    """
+    V282.10: Format listen e ligjeve alternative per display.
+    Trajton te dyja format:
+      - strings (nga multiple_laws_no_hint)
+      - dicts me law_title (nga law_hint_no_match_but_exists_elsewhere)
+    """
+    alts = v.get("alternative_laws", [])
+    if not alts:
+        return ""
+
+    titles: List[str] = []
+    for a in alts:
+        if isinstance(a, dict):
+            t = a.get("law_title") or a.get("title") or ""
+            if t:
+                titles.append(t)
+        else:
+            titles.append(str(a))
+
+    if not titles:
+        return "(ligje të panjohura)"
+    return "; ".join(titles[:5]) + (" ..." if len(titles) > 5 else "")
+
+
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
         logger.info(
-            f"✅ [RAG] Juristi AI Natural Client Service V282.9 Initialized "
+            f"✅ [RAG] Juristi AI Natural Client Service V282.10 Initialized "
             f"(chat model: {DEEP_ANALYSIS_MODEL}, judicial-docs whitelist: ON, "
             f"dual-law rule: ON, query-depth: ON, pre-verify: ON, fast-path: DIRECT, "
-            f"dynamic-cleaner: ON, timing: ON)."
+            f"dynamic-cleaner: ON, timing: ON, multi-law-chat: ON)."
         )
 
     def _optimize_query(self, query: str) -> str:
@@ -511,6 +546,7 @@ class AlbanianRAGService:
         verified_context = ""
         pre_verify_disclaimer = ""
         verified_articles: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
+        ambiguous_articles: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
         missing_articles: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
 
         if legal_query["is_legal_query"] and legal_query["articles"]:
@@ -524,10 +560,24 @@ class AlbanianRAGService:
                 )
                 verification_results.append((art, v))
 
-            missing_articles = [(a, v) for a, v in verification_results if not v["exists"]]
+            # V282.10: Kategorizim i trefishte — verified / ambiguous / missing
             verified_articles = [(a, v) for a, v in verification_results if v["exists"]]
+            ambiguous_articles = [
+                (a, v) for a, v in verification_results
+                if not v["exists"] and v.get("alternative_laws")
+            ]
+            missing_articles = [
+                (a, v) for a, v in verification_results
+                if not v["exists"] and not v.get("alternative_laws")
+            ]
 
-            if missing_articles and not verified_articles and not legal_query["has_general_query"]:
+            # V282.10: Refuzim total vetem kur s'ka verified dhe s'ka ambiguous
+            if (
+                missing_articles
+                and not verified_articles
+                and not ambiguous_articles
+                and not legal_query["has_general_query"]
+            ):
                 refusal_text = "⚠️ Nuk mund të konfirmoj nenet e mëposhtme në bazën e verifikuar ligjore:\n\n"
                 for art, _ in missing_articles:
                     law_part = f" të {art['law_hint']}" if art.get("law_hint") else ""
@@ -551,6 +601,25 @@ class AlbanianRAGService:
                 _lap("refusal_total")
                 return
 
+            # V282.10: Disclaimer per ambiguous (para missing)
+            if ambiguous_articles:
+                for art, v in ambiguous_articles:
+                    alts = _format_alternative_laws(v)
+                    reason = v.get("match_reason", "")
+                    if reason.startswith("multiple_laws_no_hint"):
+                        pre_verify_disclaimer += (
+                            f"⚠️ Neni {art['number']} ekziston në disa ligje, "
+                            f"por nuk u specifikua cili. Alternativat e gjetura: {alts}.\n"
+                            f"   Për citim të saktë, specifiko ligjin (p.sh. \"Neni "
+                            f"{art['number']} i [Ligjit]\").\n"
+                        )
+                    else:  # law_hint_no_match_but_exists_elsewhere
+                        pre_verify_disclaimer += (
+                            f"⚠️ Neni {art['number']} nuk u gjet me hint '{art.get('law_hint', '')}', "
+                            f"por ekziston në: {alts}. Kontrollo burimin e saktë.\n"
+                        )
+                pre_verify_disclaimer += "\n"
+
             if missing_articles:
                 for art, _ in missing_articles:
                     law_part = f" i {art['law_hint']}" if art.get("law_hint") else ""
@@ -568,10 +637,30 @@ class AlbanianRAGService:
                     text_excerpt = doc.get("text_excerpt", "")
                     verified_context += f"\n**{law_title} — Neni {art['number']}**\n{text_excerpt}\n"
 
+            # V282.10: Shto kontekst per nene AMBIGUOUS
+            if ambiguous_articles:
+                verified_context += "\n\n⚠️ NENE QË EKZISTOJNË NË DISA LIGJE (kërkojnë specifikim):\n"
+                for art, v in ambiguous_articles:
+                    alts = _format_alternative_laws(v)
+                    reason = v.get("match_reason", "")
+                    if reason.startswith("multiple_laws_no_hint"):
+                        verified_context += (
+                            f"\n**Neni {art['number']}** — ekziston në "
+                            f"{len(v.get('alternative_laws', []))} ligje të ndryshme: {alts}\n"
+                            f"NUK CITO ligj specifik pa specifikim nga përdoruesi. "
+                            f"Informo përdoruesin për alternativat dhe kërko sqarim.\n"
+                        )
+                    else:
+                        verified_context += (
+                            f"\n**Neni {art['number']}** — hint '{art.get('law_hint', '')}' "
+                            f"nuk matchoi, por neni ekziston në: {alts}\n"
+                            f"Informo përdoruesin për mospërputhjen dhe listo alternativat.\n"
+                        )
+
             logger.info(
-                f"🔎 [PreVerify V282.0] articles total={len(verification_results)} "
-                f"verified={len(verified_articles)} missing={len(missing_articles)} "
-                f"has_general={legal_query['has_general_query']}"
+                f"🔎 [PreVerify V282.10] articles total={len(verification_results)} "
+                f"verified={len(verified_articles)} ambiguous={len(ambiguous_articles)} "
+                f"missing={len(missing_articles)} has_general={legal_query['has_general_query']}"
             )
 
         _lap("pre_verify")
@@ -627,7 +716,7 @@ class AlbanianRAGService:
 
         if is_factual_legal_query:
             logger.info(
-                f"⚡ [FastPath V282.9 DIRECT] Skip LLM — return verified text directly "
+                f"⚡ [FastPath V282.10 DIRECT] Skip LLM — return verified text directly "
                 f"({len(verified_articles)} verified articles)"
             )
 
@@ -841,7 +930,7 @@ class AlbanianRAGService:
 
             if correction_section:
                 logger.info(
-                    f"🔍 [Post-Processor V2.1] Korrigjim u shtua: {len(correction_section)} chars. "
+                    f"🔍 [Post-Processor V2.2] Korrigjim u shtua: {len(correction_section)} chars. "
                     f"whitelist ({whitelist.get('source_filter')}): "
                     f"{len(whitelist.get('articles', []))} nene, "
                     f"{len(whitelist.get('laws_number', []))} ligje me numër, "

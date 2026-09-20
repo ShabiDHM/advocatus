@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_review/patterns.py
-# PHOENIX PROTOCOL - REGEX PATTERNS V2.1
-# V2.1: FIX në PARTY_LABEL_PATTERN (lejon kllapa dhe numra).
-#       FIX në DATE_ALBANIAN_PATTERN (word boundary i pastër).
-# V2.0: Arkitekturë e re — vetëm regex për ekstraktim deterministik.
+# PHOENIX PROTOCOL - REGEX PATTERNS V2.3
+# V2.3: FIX DEADLINE + PERIOD për shumësin shqip (ditësh, muajsh, javësh).
+# V2.2: Shtuar pattern-e për dispozitiv, mjekësi, dënime, kontradikta.
 
 import re
 
@@ -73,7 +72,7 @@ CASE_NUMBER_PATTERN = re.compile(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# DATES — V2.1 FIX: word boundary i pastër
+# DATES
 # ═══════════════════════════════════════════════════════════════════════════
 
 DATE_PATTERN = re.compile(
@@ -85,7 +84,6 @@ ALBANIAN_MONTHS = [
     'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor',
 ]
 
-# V2.1: Pa \b në fund (mund të ndodhë pas "2024" me pikë)
 DATE_ALBANIAN_PATTERN = re.compile(
     r'(?<!\w)(\d{1,2})\s+(' + '|'.join(ALBANIAN_MONTHS) + r')(?:it|i|t)?\s+(\d{2,4})(?!\w)',
     re.IGNORECASE | re.UNICODE,
@@ -93,11 +91,16 @@ DATE_ALBANIAN_PATTERN = re.compile(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# DEADLINES
+# DEADLINES — V2.3: shumësi shqip (ditësh, muajsh, javësh)
 # ═══════════════════════════════════════════════════════════════════════════
 
 DEADLINE_PATTERN = re.compile(
-    r'\b(\d+)\s*(dit[ëe]?|muaj|jav[ëe]?|vjet|vit)\b',
+    r'\b(\d+)\s*'
+    r'(dit(?:ë|e)?(?:sh|ve)?'
+    r'|muaj(?:sh)?'
+    r'|jav(?:ë|e)?(?:sh)?'
+    r'|vjet|vit)'
+    r'\b',
     re.IGNORECASE | re.UNICODE,
 )
 
@@ -108,7 +111,7 @@ DEADLINE_CONTEXT_KEYWORDS = [
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PARTIES — V2.1 FIX: lejon kllapa dhe numra
+# PARTIES
 # ═══════════════════════════════════════════════════════════════════════════
 
 PARTY_LABEL_PATTERN = re.compile(
@@ -117,5 +120,116 @@ PARTY_LABEL_PATTERN = re.compile(
     r'Pala\s+kliente)\s*[:\-]?\s*'
     r'([A-ZËÇ][a-zA-ZëçËÇ0-9\s\.\-\(\)]{2,80}?)'
     r'(?=\s*(?:,|\.|;|:|\s+nga\s+|\s*$))',
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DISPOSITIVE POINTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+DISPOSITIVE_POINT_PATTERN = re.compile(
+    r'^\s*(I{1,3}V?|IV|V|VI{0,3}|IX|X{1,3})\s*\.\s*(.+?)$',
+    re.MULTILINE,
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MEDICAL FINDINGS
+# ═══════════════════════════════════════════════════════════════════════════
+
+ICD_CODE_PATTERN = re.compile(
+    r'\b([A-Z]\d{2}(?:\.\d{1,2})?)\b',
+    re.UNICODE,
+)
+
+DIAGNOSIS_KEYWORDS = [
+    "çrregullim", "crregullim", "diagnozë", "diagnoze", "diagnostikuar",
+    "vuan nga", "konstatuar", "personaliteti", "kufitar",
+    "depresion", "anksiozitet", "skizofreni", "bipolar",
+    "çrregullim mendor", "crregullim mendor",
+    "sëmundje mendore", "semundje mendore",
+]
+
+MEDICAL_TEST_KEYWORDS = [
+    "testi i drogës", "testi i droges", "test toksikologjik",
+    "test toksikologjik", "testi i gjakut", "analiza e gjakut",
+    "testi psikiatrik", "ekzaminim psikiatrik", "ekspertizë psikiatrike",
+    "ekspertize psikiatrike", "mendim i ekspertëve", "mendim i eksperteve",
+    "testi i alkoolit", "test alkooli", "analiza toksikologjike",
+]
+
+NEGATIVE_RESULT_KEYWORDS = [
+    "negativ", "negative", "nuk ka rezultuar", "nuk u konstatua",
+    "pa prani", "nuk është përdorues", "nuk eshte perdorues",
+    "nuk e kanë konstatuar", "nuk e kane konstatuar",
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PRIOR CONVICTIONS
+# ═══════════════════════════════════════════════════════════════════════════
+
+PRIOR_CONVICTION_PATTERN = re.compile(
+    r'(?:Aktgjykim(?:i)?|Vendim(?:i)?|Dënuar|Denuar|'
+    r'Dënuar\s+me\s+kusht|Gjykatë)\s+'
+    r'(?:me\s+)?'
+    r'(P\.nr\.|K\.nr\.|C\.nr\.)[\s]*'
+    r'(\d+[\w\/\.\-]*)',
+    re.IGNORECASE | re.UNICODE,
+)
+
+CONVICTION_KEYWORDS = [
+    "i dënuar", "i denuar", "dënuar me kusht", "denuar me kusht",
+    "dënim penal", "denim penal", "vepër penale", "veper penale",
+    "aktgjykim", "aktgjykimi", "është dënuar", "eshte denuar",
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# JUDGE / COURT / APPEAL
+# ═══════════════════════════════════════════════════════════════════════════
+
+JUDGE_NAME_PATTERN = re.compile(
+    r'(?:gjyqtar(?:in|i)?|gjyqtarja)\s+'
+    r'([A-ZËÇ][a-zëç]+(?:\s+[A-ZËÇ][a-zëç]+){1,3})',
+    re.IGNORECASE | re.UNICODE,
+)
+
+COURT_NAME_PATTERN = re.compile(
+    r'(GJYKATA\s+[A-ZËÇ]+(?:\s+[A-ZËÇ]+){0,4}'
+    r'|Gjykata\s+[A-ZËÇ][a-zëç]+(?:\s+[A-ZËÇ][a-zëç]+){0,4})',
+    re.UNICODE,
+)
+
+APPEAL_DEADLINE_PATTERN = re.compile(
+    r'afat\s+prej\s+(\d+)\s*'
+    r'(dit(?:ë|e)?(?:sh)?|muaj(?:sh)?|jav(?:ë|e)?(?:sh)?)\s+'
+    r'nga\s+(?:marrja|pranimi|njoftimi)',
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONTRADICTIONS — V2.3: shumësi shqip
+# ═══════════════════════════════════════════════════════════════════════════
+
+PERIOD_PATTERN = re.compile(
+    r'\b(\d+)\s*'
+    r'(dit(?:ë|e)?(?:sh|ve)?'
+    r'|muaj(?:sh)?'
+    r'|jav(?:ë|e)?(?:sh)?'
+    r'|vjet|vit)'
+    r'\b',
+    re.IGNORECASE | re.UNICODE,
+)
+
+DISTANCE_PATTERN = re.compile(
+    r'\b(\d+)\s*(metra|metër|meter|m)\b',
+    re.IGNORECASE | re.UNICODE,
+)
+
+AMOUNT_PATTERN = re.compile(
+    r'\b(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(EUR|€|Euro|euro)\b',
     re.IGNORECASE | re.UNICODE,
 )

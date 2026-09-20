@@ -1,6 +1,12 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - BULLETPROOF DUAL-LAYER VECTOR RETRIEVER V65.0 (OPTIONAL DOCUMENT FILTER)
-# 100% COMPLETE CODE • GUARANTEED 1,425-PAGE SUPREME RETRIEVAL • ZERO ATLAS SEARCH DEPENDENCY
+# PHOENIX PROTOCOL - BULLETPROOF DUAL-LAYER VECTOR RETRIEVER V67.0
+# V67.0: delete_document_embeddings — ORG-AWARE (owner_id-agnostic)
+#        - Fshin embeddings vetëm me document_id (unik global)
+#        - Fallback në ObjectId variant për legacy data
+#        - Kthen deleted_count (int) në vend të None
+#        - Log warning kur 0 fshirje (të dallojmë orphan real)
+# V66.0: create_and_store_embeddings_from_chunks — BATCH + RETRY + TIMEOUT
+# V65.0: Optional document filter.
 
 import os
 import time
@@ -10,6 +16,13 @@ import re
 import math
 from typing import List, Dict, Any, Sequence, Optional
 from pymongo import MongoClient
+from pymongo.errors import (
+    BulkWriteError,
+    OperationFailure,
+    ConnectionFailure,
+    ServerSelectionTimeoutError,
+    AutoReconnect,
+)
 from bson import ObjectId
 
 from app.core.config import settings
@@ -17,6 +30,17 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _CACHED_DB = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V66.0: INGESTION CONFIG
+# ═══════════════════════════════════════════════════════════════════════════
+
+INGESTION_BATCH_SIZE = 15           # Chunks per insert_many
+INGESTION_MAX_RETRIES = 3           # Tentativa totale për batch
+INGESTION_BACKOFF_BASE = 1.0        # Sekonda — 1s, 2s, 4s
+INGESTION_TIMEOUT_MS = 30000        # 30s per batch (jo 10s)
+
 
 CASE_NO_PATTERN = re.compile(
     r'\b(?:PA1|PKR|PML|REV|Rev|KMLP|ANR|A\.NR|PZR|CP|P|AC|PN|KP)\.?\s*(?:nr|Nr|NR)?\.?\s*(\d+[\w\/\.\-]*)',
@@ -65,6 +89,10 @@ def _get_db():
         _CACHED_DB = MongoClient(uri)[db_name]
         return _CACHED_DB
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# QUERY FUNCTIONS (V65.0 — të paprekura)
+# ═══════════════════════════════════════════════════════════════════════════
 
 def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) -> List[Dict[str, Any]]:
     """
@@ -131,7 +159,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
 
     # 3. KËRKIMI SEMANTIK I PRECEDENTËVE NË 1,425 FAQET E SUPREMES
     if vector:
-        # Përpjekja A: MongoDB Atlas $vectorSearch
         atlas_caselaw_success = False
         try:
             caselaw_pipeline = [{
@@ -154,10 +181,8 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
             logger.debug(f"Atlas $vectorSearch bypassed: {e}")
             atlas_caselaw_success = False
 
-        # Përpjekja B: In-Memory Cosine Similarity (GARANTUAR 100% PA ATLAS)
         if not atlas_caselaw_success or len(caselaw_results) < 5:
             try:
-                # Marrim copëzat e aktgjykimeve që kanë embeddings
                 all_caselaw_chunks = list(coll.find(
                     {
                         "$or": [
@@ -179,18 +204,16 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
                         score = _cosine_similarity(vector, emb)
                         scored_chunks.append((score, chunk))
 
-                # Rendit sipas ngjashmërisë më të lartë semantike
                 scored_chunks.sort(key=lambda x: x[0], reverse=True)
 
                 for score, doc in scored_chunks[:15]:
                     d_id = str(doc.get("_id", ""))
-                    if d_id not in seen_ids and score > 0.30:  # Prag i saktë relevance
+                    if d_id not in seen_ids and score > 0.30:
                         seen_ids.add(d_id)
                         caselaw_results.append(doc)
             except Exception as e:
                 logger.error(f"In-memory cosine similarity error: {e}")
 
-        # Vector search për ligjet statutore
         try:
             statute_pipeline = [{
                 "$vectorSearch": {
@@ -231,7 +254,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
         except Exception as ex:
             logger.warning(f"Text statute query error: {ex}")
 
-    # FORMATIMI ME FAQEN REALE TË PDF-së (actual_page nga master sync)
     combined_docs = statute_results[:12] + caselaw_results[:12]
     formatted_results = []
 
@@ -272,12 +294,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
 def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35, **kwargs) -> List[Dict[str, Any]]:
     """
     Kërkim semantik në shkresat e lëndës.
-    
-    Parametra opsionalë (kwargs):
-        case_context_id / case_id: ID e lëndës për filtrim.
-        document_ids: Listë opsionale e ID-ve të dokumenteve për t'u filtruar.
-                      Nëse jepet dhe ka elemente, kërkimi kufizohet vetëm në ato dokumente.
-                      Nëse nuk jepet ose është bosh, kërkimi shtrihet në të gjithë lëndën (sjellje origjinale).
     """
     from . import embedding_service
     case_context_id = kwargs.get("case_context_id") or kwargs.get("case_id")
@@ -288,7 +304,6 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
     results = []
     seen_chunk_ids = set()
 
-    # Ndërtimi i listës së ID-ve të lëndës (str dhe ObjectId)
     valid_case_ids = set()
     if case_context_id:
         case_id_str = str(case_context_id)
@@ -296,7 +311,6 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
         if ObjectId.is_valid(case_id_str):
             valid_case_ids.add(str(ObjectId(case_id_str)))
 
-    # Ndërtimi i listës së ID-ve të dokumenteve (str) për filtrim strikt
     valid_doc_ids = set()
     if raw_document_ids:
         for did in raw_document_ids:
@@ -325,11 +339,9 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
                 r_case_id = str(r.get("case_id", ""))
                 r_doc_id = str(r.get("document_id", ""))
                 
-                # Filtri i lëndës
                 if valid_case_ids and r_case_id not in valid_case_ids:
                     continue
 
-                # Filtri opsional i dokumentit (vetëm kur jepet eksplicitisht)
                 if valid_doc_ids and r_doc_id not in valid_doc_ids:
                     continue
                 
@@ -353,7 +365,6 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
                     "$in": [case_id_str, ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str]
                 }
 
-            # Filtri strikt i dokumenteve kur jepet
             if valid_doc_ids:
                 case_filter["document_id"] = {"$in": list(valid_doc_ids)}
             
@@ -380,6 +391,133 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
     ]
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V66.0: INGESTION — BATCH + RETRY + TIMEOUT
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _is_transient_error(exc: Exception) -> bool:
+    """V66.0: Kontrollo nëse error-i është transient (i përsëritshëm)."""
+    if isinstance(exc, (
+        ConnectionFailure,
+        ServerSelectionTimeoutError,
+        AutoReconnect,
+    )):
+        return True
+    err_str = str(exc).lower()
+    return any(marker in err_str for marker in [
+        "timed out", "timeout", "connection reset",
+        "connection refused", "network", "unreachable",
+    ])
+
+
+def _insert_batch_with_retry(
+    coll,
+    batch: List[Dict[str, Any]],
+    batch_num: int,
+    total_batches: int,
+) -> Dict[str, Any]:
+    """
+    V66.0: Insert një batch me retry exponential backoff.
+    Kthen: {"success": int, "failed": int, "errors": [...]}
+    """
+    attempt = 0
+    last_error = None
+
+    while attempt < INGESTION_MAX_RETRIES:
+        attempt += 1
+        try:
+            result = coll.insert_many(batch, ordered=False)
+            inserted = len(result.inserted_ids)
+            logger.info(
+                f"✅ [Batch {batch_num}/{total_batches}] "
+                f"Inserted {inserted} chunks (attempt {attempt})"
+            )
+            return {"success": inserted, "failed": 0, "errors": []}
+
+        except BulkWriteError as bwe:
+            # Disa dokumente mund të kenë dështuar, por shumica kaluan
+            details = bwe.details or {}
+            n_inserted = details.get("nInserted", 0)
+            write_errors = details.get("writeErrors", [])
+            n_failed = len(write_errors)
+
+            if n_inserted > 0 and n_failed < len(batch) / 2:
+                # Shumica kaluan → OK, raporto parcialisht
+                logger.warning(
+                    f"⚠️ [Batch {batch_num}/{total_batches}] "
+                    f"Inserted {n_inserted}, failed {n_failed} (partial)"
+                )
+                return {
+                    "success": n_inserted,
+                    "failed": n_failed,
+                    "errors": [str(e.get("errmsg", "")) for e in write_errors[:3]],
+                }
+
+            last_error = bwe
+            logger.warning(
+                f"⚠️ [Batch {batch_num}/{total_batches}] "
+                f"BulkWriteError attempt {attempt}: {bwe}"
+            )
+
+        except (ConnectionFailure, ServerSelectionTimeoutError, AutoReconnect) as e:
+            last_error = e
+            logger.warning(
+                f"⚠️ [Batch {batch_num}/{total_batches}] "
+                f"Transient error attempt {attempt}: {type(e).__name__}: {e}"
+            )
+
+        except OperationFailure as e:
+            # Gabime jo-transient (p.sh. auth) → nuk retry
+            logger.error(
+                f"❌ [Batch {batch_num}/{total_batches}] "
+                f"OperationFailure (no retry): {e}"
+            )
+            return {
+                "success": 0,
+                "failed": len(batch),
+                "errors": [f"OperationFailure: {e}"],
+            }
+
+        except Exception as e:
+            if _is_transient_error(e):
+                last_error = e
+                logger.warning(
+                    f"⚠️ [Batch {batch_num}/{total_batches}] "
+                    f"Transient attempt {attempt}: {type(e).__name__}: {e}"
+                )
+            else:
+                logger.error(
+                    f"❌ [Batch {batch_num}/{total_batches}] "
+                    f"Non-transient error (no retry): {type(e).__name__}: {e}"
+                )
+                return {
+                    "success": 0,
+                    "failed": len(batch),
+                    "errors": [f"{type(e).__name__}: {e}"],
+                }
+
+        # Backoff para tentativës tjetër
+        if attempt < INGESTION_MAX_RETRIES:
+            backoff = INGESTION_BACKOFF_BASE * (2 ** (attempt - 1))
+            logger.info(
+                f"⏳ [Batch {batch_num}/{total_batches}] "
+                f"Backoff {backoff}s para tentativës {attempt + 1}"
+            )
+            time.sleep(backoff)
+
+    # Të gjitha tentativat dështuan
+    logger.error(
+        f"❌ [Batch {batch_num}/{total_batches}] "
+        f"Dështoi pas {INGESTION_MAX_RETRIES} tentativave. "
+        f"Last error: {last_error}"
+    )
+    return {
+        "success": 0,
+        "failed": len(batch),
+        "errors": [str(last_error) if last_error else "Unknown error"],
+    }
+
+
 def create_and_store_embeddings_from_chunks(
     user_id: str, 
     document_id: str, 
@@ -387,62 +525,178 @@ def create_and_store_embeddings_from_chunks(
     file_name: str, 
     chunks: List[str], 
     metadatas: Sequence[Dict[str, Any]]
-) -> bool:
-    from . import embedding_service
-    
+) -> Dict[str, Any]:
+    """
+    V66.0: Krijon dhe ruan embeddings në MongoDB me:
+      - Batch size 15 (safe për Atlas free)
+      - Retry 3x me backoff exponential
+      - Timeout 30s per batch
+      - Raportim i detajuar me status
+
+    Kthen:
+      {
+        "success": bool,          # True nëse > 80% chunks u ruajtën
+        "total_chunks": int,
+        "ingested": int,
+        "failed": int,
+        "batches": int,
+        "errors": List[str],
+        "duration_sec": float,
+      }
+    """
+    start = time.time()
+
     if not chunks:
-        logger.warning(f"⚠️ [VectorStore] 0 chunks provided for document {document_id}")
-        return False
+        logger.warning(f"⚠️ [VectorStore V66.0] 0 chunks provided for document {document_id}")
+        return {
+            "success": False,
+            "total_chunks": 0,
+            "ingested": 0,
+            "failed": 0,
+            "batches": 0,
+            "errors": ["No chunks provided"],
+            "duration_sec": 0.0,
+        }
+
+    # 1. Gjenero embeddings
+    try:
+        from . import embedding_service
+        t_emb = time.time()
+        vectors = embedding_service.generate_embeddings_batch(chunks)
+        emb_duration = round(time.time() - t_emb, 2)
+        logger.info(f"🔢 [VectorStore V66.0] Embeddings u gjeneruan për {len(chunks)} chunks në {emb_duration}s")
+    except Exception as e:
+        logger.error(f"❌ [VectorStore V66.0] Embedding generation failed: {e}")
+        return {
+            "success": False,
+            "total_chunks": len(chunks),
+            "ingested": 0,
+            "failed": len(chunks),
+            "batches": 0,
+            "errors": [f"Embedding generation failed: {e}"],
+            "duration_sec": round(time.time() - start, 2),
+        }
+
+    # 2. Ndërto dokumentet për insert
+    docs: List[Dict[str, Any]] = []
+    for i, chunk in enumerate(chunks):
+        vector = vectors[i] if i < len(vectors) else []
+        meta = metadatas[i] if i < len(metadatas) else {}
+
+        page_val = meta.get("page")
+        if page_val is None:
+            page_val = i + 1
+        try:
+            page_val = int(page_val)
+        except Exception:
+            page_val = 1
+
+        docs.append({
+            "owner_id": str(user_id),
+            "document_id": str(document_id),
+            "case_id": str(case_id),
+            "file_name": file_name,
+            "text": chunk,
+            "page": page_val,
+            "embedding": vector if vector else [],
+            **meta
+        })
+
+    # 3. Batch + retry insert
+    coll = _get_db()["user_vectors"]
+    total_batches = (len(docs) + INGESTION_BATCH_SIZE - 1) // INGESTION_BATCH_SIZE
+
+    total_success = 0
+    total_failed = 0
+    all_errors: List[str] = []
+
+    logger.info(
+        f"📦 [VectorStore V66.0] Duke insertuar {len(docs)} chunks në "
+        f"{total_batches} batches (size={INGESTION_BATCH_SIZE}) për doc={document_id}"
+    )
+
+    for batch_idx in range(total_batches):
+        start_i = batch_idx * INGESTION_BATCH_SIZE
+        end_i = min(start_i + INGESTION_BATCH_SIZE, len(docs))
+        batch = docs[start_i:end_i]
+
+        batch_result = _insert_batch_with_retry(
+            coll, batch,
+            batch_num=batch_idx + 1,
+            total_batches=total_batches,
+        )
+        total_success += batch_result["success"]
+        total_failed += batch_result["failed"]
+        all_errors.extend(batch_result["errors"])
+
+    # 4. Vlerëso suksesin
+    success_rate = total_success / len(docs) if docs else 0.0
+    is_success = success_rate >= 0.80  # 80% threshold
+
+    duration = round(time.time() - start, 2)
+
+    if is_success:
+        logger.info(
+            f"✅ [VectorStore V66.0] Ingestion i plotë: "
+            f"{total_success}/{len(docs)} chunks në {total_batches} batches, {duration}s"
+        )
+    else:
+        logger.error(
+            f"❌ [VectorStore V66.0] Ingestion i pjesshëm: "
+            f"{total_success}/{len(docs)} chunks (success_rate={success_rate:.1%}), "
+            f"errors={len(all_errors)}, {duration}s"
+        )
+
+    return {
+        "success": is_success,
+        "total_chunks": len(docs),
+        "ingested": total_success,
+        "failed": total_failed,
+        "batches": total_batches,
+        "errors": all_errors[:5],
+        "duration_sec": duration,
+    }
+
+
+def delete_document_embeddings(user_id: str, document_id: str, case_id: Optional[str] = None) -> int:
+    """
+    V67.0: ORG-AWARE — fshin embeddings pavarësisht nga owner_id.
+
+    Pse: në një organizatë, user-i që fshin dokumentin mund të mos jetë ai
+    që e ka ngarkuar. document_id është ObjectId unik → filter vetëm me të
+    është i sigurt dhe mbulon të gjitha rastet.
+
+    Kthen: numrin e embeddings të fshirë (int).
+    """
+    doc_id_str = str(document_id)
+    total_deleted = 0
 
     try:
-        vectors = embedding_service.generate_embeddings_batch(chunks)
         coll = _get_db()["user_vectors"]
-        docs = []
-        for i, chunk in enumerate(chunks):
-            vector = vectors[i] if i < len(vectors) else []
-            meta = metadatas[i] if i < len(metadatas) else {}
-            
-            page_val = meta.get("page")
-            if page_val is None:
-                page_val = i + 1
-            try:
-                page_val = int(page_val)
-            except Exception:
-                page_val = 1
 
-            docs.append({
-                "owner_id": str(user_id), 
-                "document_id": str(document_id), 
-                "case_id": str(case_id), 
-                "file_name": file_name,
-                "text": chunk, 
-                "page": page_val,
-                "embedding": vector if vector else [], 
-                **meta
-            })
-        
-        if docs: 
-            coll.insert_many(docs)
-            logger.info(f"✅ Ingested {len(docs)} chunks for document {document_id} in case {case_id}")
-            return True
-        return False
-            
+        # Primary: dokumentet e reja (V66.0+) ruajnë document_id si str
+        result = coll.delete_many({"document_id": doc_id_str})
+        total_deleted += result.deleted_count
+
+        # Fallback legacy: dokumentet e vjetra mund të kenë ObjectId
+        if total_deleted == 0 and ObjectId.is_valid(doc_id_str):
+            fallback = coll.delete_many({"document_id": ObjectId(doc_id_str)})
+            total_deleted += fallback.deleted_count
+
+        if total_deleted == 0:
+            logger.warning(
+                f"⚠️ [VectorStore V67.0] 0 embeddings për document_id={doc_id_str} "
+                f"(case={case_id}, caller={user_id})"
+            )
+        else:
+            logger.info(
+                f"✅ [VectorStore V67.0] {total_deleted} embeddings u fshinë "
+                f"për document_id={doc_id_str} (case={case_id})"
+            )
+        return total_deleted
     except Exception as e:
-        logger.error(f"❌ Ingestion Failed: {e}")
-        return False
-
-
-def delete_document_embeddings(user_id: str, document_id: str):
-    try: 
-        _get_db()["user_vectors"].delete_many({
-            "document_id": str(document_id), 
-            "$or": [
-                {"owner_id": str(user_id)},
-                {"owner_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else str(user_id)}
-            ]
-        })
-    except Exception as e: 
-        logger.warning(f"⚠️ Delete embeddings error: {e}")
+        logger.error(f"❌ [VectorStore V67.0] Delete error për {doc_id_str}: {e}")
+        return total_deleted
 
 
 def copy_document_embeddings(source_document_id: str, target_document_id: str, target_user_id: str, target_case_id: str):

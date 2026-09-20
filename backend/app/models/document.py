@@ -1,5 +1,7 @@
 # FILE: backend/app/models/document.py
-# PHOENIX PROTOCOL - DOCUMENT MODELS V6.0
+# PHOENIX PROTOCOL - DOCUMENT MODELS V7.0
+# V7.0: Shtuar DocumentStatus.READY_WITH_WARNINGS — për dokumente që janë
+#       procesuar, por ingestion i vektorëve nuk ishte 100% i suksesshëm.
 # V6.0: Hequr latest_forensic_audit + litigation_analysis (të vdekura).
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -13,6 +15,7 @@ from .common import PyObjectId
 class DocumentStatus(str, Enum):
     PENDING = "PENDING"
     READY = "READY"
+    READY_WITH_WARNINGS = "READY_WITH_WARNINGS"  # V7.0: ingestion i pjesshëm
     FAILED = "FAILED"
     ARCHIVED = "ARCHIVED"
 
@@ -38,7 +41,10 @@ class DocumentInDB(DocumentBase):
     progress_percent: Optional[int] = 100
     progress_message: Optional[str] = None
     is_shared: Optional[bool] = False
-    
+
+    # V7.0: Statistika të ingestion (për diagnozë)
+    ingestion_stats: Optional[Dict[str, Any]] = None
+
     # PHOENIX CACHE: Ruajtja e Analizës për Hapje të Shpejtë
     latest_analysis: Optional[str] = None
     last_audited_at: Optional[datetime] = None

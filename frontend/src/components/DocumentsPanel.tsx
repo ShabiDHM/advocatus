@@ -1,6 +1,10 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V27.0 (ZERO HARDCODED COLORS)
-// V27.0: Zëvendësuar rose-* → danger-start, amber-* → warning-start, fix bg-[	var(...)].
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V27.1 (OPTIMISTIC UPLOAD + IMMEDIATE PROGRESS)
+// V27.1: OPTIMISTIC UPDATE — kur klikon upload, karta shfaqet MENJËHERË me status
+//        'PROCESSING' dhe progress 5% (jo pritje 2-4s te HTTP). Pastaj zëvendësohet
+//        me dokumentin real kur upload-i përfundon. Progress bar tani shfaqet
+//        MENJËHERË pas klikimit. Fix: `|| 30` → `?? 5` (trajtim i saktë i 0).
+// V27.0: Zëvendësuar rose-* → danger-start, amber-* → warning-start.
 // V26.0: FORENSIC LAB SELECTION HARMONY
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -59,6 +63,13 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [showArchiveImport, setShowArchiveImport] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // V27.1: OPTIMISTIC UPLOAD STATE
+  // Kartelat e perkohshme shfaqen menjëherë, para se HTTP POST te perfundoje.
+  // Zëvendësohen me dokumentin real ose hiqen nëse upload-i dështon.
+  // ═══════════════════════════════════════════════════════════════════════
+  const [optimisticDocs, setOptimisticDocs] = useState<Document[]>([]);
+
   const isSystemBusy = isUploading;
 
   useEffect(() => {
@@ -76,6 +87,22 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     setIsUploading(true);
     setUploadNotice(null);
 
+    // ═══════════════════════════════════════════════════════════════════
+    // V27.1: Optimistic — shto kartelë MENJËHERË me progress 5%
+    // ═══════════════════════════════════════════════════════════════════
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const tempDoc: Document = {
+      id: tempId,
+      file_name: file.name,
+      file_type: file.type || file.name.split('.').pop() || 'unknown',
+      storage_key: '',
+      created_at: new Date().toISOString(),
+      status: 'PROCESSING',
+      progress_percent: 5,
+      progress_message: 'Duke u ngarkuar skedarin...',
+    };
+    setOptimisticDocs(prev => [tempDoc, ...prev]);
+
     try {
       const responseData = await apiService.uploadDocument(caseId, file, () => {});
       const rawData = responseData as any;
@@ -83,14 +110,21 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           ...responseData,
           id: responseData.id || rawData._id, 
           file_name: file.name,
+          file_type: file.type || (file.name.split('.').pop() || 'unknown'),
+          storage_key: (responseData as any).storage_key || '',
           status: 'PROCESSING',
-          progress_percent: 30, 
+          progress_percent: 30,
           progress_message: 'Duke përgatitur skedarin...',
           created_at: new Date().toISOString()
       } as any;
+
+      // Hiq temp-in dhe shto dokumentin real (React baton të dyja)
+      setOptimisticDocs(prev => prev.filter(d => d.id !== tempId));
       onDocumentUploaded(newDoc);
     } catch (error: any) {
       console.error(`Failed to upload ${file.name}`, error);
+      // Hiq temp-in nëse upload dështoi
+      setOptimisticDocs(prev => prev.filter(d => d.id !== tempId));
       const errorMsg = error?.response?.data?.detail || error?.message || `${t('documentsPanel.uploadFailed', 'Dështoi ngarkimi')}: ${file.name}`;
       setUploadNotice({ text: errorMsg, type: 'error' });
     } finally {
@@ -148,10 +182,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   const toggleSelectAll = () => {
-      if (bulkSelectedIds.size === documents.length) {
+      if (bulkSelectedIds.size === displayDocs.length) {
           setBulkSelectedIds(new Set()); 
       } else {
-          const allIds = documents.map(d => d.id);
+          const allIds = displayDocs.map(d => d.id);
           setBulkSelectedIds(new Set(allIds));
       }
   };
@@ -170,7 +204,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       if (!window.confirm(`A jeni i sigurt që doni të fshini ${bulkSelectedIds.size} dokumente?`)) return;
       setIsBulkDeleting(true);
       try {
-          const idsToDelete = Array.from(bulkSelectedIds);
+          const idsToDelete = Array.from(bulkSelectedIds).filter(id => !id.startsWith('temp_'));
           await apiService.bulkDeleteDocuments(caseId, idsToDelete);
           idsToDelete.forEach(id => {
               onDocumentDeleted({ documentId: id, deletedFindingIds: [] });
@@ -206,6 +240,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         return 'bg-danger-start animate-pulse';
     }
   };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // V27.1: MERGE per display — optimistic + real
+  // Optimistic docs shfaqen ne krye (newest first).
+  // ═══════════════════════════════════════════════════════════════════════
+  const displayDocs = [...optimisticDocs, ...documents];
 
   const isSelectionMode = bulkSelectedIds.size > 0;
 
@@ -247,7 +287,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none cursor-pointer" 
                         title="Select All"
                     >
-                        {documents.length > 0 && bulkSelectedIds.size === documents.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
+                        {displayDocs.length > 0 && bulkSelectedIds.size === displayDocs.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
                     </button>
                     <h2 className="text-base font-bold text-text-primary truncate select-none">{t('documentsPanel.title', 'Dokumentet')}</h2>
                     <div className="flex items-center justify-center ml-1">
@@ -329,16 +369,18 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       
       {/* Scrollable Container */}
       <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden pr-1.5 custom-finance-scroll min-h-0 bg-canvas/20 rounded-xl p-2 border border-main">
-        {documents.length === 0 && (
+        {displayDocs.length === 0 && (
           <div className="text-text-muted text-center py-12 flex flex-col items-center opacity-60">
             <FolderOpen className="w-12 h-12 mb-3 text-text-disabled/20" />
             <p className="text-sm font-medium">{t('documentsPanel.noDocuments', 'Nuk ka dokumente në këtë lëndë.')}</p>
           </div>
         )}
         
-        {documents.map((doc) => {
+        {displayDocs.map((doc) => {
           const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING';
-          const progressPercent = isProcessingState ? (doc.progress_percent || 30) : 100;
+          const isOptimistic = String(doc.id).startsWith('temp_');
+          // V27.1: `?? 5` (jo `|| 30`) — nese progress=0, tregojme 5% per vizual
+          const progressPercent = isProcessingState ? (doc.progress_percent ?? 5) : 100;
 
           const statusText = isProcessingState 
             ? (doc.progress_message || 'Duke procesuar...')
@@ -352,24 +394,29 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 key={doc.id} 
                 layout="position" 
                 onClick={() => {
-                  if (onSelectDocument) onSelectDocument(doc);
+                  if (onSelectDocument && !isOptimistic) onSelectDocument(doc);
                 }} 
-                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${
+                className={`group flex items-center justify-between p-3 border rounded-xl transition-all ${
+                    isOptimistic ? 'opacity-90' : 'cursor-pointer'
+                } ${
                     isDocActive 
                         ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm' 
                         : 'bg-surface/30 hover:bg-hover border-main'
                 }`}
                 initial={{ opacity: 0, y: -6 }} 
-                animate={{ opacity: 1, y: 0 }}
+                animate={{ opacity: isOptimistic ? 0.9 : 1, y: 0 }}
             >
               
               <div className="min-w-0 flex-1 pr-3">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={(e) => toggleBulkSelect(doc.id, e)}
-                    className="flex items-center justify-center w-7 h-7 shrink-0 text-text-muted hover:text-primary-start transition-colors focus:outline-none cursor-pointer"
-                    title={isBulkSelected ? 'Hiq zgjedhjen' : 'Zgjidh dokumentin'}
+                    onClick={(e) => { if (!isOptimistic) toggleBulkSelect(doc.id, e); }}
+                    disabled={isOptimistic}
+                    className={`flex items-center justify-center w-7 h-7 shrink-0 transition-colors focus:outline-none ${
+                      isOptimistic ? 'text-text-disabled cursor-not-allowed' : 'text-text-muted hover:text-primary-start cursor-pointer'
+                    }`}
+                    title={isOptimistic ? 'Duke u ngarkuar...' : (isBulkSelected ? 'Hiq zgjedhjen' : 'Zgjidh dokumentin')}
                     aria-label={isBulkSelected ? 'Hiq zgjedhjen' : 'Zgjidh dokumentin'}
                   >
                     {isBulkSelected ? <CheckSquare size={16} className="text-primary-start" /> : <Square size={16} />}
@@ -397,9 +444,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               </div>
               
               {/* Row action tools */}
-              <div className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
+              <div className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isSelectionMode || isOptimistic ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
                 
-                {!isProcessingState && (
+                {!isProcessingState && !isOptimistic && (
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} 
@@ -410,7 +457,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </button>
                 )}
                 
-                {!isProcessingState && (
+                {!isProcessingState && !isOptimistic && (
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} 
@@ -421,7 +468,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </button>
                 )}
                 
-                {!isProcessingState && (
+                {!isProcessingState && !isOptimistic && (
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} 
@@ -432,15 +479,17 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </button>
                 )}
 
-                {/* DELETE BUTTON */}
-                <button 
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
-                    className="flex items-center justify-center w-8 h-8 hover:bg-danger-start/15 rounded-lg text-danger-start hover:text-danger-start transition-colors focus:outline-none cursor-pointer" 
-                    title={t('documentsPanel.delete', 'Fshij')}
-                >
-                    <Trash size={13} />
-                </button>
+                {/* DELETE BUTTON — nuk shfaqet per optimistic */}
+                {!isOptimistic && (
+                  <button 
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
+                      className="flex items-center justify-center w-8 h-8 hover:bg-danger-start/15 rounded-lg text-danger-start hover:text-danger-start transition-colors focus:outline-none cursor-pointer" 
+                      title={t('documentsPanel.delete', 'Fshij')}
+                  >
+                      <Trash size={13} />
+                  </button>
+                )}
               </div>
             </motion.div>
           );

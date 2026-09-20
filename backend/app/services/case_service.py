@@ -1,5 +1,10 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V55.0 (DUAL-TIER LIFECYCLE: 7-DAY CITIZEN & 7-DAY GRACE FOR UNPAID LAWYERS)
+# PHOENIX PROTOCOL - CASE SERVICE V56.0 (DUAL-TIER LIFECYCLE + FULL CASCADE CLEANUP)
+# V56.0: CASCADE CLEANUP FIX
+#        - delete_case_by_id: media evidence embeddings + findings (të mbetura)
+#        - purge_expired_cases_data: media evidence embeddings
+#        - Kalon case_id te delete_document_embeddings V67.0 për audit
+# V55.0: DUAL-TIER LIFECYCLE (7-DAY CITIZEN & 7-DAY GRACE)
 
 import re
 import urllib.parse 
@@ -276,6 +281,11 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
 
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
+    """
+    V56.0: CASCADE CLEANUP I PLOTË
+    Fshin: documents + storage + embeddings, media + storage + embeddings,
+           archives + storage, findings, calendar events, alerts.
+    """
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
     if not case: 
@@ -283,7 +293,9 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
+    caller_id_str = str(owner.id)
     
+    # 1. DOCUMENTS — storage + embeddings
     documents = list(db.documents.find(any_id_query))
     for doc in documents:
         doc_id_str = str(doc["_id"])
@@ -294,20 +306,37 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
             except Exception: 
                 pass
         try: 
-            vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
-        except Exception: 
-            pass
+            # V67.0: kalojmë case_id për audit; funksioni tani është org-agnostic
+            vector_store_service.delete_document_embeddings(
+                user_id=caller_id_str,
+                document_id=doc_id_str,
+                case_id=case_id_str
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ Doc embeddings cleanup failed për {doc_id_str}: {e}")
 
+    # 2. MEDIA EVIDENCE — storage + embeddings (V56.0 FIX)
     media_items = list(db.media_evidence.find(any_id_query))
     for media in media_items:
+        media_id_str = str(media["_id"])
         storage_key = media.get("storage_key")
         if storage_key:
             try: 
                 storage_service.delete_file(storage_key)
             except Exception: 
                 pass
+        # V56.0: media gjithashtu ka embeddings në user_vectors
+        try:
+            vector_store_service.delete_document_embeddings(
+                user_id=caller_id_str,
+                document_id=media_id_str,
+                case_id=case_id_str
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ Media embeddings cleanup failed për {media_id_str}: {e}")
     db.media_evidence.delete_many(any_id_query)
 
+    # 3. ARCHIVES — storage
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
@@ -317,6 +346,16 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
                 pass
     
     db.archives.delete_many(any_id_query)
+
+    # 4. FINDINGS — V56.0 FIX: fshihen edhe findings (mungonte fare)
+    try:
+        findings_deleted = db.findings.delete_many(any_id_query)
+        if findings_deleted.deleted_count > 0:
+            logger.info(f"✅ [Case Delete] {findings_deleted.deleted_count} findings u fshinë për {case_id_str}")
+    except Exception as e:
+        logger.warning(f"⚠️ Findings cleanup failed për {case_id_str}: {e}")
+
+    # 5. Fshirje përfundimtare e case-it + dokumenteve + eventeve
     db.cases.delete_one({"_id": case_id})
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
@@ -324,6 +363,8 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         db.alerts.delete_many(any_id_query)
     except Exception: 
         pass
+
+    logger.info(f"🧹 [Case Delete] Lënda {case_id_str} u fshi me sukses me të gjitha burimet.")
 
 
 # =========================================================================
@@ -336,6 +377,9 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
     1. QYTETARËT (One-Time Pass): Fshihen pas 7 ditëve nga zhbllokimi i lëndës.
     2. AVOKATËT (Abonim Mujor): Dokumentet RUHEN PËRGJITHMONË për sa kohë që abonimi është aktiv.
        Nëse abonimi skadon dhe NUK rinovohet brenda 7 ditëve (Grace Period), atëherë fshihen skedarët e rëndë.
+
+    V56.0: media evidence embeddings tani pastrohen gjithashtu.
+    Shënim: findings/events/alerts NUK fshihen — case mbahet si PURGED për historik.
     """
     now = datetime.now(timezone.utc)
     cutoff_date = now - timedelta(days=expiry_days)
@@ -394,7 +438,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
         if should_purge:
             any_id_query = {"case_id": {"$in": [case_id, case_id_str]}}
 
-            # 1. Fshi skedarët origjinalë nga Backblaze B2
+            # 1. Fshi skedarët origjinalë nga Backblaze B2 + embeddings
             documents = list(db.documents.find(any_id_query))
             for doc in documents:
                 doc_id_str = str(doc["_id"])
@@ -407,21 +451,35 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                 
                 # 2. Fshi vektorët nga MongoDB
                 try:
-                    vector_store_service.delete_document_embeddings(user_id=owner_id, document_id=doc_id_str)
+                    vector_store_service.delete_document_embeddings(
+                        user_id=owner_id,
+                        document_id=doc_id_str,
+                        case_id=case_id_str
+                    )
                 except Exception:
                     pass
                 
                 deleted_docs_count += 1
 
-            # 3. Fshi audiot/videot nga Backblaze
+            # 3. Fshi audiot/videot nga Backblaze + embeddings (V56.0 FIX)
             media_items = list(db.media_evidence.find(any_id_query))
             for media in media_items:
+                media_id_str = str(media["_id"])
                 s_key = media.get("storage_key")
                 if s_key:
                     try:
                         storage_service.delete_file(s_key)
                     except Exception:
                         pass
+                # V56.0: media gjithashtu ka embeddings
+                try:
+                    vector_store_service.delete_document_embeddings(
+                        user_id=owner_id,
+                        document_id=media_id_str,
+                        case_id=case_id_str
+                    )
+                except Exception:
+                    pass
             db.media_evidence.delete_many(any_id_query)
 
             # 4. Përditëso dokumentet në status "PURGED"

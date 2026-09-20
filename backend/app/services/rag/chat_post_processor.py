@@ -1,12 +1,17 @@
 # FILE: backend/app/services/rag/chat_post_processor.py
-# PHOENIX PROTOCOL - CHAT POST-PROCESSOR V2.1
-# V2.1: Shtuar vërejtje pozitive për "dy ligje të vlefshme" me burim dokumenti.
-# V2.0: Hequr kontradiktat. Vetëm citime ligjesh + nenesh.
+# PHOENIX PROTOCOL - CHAT POST-PROCESSOR V2.2
+# V2.2: FIX — _find_missing_articles normalizon "Neni 1.2" -> "1" para krahasimit,
+#       duke perdorur _normalize_article_number V1.5. Eliminon false-positives
+#       per citime me paragraph.
+# V2.1: Shtuar verejtje pozitive per "dy ligje te vlefshme" me burim dokumenti.
+# V2.0: Hequr kontradiktat. Vetem citime ligjesh + nenesh.
 # V1.2: FIX formatim markdown.
 
 import re
 import logging
 from typing import Dict, Any, List
+
+from ..document_review.citation_extractor import _normalize_article_number
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +41,32 @@ def _normalize_law_number(raw: str) -> str:
     return re.sub(r'\s+', '', raw).upper().replace('–', '-')
 
 
+def _normalize_article_str(raw: str) -> str:
+    """
+    V2.2: Normalizon nje string artikulli sipas konventes ligjore shqipe.
+    "1.2" -> "1"   (neni 1, par. 2)
+    "1"   -> "1"
+    "5/2" -> "5/2" (formë e pazakonshme, lihet)
+    """
+    if not raw:
+        return raw
+    art, _ = _normalize_article_number(raw, None)
+    return art
+
+
+def _extract_articles_normalized(output_text: str) -> List[str]:
+    """
+    V2.2: Nxjerr nenet nga output-i i LLM dhe i normalizon.
+    Kthen liste me numra nenesh unik (pa paragraph).
+    """
+    found: List[str] = []
+    for m in _ARTICLE_OUTPUT_RE.finditer(output_text):
+        art = _normalize_article_str(m.group(1))
+        if art:
+            found.append(art)
+    return found
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # DETECTORS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -55,10 +86,17 @@ def _find_wrong_law_numbers(output_text: str, whitelist: Dict[str, Any]) -> List
 
 
 def _find_missing_articles(output_text: str, whitelist: Dict[str, Any]) -> List[str]:
-    whitelist_articles = set(whitelist.get("articles", []))
+    """
+    V2.2: Krahason nenet (te normalizuara) me whitelist.
+    Normalizon edhe whitelist-in per te shmangur mospershtatje formati.
+    """
+    # V2.2: Normalizo whitelist-in (defensive)
+    whitelist_articles = set(
+        _normalize_article_str(a) for a in whitelist.get("articles", [])
+    )
 
-    found = _ARTICLE_OUTPUT_RE.findall(output_text)
-    normalized_found = set(found)
+    # V2.2: Normalizo output-in
+    normalized_found = set(_extract_articles_normalized(output_text))
 
     if not whitelist_articles:
         return sorted(normalized_found)
@@ -82,7 +120,6 @@ def _build_dual_law_note(whitelist: Dict[str, Any]) -> str:
     if len(all_laws) < 2:
         return ""
 
-    # Kontrollo nëse ka të paktën 2 grupe dokumentesh me ligje të ndryshme
     distinct_sets = [tuple(sorted(laws)) for laws in laws_by_file.values()]
     if len(set(distinct_sets)) < 2:
         return ""
@@ -126,7 +163,7 @@ def build_correction_section(
     if source_filter == "judicial_only":
         parts.append("*Ky seksion kontrollohet automatikisht — bazuar në citimet që shfaqen në **dokumentet gjykatore** të fashikullit.*\n")
     else:
-        parts.append("*Ky seksion kontrollohet automatikisht — bazuar në citimet që shfaqen në shkresat e fashikullit.*\n")
+        parts.append("*Ky seksion kontrollohet automatikisht — bazuar në citimet që shfaqen në shkresat e fashkullit.*\n")
 
     # ═══ Ligjet e gabuara ═══
     if wrong_laws:

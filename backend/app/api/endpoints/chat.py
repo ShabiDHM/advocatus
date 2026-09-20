@@ -1,5 +1,8 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V59.0 (STRICT CHAT ISOLATION & ZERO COLLATERAL DAMAGE)
+# PHOENIX PROTOCOL - CHAT ROUTER V60.0 (ORG-AWARE)
+# V60.0: ORG-AWARE — user me org mund të përdorë chat/pillars/history/feedback në case të përbashkët.
+#        Përdor _build_case_access_query nga case_service për konsistencë.
+# V59.0: STRICT CHAT ISOLATION & ZERO COLLATERAL DAMAGE
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS SYNC • REDIS FLUSH
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,9 +18,23 @@ import redis
 from app.services import chat_service
 from app.models.user import UserInDB
 from app.api.endpoints.dependencies import get_current_active_user, get_db, get_sync_redis
+from app.services.case_service import _build_case_access_query
 
 router = APIRouter(tags=["Chat"])
 logger = logging.getLogger(__name__)
+
+
+def _require_case_access(db: Database, case_id: str, current_user: UserInDB) -> Any:
+    """
+    V60.0: ORG-AWARE — verifikon që user-i ka akses në case (personal ose org).
+    Kthen _id e case-it (ObjectId ose str) ose ngre HTTPException 404.
+    """
+    c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+    case = db.cases.find_one(_build_case_access_query(current_user, case_id=c_oid))
+    if not case:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni akses.")
+    return c_oid
+
 
 class ChatMessageRequest(BaseModel):
     message: str
@@ -44,7 +61,10 @@ async def handle_chat_message(
 ):
     if not chat_request.message: 
         raise HTTPException(status_code=400, detail="Mesazhi është i zbrazët.")
-        
+
+    # V60.0: ORG-AWARE — verifiko akses në case përpara se të nisë stream-i
+    _require_case_access(db, case_id, current_user)
+
     try:
         generator = chat_service.stream_chat_response(
             db=db, 
@@ -88,9 +108,10 @@ def save_case_pillar(
 ):
     """Ruan rezultatin e një shtjelle forenzike për të gjithë lëndën në MongoAtlas."""
     try:
-        c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+        # V60.0: ORG-AWARE — verifiko akses para se të ruajë
+        c_oid = _require_case_access(db, case_id, current_user)
         db.cases.update_one(
-            {"_id": c_oid, "owner_id": current_user.id},
+            {"_id": c_oid},
             {
                 "$set": {
                     f"pillars.{req.pillar_key}": req.content,
@@ -99,6 +120,8 @@ def save_case_pillar(
             }
         )
         return {"status": "success", "message": f"Shtjella {req.pillar_key} u ruajt në lëndë."}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save case pillar: {e}")
         raise HTTPException(status_code=500, detail="Dështoi ruajtja e shtjellës në lëndë.")
@@ -114,7 +137,17 @@ def save_document_pillar(
 ):
     """Ruan rezultatin e një shtjelle forenzike për një dokument specifik në MongoAtlas."""
     try:
+        # V60.0: ORG-AWARE — verifiko akses në case + që dokumenti i përket case-it
+        c_oid = _require_case_access(db, case_id, current_user)
         d_oid = ObjectId(document_id) if ObjectId.is_valid(document_id) else document_id
+
+        doc = db.documents.find_one({
+            "_id": d_oid,
+            "$or": [{"case_id": c_oid}, {"case_id": str(c_oid)}]
+        })
+        if not doc:
+            raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk i përket kësaj lënde.")
+
         db.documents.update_one(
             {"_id": d_oid},
             {
@@ -125,6 +158,8 @@ def save_document_pillar(
             }
         )
         return {"status": "success", "message": f"Shtjella {req.pillar_key} u ruajt për dokumentin."}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save document pillar: {e}")
         raise HTTPException(status_code=500, detail="Dështoi ruajtja e shtjellës së dokumentit.")
@@ -142,11 +177,12 @@ def clear_chat_history(
 ):
     """Pastrohet VETËM biseda e chat-it pa prekur asnjë autopsi të dokumenteve apo lëndës."""
     try:
-        c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
-        
-        # 1. Pastron VETËM chat_history në lëndë (Pa prekur pillarsapo analysis_dirty!)
+        # V60.0: ORG-AWARE — verifiko akses para se të pastrojë
+        c_oid = _require_case_access(db, case_id, current_user)
+
+        # 1. Pastron VETËM chat_history në lëndë (Pa prekur pillars apo analysis_dirty!)
         db.cases.update_one(
-            {"_id": c_oid, "owner_id": current_user.id},
+            {"_id": c_oid},
             {
                 "$set": {
                     "chat_history": [],
@@ -166,6 +202,8 @@ def clear_chat_history(
         logger.info(f"🧹 [Chat Purged Cleanly] U pastruan mesazhet e bisedës për lëndën {case_id} pa prekur asnjë autopsi.")
         return {"status": "success", "message": "Biseda u pastrua me sukses."}
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to clear chat history: {e}")
         raise HTTPException(status_code=500, detail="Dështoi pastrimi i bisedës.")
@@ -179,7 +217,9 @@ async def submit_chat_feedback(
     db: Database = Depends(get_db)
 ):
     try:
-        case = db.cases.find_one({"_id": ObjectId(case_id), "owner_id": current_user.id})
+        # V60.0: ORG-AWARE — verifiko akses + lexo case
+        c_oid = _require_case_access(db, case_id, current_user)
+        case = db.cases.find_one({"_id": c_oid})
         if not case:
             raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
         
@@ -187,18 +227,18 @@ async def submit_chat_feedback(
         if feedback_request.message_index < 0 or feedback_request.message_index >= len(chat_history):
             raise HTTPException(status_code=400, detail="Indeksi i mesazhit është i pasaktë.")
         
-        message = chat_history[feedback_request.message_index]
         feedback_doc = {
             "case_id": case_id,
             "user_id": str(current_user.id),
             "message_index": feedback_request.message_index,
             "feedback": feedback_request.feedback,
-            "message_preview": message.get("content", "")[:200],
             "created_at": datetime.now(timezone.utc)
         }
         db.chat_feedback.insert_one(feedback_doc)
         
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Feedback submission failed: {e}")
         raise HTTPException(status_code=500, detail="Dështoi dërgimi i vlerësimit.")

@@ -1,14 +1,22 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - ADMIN SERVICE V50.0 (1-CLICK CASE UNLOCK & PAYMENT DASHBOARD)
+# PHOENIX PROTOCOL - ADMIN SERVICE V51.1 (SAFE DELETION WITHOUT VALIDATION)
+# V51.1: FIX — delete_user_and_data nuk perdor UserInDB.model_validate
+#        (deshton me org_access_level=None). Kalo nje objekt minimal.
+# V51.0: DELEGATED USER DELETE (delegon te user_service)
 
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 from datetime import datetime, timezone
 from pymongo.database import Database
+from types import SimpleNamespace
 import logging
 import json
 
+from app.models.user import UserInDB
+from app.services import user_service
+
 logger = logging.getLogger(__name__)
+
 
 class AdminService:
     
@@ -46,7 +54,7 @@ class AdminService:
             users = list(db.users.aggregate(pipeline))
             return users
         except Exception as e:
-            logger.error(f"--- [ADMIN V50.0] Failed to fetch users: {e}")
+            logger.error(f"--- [ADMIN V51.1] Failed to fetch users: {e}")
             return []
 
     def get_all_cases_for_admin_dashboard(self, db: Database) -> List[Dict[str, Any]]:
@@ -102,7 +110,7 @@ class AdminService:
             cases = list(db.cases.aggregate(pipeline))
             return cases
         except Exception as e:
-            logger.error(f"--- [ADMIN V50.0] Failed to fetch cases for admin: {e}")
+            logger.error(f"--- [ADMIN V51.1] Failed to fetch cases for admin: {e}")
             return []
 
     def unlock_case_by_admin(
@@ -135,7 +143,6 @@ class AdminService:
                 }}
             )
 
-            # Regjistro porosinë në arkivë
             order_record = {
                 "case_id": c_oid,
                 "owner_id": case_doc.get("owner_id"),
@@ -158,7 +165,7 @@ class AdminService:
                 "unlocked_at": now.isoformat()
             }
         except Exception as e:
-            logger.error(f"--- [ADMIN V50.0] Unlock error: {e}")
+            logger.error(f"--- [ADMIN V51.1] Unlock error: {e}")
             return {"success": False, "message": str(e)}
 
     def lock_case_by_admin(self, db: Database, case_id: str) -> Dict[str, Any]:
@@ -186,20 +193,40 @@ class AdminService:
                 return None
             return db.users.find_one({"_id": oid})
         except Exception as e:
-            logger.error(f"--- [ADMIN V50.0] User update error: {e}")
+            logger.error(f"--- [ADMIN V51.1] User update error: {e}")
             return None
 
     def delete_user_and_data(self, db: Database, user_id: str) -> bool:
+        """
+        V51.1: Delegon te user_service.delete_user_and_all_data.
+        
+        FIX: Nuk perdor UserInDB.model_validate sepse deshton me org_access_level=None.
+             Krijon nje objekt minimal SimpleNamespace me fushat e nevojshme.
+        
+        Kthen: True nëse user-i u fshi, False nëse jo (user nuk u gjet ose gabim).
+        """
         try:
             oid = ObjectId(user_id)
-            db.cases.delete_many({"owner_id": oid})
-            db.documents.delete_many({"owner_id": oid})
-            db.business_profiles.delete_one({"user_id": oid})
-            db.archives.delete_many({"user_id": str(oid)})
-            result = db.users.delete_one({"_id": oid})
-            return result.deleted_count > 0
+            user_doc = db.users.find_one({"_id": oid})
+            if not user_doc:
+                logger.warning(f"--- [ADMIN V51.1] delete_user_and_data: user {user_id} nuk u gjet")
+                return False
+
+            # V51.1: Objekt minimal — shmang validimin Pydantic qe deshton
+            user = SimpleNamespace(
+                id=user_doc["_id"],
+                email=user_doc.get("email", ""),
+                username=user_doc.get("username", ""),
+            )
+
+            user_service.delete_user_and_all_data(db, user)
+
+            logger.info(f"✅ [ADMIN V51.1] User {user_id} u fshi me sukses (deleguar te user_service).")
+            return True
+
         except Exception as e:
-            logger.error(f"--- [ADMIN V50.0] User deletion error: {e}")
+            logger.error(f"--- [ADMIN V51.1] User deletion error: {e}", exc_info=True)
             return False
+
 
 admin_service: AdminService = AdminService()

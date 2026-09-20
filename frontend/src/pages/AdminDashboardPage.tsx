@@ -1,5 +1,9 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V50.0 (1-CLICK CASE UNLOCK & MULTI-PAYMENT MANAGEMENT)
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V51.0 (URL + TOKEN FIX)
+// V51.0: FIX — 3 URL fetch (/api/admin/cases*) u korrigjuan në /api/v1/admin/cases*
+//        FIX — Token nuk lexohej (localStorage.getItem('token') kthente bosh).
+//              U shtua _getAuthToken() helper që provon disa keys + cookie fallback.
+// V50.0: 1-CLICK CASE UNLOCK & MULTI-PAYMENT MANAGEMENT
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -43,6 +47,25 @@ type MainTab = 'CASES_PAYMENTS' | 'USERS';
 type UserRole = 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
 type StatusFilter = 'ALL' | 'ACTIVE' | 'PENDING' | 'INACTIVE_EXPIRED' | 'TEAM';
 type CaseStatusFilter = 'ALL' | 'LOCKED' | 'UNLOCKED';
+
+// V51.0: Helper që provon disa keys + cookie fallback
+const _getAuthToken = (): string => {
+    const keys = ['access_token', 'token', 'auth_token', 'jwt', 'jwt_token'];
+    for (const key of keys) {
+        const v = localStorage.getItem(key);
+        if (v && v.trim().length > 10) return v;
+    }
+    // Fallback: lexo nga cookie
+    const cookies = document.cookie.split(';').reduce<Record<string, string>>((acc, c) => {
+        const [k, ...v] = c.trim().split('=');
+        if (k) acc[k] = v.join('=');
+        return acc;
+    }, {});
+    for (const key of keys) {
+        if (cookies[key]) return cookies[key];
+    }
+    return '';
+};
 
 const AdminDashboardPage: React.FC = () => {
     const { t } = useTranslation();
@@ -95,10 +118,10 @@ const AdminDashboardPage: React.FC = () => {
     const loadCasesData = async () => {
         setIsLoadingCases(true);
         try {
-            // Thirrje e drejtpërdrejtë te endpoint-i i ri /admin/cases
-            const response = await (apiService as any).getAdminCases?.() || await fetch('/api/admin/cases', {
+            // V51.0: FIX URL — shtuar /v1/
+            const response = await (apiService as any).getAdminCases?.() || await fetch('/api/v1/admin/cases', {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+                    'Authorization': `Bearer ${_getAuthToken()}`,
                     'Content-Type': 'application/json'
                 }
             }).then(r => r.json());
@@ -125,8 +148,9 @@ const AdminDashboardPage: React.FC = () => {
     const handleUnlockCase = async (caseId: string, paymentMethod: 'CASH' | 'MBANKING' | 'CARD' = 'CASH', amount: number = 9.99) => {
         setActionLoadingId(caseId);
         try {
-            const token = localStorage.getItem('token') || '';
-            const res = await fetch(`/api/admin/cases/${caseId}/unlock`, {
+            // V51.0: FIX URL + token
+            const token = _getAuthToken();
+            const res = await fetch(`/api/v1/admin/cases/${caseId}/unlock`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -164,8 +188,9 @@ const AdminDashboardPage: React.FC = () => {
         if (!window.confirm("A jeni të sigurt që dëshironi ta bllokoni përsëri këtë lëndë?")) return;
         setActionLoadingId(caseId);
         try {
-            const token = localStorage.getItem('token') || '';
-            const res = await fetch(`/api/admin/cases/${caseId}/lock`, {
+            // V51.0: FIX URL + token
+            const token = _getAuthToken();
+            const res = await fetch(`/api/v1/admin/cases/${caseId}/lock`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -510,7 +535,7 @@ const AdminDashboardPage: React.FC = () => {
             )}
 
             {/* ========================================================================= */}
-            {/* TAB 2: 👥 BAZA E PËRDORUESVE (ORIGJINALE E RUAJTUR 100%) */}
+            {/* TAB 2: 👥 BAZA E PËRDORUESVE */}
             {/* ========================================================================= */}
             {activeTab === 'USERS' && (
                 <div className="glass-panel rounded-2xl border border-main overflow-hidden bg-canvas">

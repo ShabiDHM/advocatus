@@ -1,10 +1,16 @@
 # FILE: backend/app/services/synthesis/service.py
-# PHOENIX PROTOCOL - SYNTHESIS SERVICE V4.0 (modular)
+# PHOENIX PROTOCOL - SYNTHESIS SERVICE V4.1 (modular + parallel sections)
+# V4.1: PARALLEL SECTIONS — ThreadPoolExecutor me max_workers=3 (env override).
+#       Guardrails dhe post-processing mbeten brenda worker-it.
+#       Callbacks (progress + stream) jane thread-safe (caller perdor
+#       loop.call_soon_threadsafe).
 # V4.0: Modularizuar nga synthesis_service.py V3.8 — ZERO ndryshim funksional.
 # Vetëm orchestration. Logjika në modulët përkatës.
 
+import os
 import time
 import logging
+import concurrent.futures
 from typing import Any, Dict, List, Optional, Callable, Set
 from datetime import datetime, timezone
 
@@ -36,9 +42,21 @@ from .prompts import SECTION_PROMPTS
 logger = logging.getLogger(__name__)
 
 
+# V4.1: Konfigurim paralelizmi
+MAX_CONCURRENT_SECTIONS = int(os.environ.get("SYNTHESIS_MAX_WORKERS", "3"))
+
+# Seksionet qe kane guardrails (korrigjim pas generimit)
+GUARDRAIL_SECTIONS = {
+    "legal_framework",
+    "recommendations",
+    "executive_summary",
+    "key_findings_contradictions",
+}
+
+
 class SynthesisService:
     """
-    V4.0 (modular) — orchestration vetëm.
+    V4.1 (modular + parallel) — orchestration vetem.
     """
 
     def __init__(self, db):
@@ -72,10 +90,10 @@ class SynthesisService:
         )
 
         case_type = detect_case_type(self.db, case_id, extractions)
-        logger.info(f"🎯 [SYNTHESIS] Case type detected: {case_type}")
+        logger.info(f"🎯 [SYNTHESIS V4.1] Case type detected: {case_type}")
 
         canonical = self._build_canonical_entities(extractions, defendants_groups)
-        logger.info(f"🎯 [SYNTHESIS] Canonical entities: {canonical.stats()}")
+        logger.info(f"🎯 [SYNTHESIS V4.1] Canonical entities: {canonical.stats()}")
 
         articles_by_law = extract_articles_by_law(self.db, case_id)
         total_articles = sum(len(v) for v in articles_by_law.values())
@@ -97,7 +115,7 @@ class SynthesisService:
             articles_by_law, case_type, verified_citations
         )
         logger.info(
-            f"🔍 [SYNTHESIS] Digest built: {len(digest)} chars, "
+            f"🔍 [SYNTHESIS V4.1] Digest built: {len(digest)} chars, "
             f"case_type={case_type or 'unknown'}, "
             f"docs={len(extractions)}, "
             f"verified_laws={verified_citations['total_laws']}, "
@@ -106,17 +124,34 @@ class SynthesisService:
             f"case={case_id}"
         )
 
+        # ═══════════════════════════════════════════════════════════════
+        # V4.1: Procesim PARALEL i seksioneve
+        # ═══════════════════════════════════════════════════════════════
+
         sections: Dict[str, Any] = {}
         section_stats: Dict[str, Any] = {}
         guardrail_reports: Dict[str, Any] = {}
+        all_deadline_contradictions: List[Dict[str, Any]] = []
+
         total_hallucinations_fixed = 0
         total_institutions_fixed = 0
         total_prefix_fixes = 0
         total_citation_fixes = 0
         total_attribution_fixes = 0
-        all_deadline_contradictions: List[Dict[str, Any]] = []
 
-        for section_key, section_cfg in SECTION_PROMPTS.items():
+        logger.warning(
+            f"🚀 [SYNTHESIS V4.1] Nisur {len(SECTION_PROMPTS)} seksione "
+            f"me max_workers={MAX_CONCURRENT_SECTIONS}"
+        )
+
+        def _run_section_worker(
+            section_key: str,
+            section_cfg: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            """
+            V4.1: Ekzekuton nje seksion te vetem ne thread te pavarur.
+            Kthen dict me rezultatet per merge ne main thread.
+            """
             section_start = time.time()
             section_title = section_cfg["title"]
 
@@ -129,6 +164,12 @@ class SynthesisService:
                 except Exception:
                     pass
 
+            section_entry: Dict[str, Any] = {}
+            stat_entry: Dict[str, Any] = {}
+            gr_report: Optional[Dict[str, Any]] = None
+            fixes: Dict[str, int] = {}
+            deadline_contradictions: List[Dict[str, Any]] = []
+
             try:
                 raw_content = synthesize_section_streaming(
                     section_key=section_key,
@@ -139,16 +180,16 @@ class SynthesisService:
                 )
 
                 content, fix_stats = post_process_output(raw_content, canonical)
-                total_hallucinations_fixed += fix_stats.get("hallucinations_fixed", 0)
-                total_institutions_fixed += fix_stats.get("institutions_fixed", 0)
-                total_prefix_fixes += fix_stats.get("prefix_fixes", 0)
 
-                if section_key in (
-                    "legal_framework",
-                    "recommendations",
-                    "executive_summary",
-                    "key_findings_contradictions",
-                ) and content:
+                fixes = {
+                    "hallucinations_fixed": fix_stats.get("hallucinations_fixed", 0),
+                    "institutions_fixed": fix_stats.get("institutions_fixed", 0),
+                    "prefix_fixes": fix_stats.get("prefix_fixes", 0),
+                    "citation_fixes": 0,
+                    "attribution_fixes": 0,
+                }
+
+                if section_key in GUARDRAIL_SECTIONS and content:
                     logger.info(f"🔍 [GUARDRAILS] Checking {section_key}...")
 
                     checker_report = verify_citations_word_by_word(
@@ -159,7 +200,7 @@ class SynthesisService:
                     )
                     deadline_report = detect_deadline_contradictions(content)
 
-                    guardrail_reports[section_key] = {
+                    gr_report = {
                         "citations": checker_report,
                         "attributions": attribution_report,
                         "deadlines": deadline_report,
@@ -174,10 +215,10 @@ class SynthesisService:
                     )
 
                     if deadline_report.get("contradictions"):
-                        all_deadline_contradictions.extend([
+                        deadline_contradictions = [
                             {**c, "section": section_key}
                             for c in deadline_report["contradictions"]
-                        ])
+                        ]
 
                     has_citation_issues = bool(checker_report.get("unverified"))
                     has_attribution_issues = bool(attribution_report.get("unverified"))
@@ -204,24 +245,24 @@ class SynthesisService:
                             f"attributions_hall_rate={report_after_attr.get('hallucination_rate', 0)}%"
                         )
 
-                        total_citation_fixes += len(checker_report.get("unverified", []))
-                        total_attribution_fixes += len(attribution_report.get("unverified", []))
+                        fixes["citation_fixes"] = len(checker_report.get("unverified", []))
+                        fixes["attribution_fixes"] = len(attribution_report.get("unverified", []))
                         content = corrected_content
-                        guardrail_reports[section_key]["after_correction"] = {
+                        gr_report["after_correction"] = {
                             "citations": report_after_cit,
                             "attributions": report_after_attr,
                         }
 
-                sections[section_key] = {
+                section_entry = {
                     "title": section_title,
                     "content": content,
                 }
-                section_stats[section_key] = {
+                stat_entry = {
                     "duration_sec": round(time.time() - section_start, 2),
                     "content_length": len(content),
-                    "hallucinations_fixed": fix_stats.get("hallucinations_fixed", 0),
-                    "institutions_fixed": fix_stats.get("institutions_fixed", 0),
-                    "prefix_fixes": fix_stats.get("prefix_fixes", 0),
+                    "hallucinations_fixed": fixes["hallucinations_fixed"],
+                    "institutions_fixed": fixes["institutions_fixed"],
+                    "prefix_fixes": fixes["prefix_fixes"],
                 }
 
                 if progress_callback:
@@ -235,16 +276,98 @@ class SynthesisService:
                         pass
 
             except Exception as e:
-                logger.error(f"❌ [SYNTHESIS] Section {section_key} failed: {e}")
-                sections[section_key] = {
+                logger.error(f"❌ [SYNTHESIS V4.1] Section {section_key} failed: {e}")
+                section_entry = {
                     "title": section_title,
                     "content": "",
                     "error": str(e),
                 }
-                section_stats[section_key] = {
+                stat_entry = {
                     "duration_sec": round(time.time() - section_start, 2),
                     "error": str(e),
                 }
+
+            return {
+                "section_key": section_key,
+                "section_entry": section_entry,
+                "stat_entry": stat_entry,
+                "guardrail_report": gr_report,
+                "fixes": fixes,
+                "deadline_contradictions": deadline_contradictions,
+            }
+
+        # ──────────────────────────────────────────────────────────────
+        # Ekzekutim paralel me ThreadPoolExecutor
+        # ──────────────────────────────────────────────────────────────
+        try:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=MAX_CONCURRENT_SECTIONS,
+                thread_name_prefix="synth",
+            ) as executor:
+                futures = {
+                    executor.submit(_run_section_worker, k, c): k
+                    for k, c in SECTION_PROMPTS.items()
+                }
+
+                for fut in concurrent.futures.as_completed(futures):
+                    section_key = futures[fut]
+                    try:
+                        res = fut.result()
+                    except Exception as e:
+                        logger.error(
+                            f"❌ [SYNTHESIS V4.1] Future failed for {section_key}: {e}"
+                        )
+                        sections[section_key] = {
+                            "title": SECTION_PROMPTS[section_key]["title"],
+                            "content": "",
+                            "error": str(e),
+                        }
+                        section_stats[section_key] = {"error": str(e)}
+                        continue
+
+                    sections[res["section_key"]] = res["section_entry"]
+                    section_stats[res["section_key"]] = res["stat_entry"]
+
+                    if res.get("guardrail_report"):
+                        guardrail_reports[res["section_key"]] = res["guardrail_report"]
+
+                    fixes = res.get("fixes", {}) or {}
+                    total_hallucinations_fixed += fixes.get("hallucinations_fixed", 0)
+                    total_institutions_fixed += fixes.get("institutions_fixed", 0)
+                    total_prefix_fixes += fixes.get("prefix_fixes", 0)
+                    total_citation_fixes += fixes.get("citation_fixes", 0)
+                    total_attribution_fixes += fixes.get("attribution_fixes", 0)
+
+                    if res.get("deadline_contradictions"):
+                        all_deadline_contradictions.extend(res["deadline_contradictions"])
+
+        except Exception as e:
+            logger.error(f"❌ [SYNTHESIS V4.1] ThreadPoolExecutor failed: {e}")
+            # Fallback: sequential
+            logger.warning("🔄 [SYNTHESIS V4.1] Fallback në sequential mode")
+            for section_key, section_cfg in SECTION_PROMPTS.items():
+                try:
+                    res = _run_section_worker(section_key, section_cfg)
+                    sections[section_key] = res["section_entry"]
+                    section_stats[section_key] = res["stat_entry"]
+                    if res.get("guardrail_report"):
+                        guardrail_reports[section_key] = res["guardrail_report"]
+                    fixes = res.get("fixes", {}) or {}
+                    total_hallucinations_fixed += fixes.get("hallucinations_fixed", 0)
+                    total_institutions_fixed += fixes.get("institutions_fixed", 0)
+                    total_prefix_fixes += fixes.get("prefix_fixes", 0)
+                    total_citation_fixes += fixes.get("citation_fixes", 0)
+                    total_attribution_fixes += fixes.get("attribution_fixes", 0)
+                    if res.get("deadline_contradictions"):
+                        all_deadline_contradictions.extend(res["deadline_contradictions"])
+                except Exception as e2:
+                    logger.error(f"❌ [SEQUENTIAL FALLBACK] {section_key}: {e2}")
+
+        # V4.1: Rendit seksionet sipas definicionit
+        sections = {k: sections[k] for k in SECTION_PROMPTS.keys() if k in sections}
+        section_stats = {
+            k: section_stats[k] for k in SECTION_PROMPTS.keys() if k in section_stats
+        }
 
         duration = round(time.time() - start, 2)
 
@@ -278,9 +401,12 @@ class SynthesisService:
                 "citation_hallucinations_fixed": total_citation_fixes,
                 "attribution_hallucinations_fixed": total_attribution_fixes,
                 "deadline_contradictions": len(all_deadline_contradictions),
-                "sections_generated": len([s for s in sections.values() if s.get("content")]),
+                "sections_generated": len(
+                    [s for s in sections.values() if s.get("content")]
+                ),
                 "sections_total": len(SECTION_PROMPTS),
                 "duration_sec": duration,
+                "execution_mode": f"parallel_x{MAX_CONCURRENT_SECTIONS}",
             },
             "guardrail_reports": guardrail_reports,
             "regex_verified_citations": verified_citations,
@@ -292,14 +418,14 @@ class SynthesisService:
         persist(self.db, result)
 
         logger.info(
-            f"✅ [SYNTHESIS] Complete: case={case_id}, "
+            f"✅ [SYNTHESIS V4.1] Complete: case={case_id}, "
             f"case_type={case_type}, "
             f"hallucinations_fixed={total_hallucinations_fixed}, "
             f"citation_hallucinations_fixed={total_citation_fixes}, "
             f"attribution_hallucinations_fixed={total_attribution_fixes}, "
             f"deadline_contradictions={len(all_deadline_contradictions)}, "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
-            f"duration={duration}s"
+            f"duration={duration}s, mode={result['stats']['execution_mode']}"
         )
 
         return result
