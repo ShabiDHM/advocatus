@@ -51,7 +51,6 @@ build/
 # Operating System & IDE Files
 .DS_Store
 Thumbs.db
-*.ps1
 .vscode/
 .idea/
 *.swp
@@ -60,3 +59,54 @@ Thumbs.db
 # Celery & Worker Artifacts
 celerybeat-schedule
 celerybeat.pid
+
+# ==========================================
+# DEBUG/TEST SCRIPTS (one-shot, lokale)
+# ==========================================
+# Keto jane skripte ndihmese per diagnoze/testim qe nuk duhen ne production.
+# Krijohen dhe fshihen gjate sesioneve te zhvillimit.
+
+_test_*.py
+_check_*.py
+_verify_*.py
+_backup_*.py
+_cluster_phase*.py
+_cleanup.py
+_dbg_*.py
+_temp_*.py
+
+# ==========================================
+# DEBUG/TEST OUTPUTS
+# ==========================================
+_test_*_output.txt
+_dbg_*.txt
+_dbg_*.json
+
+# ==========================================
+# ML CACHE (rigjenerohen shpejt)
+# ==========================================
+# Keto file-at jane disa MB dhe mund te rigjenerohen ne 2 min.
+_cluster_embeddings_cache.npz
+_cluster_centroids.npz
+*.faiss
+*.index
+
+# ==========================================
+# DB BACKUPS (fshij pas 3 ditesh)
+# ==========================================
+# Backup i legal_knowledge_base me timestamp. Fshije pas verifikimit.
+legal_knowledge_base_backup_*.jsonl
+
+# ==========================================
+# REFERENCE LOKALE (nuk commit-ohen)
+# ==========================================
+# Output-i i topic clustering. Rigjenerohet me scripts/precedent_ops/*.py.
+_cluster_assignments.json
+_cluster_labels.json
+
+# ==========================================
+# SESIONE TE VJETRA (chat dumps, recaps)
+# ==========================================
+_recon_*.txt
+_user_service_full.txt
+*.session.txt

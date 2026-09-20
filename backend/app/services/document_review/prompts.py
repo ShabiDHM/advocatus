@@ -1,15 +1,11 @@
 # FILE: backend/app/services/document_review/prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V4.6 (LEGAL AUDIT, ASCII-SAFE)
-# V4.6: BALANCIM I PRECEDENTEVE (fix overcorrection V4.5):
-#       - Prompt "supreme_court_precedents" rishkruar me 3 NIVEL RELEVANCE:
-#           (1) TEME IDENTIKE -> shpjego me 2-3 rreshta KONKRETE
-#           (2) TEME E NGJASHME -> shpjego VETEM nese ka lidhje te qarte
-#           (3) TEME E NDRYSHME -> "Nuk ka lidhje te drejtedrejte"
-#         Kjo parandalon si spekullimin (V4.4) ashtu edhe overcorrection (V4.5)
-#         ku LLM refuzonte edhe precedentët tematikë.
-#       - Shtuar shembuj konkretë ne prompt (few-shot).
-#       - max_tokens: 2400 -> 3500 (10 precedentë × shpjegim + Seksioni C
-#         po pritej ne V4.5).
+# PHOENIX PROTOCOL - SECTION PROMPTS V4.7 (LEGAL AUDIT, ASCII-SAFE)
+# V4.7: INTEGRIMI I TOPIC_LABEL NE PRECEDENTE (Shtresa 2.2):
+#       - _block_precedents() shfaq "Tema: X" per cdo precedent
+#       - Shfaq rerank_score nese ekziston
+#       - Shton shenim per LLM: perdor temen per klasifikim, por vendos
+#         mbi fragmentin.
+# V4.6: BALANCIM I PRECEDENTEVE (3 nivele relevance + shembuj).
 # V4.5: Rregull ndershmërie (overcorrected).
 # V4.4: INTEGRIMI I PRECEDENTEVE TE VERTETA.
 # V4.3: Fix-e pas raportit te Shtator 2026.
@@ -167,6 +163,16 @@ Per CDO precedent ne bllok, klasifikoji ne nje nga 3 nivelet:
     * "thekson parimin e..." (kur parimi s'ka lidhje)
 
 ═══════════════════════════════════════════════════════════════════════════
+INFO SHTESE: TEMA E SISTEMIT (V4.7)
+═══════════════════════════════════════════════════════════════════════════
+Çdo precedent ne bllok ka nje fushe "Tema: X" (topic_label e gjeneruar nga
+sistemi). Kjo te ndihmon per klasifikim te shpejte, POR:
+  - Vendos GJITHMONE mbi FRAGMENTIN dhe JO mbi temen.
+  - Tema eshte kontekst shtesë, nuk eshte kriter absolut.
+  - Nese tema duket e pergjithshme ("Vendime te Gjykates Supreme"),
+    shiko fragmentin per te klasifikuar.
+
+═══════════════════════════════════════════════════════════════════════════
 SHEMBUJ KONKRETË (few-shot)
 ═══════════════════════════════════════════════════════════════════════════
 
@@ -175,6 +181,7 @@ ME FEMIJE TE MITUR.
 
 ✅ SAKTË (Niveli 1):
    1. Rev.Nr.240/2024
+      Tema: Vertetimi i atesise dhe interesat e femijes
       Fragment: "...vendimi per besim te fëmijës nënës... kontaktit..."
       Rendesia praktike: Ka lidhje te drejtedrejte. Diskuton pikërisht
       besimin e fëmijës dhe kontaktin — tema identike me kete lende.
@@ -182,12 +189,14 @@ ME FEMIJE TE MITUR.
 
 ✅ SAKTË (Niveli 2):
    2. Rev.Nr.171/24
+      Tema: E drejta per gjykim te drejte
       Fragment: "...qasja ne drejtesi...gjykim te drejte..."
       Rendesia praktike: Ka lidhje indirekte permes parimit te qasjes
       ne drejtesi. Perdoret nese pala ankohet per mohim te qasjes.
 
 ❌ SAKTË (Niveli 3 - REFUZO):
    3. Rev.Nr.64/2024
+      Tema: E drejta e pronesise
       Fragment: "...ndarje e pasurise familjare 1995...kontrata mbi
       mbajtjen e perjetshme..."
       Rendesia praktike: Nuk ka lidhje te drejtedrejte me kete lende.
@@ -210,6 +219,7 @@ Per cdo numer lende qe shfaqet ne dokument:
 ### B. Precedentë Relevante (nga baza zyrtare)
 Per cdo precedent ne bllok:
 - Numri i lendes (saktesisht siç shfaqet)
+- Tema (siç shfaqet ne bllok)
 - Fragmenti relevant (1-2 rreshta)
 - Burimi + faqja
 - Rendesia praktike (sipas 3 niveleve me lart)
@@ -425,7 +435,7 @@ def _block_meta(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V4.4: PRECEDENTS BLOCK
+# V4.4 / V4.7: PRECEDENTS BLOCK (me topic_label)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _block_precedents(
@@ -433,6 +443,7 @@ def _block_precedents(
 ) -> List[str]:
     """
     V4.4: Blloku i precedenteve te vertete te gjetur nga legal_knowledge_base.
+    V4.7: Shton "Tema: X" (topic_label) dhe rerank_score per cdo precedent.
     """
     lines: List[str] = []
     lines.append("=" * 70)
@@ -468,6 +479,10 @@ def _block_precedents(
         "TEME IDENTIKE -> shpjego; TEME E NGJASHME -> shpjego; "
         "TEME E NDRYSHME -> 'Nuk ka lidhje të drejtpërdrejtë'."
     )
+    lines.append(
+        "⚠️ Tema e secilit precedent është treguar (për kontekst shtesë). "
+        "Përdore për klasifikim më të mirë, por VENDOS mbi fragmentin."
+    )
     lines.append("")
 
     for i, p in enumerate(precedents, 1):
@@ -477,10 +492,20 @@ def _block_precedents(
         source = p.get("source", "?")
         page = p.get("page", "?")
         chunk_id = p.get("chunk_id", "?")
+        topic_label = p.get("topic_label")
+        rerank_score = p.get("rerank_score")
 
         lines.append(f"  {i}. [{case_number}] — similarity={similarity:.2f}")
+
+        if rerank_score is not None:
+            lines.append(f"     Rerank score: {rerank_score:.2f}")
+
+        if topic_label:
+            lines.append(f"     Tema: {topic_label}")
+
         if excerpt:
             lines.append(f'     Fragment: "{excerpt[:400]}"')
+
         lines.append(f"     Burimi: {source}, faqe {page}")
         lines.append(f"     chunk_id: {chunk_id}")
         lines.append("")
@@ -855,7 +880,7 @@ def _block_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
 
 
 # ===========================================================
-# MAIN - build_verified_context (per-section) V4.6
+# MAIN - build_verified_context (per-section) V4.7
 # ===========================================================
 
 def build_verified_context(
@@ -868,11 +893,12 @@ def build_verified_context(
     precedents: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """
-    V4.6: Nderton tekstin me faktet e verifikuara.
+    V4.7: Nderton tekstin me faktet e verifikuara + precedentet.
 
     Args:
-        precedents: V4.4 - liste me precedentet e vertete (nga precedent_search).
+        precedents: liste me precedentet e vertete (nga precedent_search).
                     Perdoret vetem per section_key="supreme_court_precedents".
+                    V4.7: mund te kete topic_label, rerank_score.
     """
     if section_key:
         blocks_needed = SECTION_CONTEXT_MAP.get(section_key, ALL_CONTEXT_BLOCKS)
