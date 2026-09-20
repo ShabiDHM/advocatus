@@ -110,3 +110,12 @@ _cluster_labels.json
 _recon_*.txt
 _user_service_full.txt
 *.session.txt
+
+# ==========================================
+# HARVEST RUNTIME (state + logs + backups)
+# ==========================================
+# Harvester Supreme Court — state lokal, logs, backups.
+# Rigjenerohen / rikrijohen gjate ekzekutimit.
+_harvest_log_*.txt
+_harvest_progress.json
+_backup_pre_caselaw_*.jsonl
