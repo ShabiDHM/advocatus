@@ -1,11 +1,12 @@
 # FILE: backend/app/services/synthesis/digest.py
-# PHOENIX PROTOCOL - DIGEST BUILDER V1.3
+# PHOENIX PROTOCOL - DIGEST BUILDER V1.4
+# V1.4: PRECEDENTE TE VERTETA - shtuar precedents= param + _append_precedents_block().
+#       Blloku "🏛️ PRECEDENTE RELEVANTE" shfaqet kur precedent_search kthen
+#       rezultate. Blloku perfshin case_number, fragment, source, page,
+#       topic_label, rerank_score. Ripërdorueshëm me document_review.
 # V1.3: Shtuar bllok "📅 AFATET ME BURIME" — çdo afat me dokumentin burimor.
-#       Parandalon atribuimin e gabuar të afatit (8 vs 10 ditë).
-# V1.2: (1) Hequr client_position nga KLIENTI block — konflikton me rolin real
-#       në dokumente (Shaban=DEFENDANT në case por PLAINTIFF në case.client_position).
-#       (2) Dedup i emrave me parenthetical: "Sanije (Azem) Bala" == "Sanije Bala".
-#       (3) Filtrim i noise: heq rolet e atribuuara gabimisht fëmijëve (Andi, Elda, Elsa).
+# V1.2: Hequr client_position nga KLIENTI block. Dedup i emrave me parenthetical.
+#       Filtrim i noise: heq rolet e atribuuara gabimisht fëmijëve.
 # V1.1: Shtuar bllok KLIENTI + PALËT ME ROLE nga metadata.parties.
 # V1.0: Ekstraktuar nga synthesis_service.py V3.8.
 
@@ -28,7 +29,14 @@ def build_digest(
     articles_by_law: Dict[str, Dict[str, str]],
     case_type: Optional[str] = None,
     verified_citations: Optional[Dict[str, Any]] = None,
+    precedents: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
+    """
+    V1.4: Nderton digest-in per Synthesis.
+    Args:
+        precedents: V1.4 - liste me precedente te vertete (nga precedent_search).
+                    Perdoret per bllokun "🏛️ PRECEDENTE RELEVANTE".
+    """
     lines: List[str] = []
 
     lines.append("=" * 70)
@@ -78,9 +86,7 @@ def build_digest(
     # V1.2: PARTIES ME ROLE (dedup + filter children)
     _append_parties_with_roles(lines, extractions, defendants_groups)
 
-    # ═══════════════════════════════════════════════════════════════════════
     # V1.3: AFATET ME BURIME — parandalon atribuimin e gabuar
-    # ═══════════════════════════════════════════════════════════════════════
     _append_deadlines_with_sources(lines, extractions)
 
     if defendants_groups:
@@ -98,6 +104,11 @@ def build_digest(
             lines.append(f"  • {d}")
         lines.append("")
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # V1.4: PRECEDENTE TE VERTETA NGA BAZA E GJYKATES SUPREME
+    # ═══════════════════════════════════════════════════════════════════════
+    _append_precedents_block(lines, precedents)
+
     if xrefs:
         _append_cross_references(lines, xrefs)
 
@@ -107,6 +118,81 @@ def build_digest(
         digest = digest[:MAX_DIGEST_CHARS] + "\n\n[...digest truncated...]"
 
     return digest
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.4: PRECEDENTS BLOCK (i re)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _append_precedents_block(
+    lines: List[str],
+    precedents: Optional[List[Dict[str, Any]]],
+) -> None:
+    """
+    V1.4: Blloku "🏛️ PRECEDENTE RELEVANTE" me precedentet e vertete.
+
+    Nese lista eshte bosh ose None -> NUK shton asnje bllok.
+    (LLM do te shkruaje fraze standarde ne legal_framework kur te mos kete
+    precedentë — sipas prompt-it V1.5.)
+    """
+    if not precedents:
+        return
+
+    lines.append("=" * 70)
+    lines.append("🏛️ PRECEDENTE RELEVANTE (nga baza e Gjykatës Supreme)")
+    lines.append("=" * 70)
+    lines.append(
+        f"Total: {len(precedents)} precedentë të verifikuar në bazën zyrtare."
+    )
+    lines.append("")
+    lines.append(
+        "⚠️ ÇDO precedent i mëposhtëm është VERIFIKUAR në bazën zyrtare të "
+        "Gjykatës Supreme."
+    )
+    lines.append(
+        "⚠️ NUK LEJOHET të shpikësh numra të tjerë, faqe, ose burime."
+    )
+    lines.append(
+        "⚠️ Përdore këtë bllok në seksionin 'KUADRI LIGJOR DHE NENET' → "
+        "nën-seksionin 'Jurisprudenca'."
+    )
+    lines.append(
+        "⚠️ Para se të shkruash 'Rëndësia' për një precedent, kontrollo nëse "
+        "ka lidhje TË DREJTPËRDREJTË me temën e lëndës. Nëse JO → shkruaj "
+        "'Nuk ka lidhje të drejtpërdrejtë me këtë lëndë.' PA spekullim."
+    )
+    lines.append("")
+
+    for i, p in enumerate(precedents, 1):
+        case_number = str(p.get("case_number", "?")).strip()
+        similarity = p.get("similarity", 0.0)
+        excerpt = (p.get("text_excerpt") or "").strip()
+        source = p.get("source", "?")
+        page = p.get("page", "?")
+        chunk_id = p.get("chunk_id", "?")
+        topic_label = p.get("topic_label")
+        rerank_score = p.get("rerank_score")
+
+        lines.append(f"  {i}. [{case_number}] — similarity={similarity:.2f}")
+
+        if rerank_score is not None:
+            lines.append(f"     Rerank score: {rerank_score:.2f}")
+
+        if topic_label:
+            lines.append(f"     Tema: {topic_label}")
+
+        if excerpt:
+            lines.append(f'     Fragment: "{excerpt[:400]}"')
+
+        lines.append(f"     Burimi: {source}, faqe {page}")
+        lines.append(f"     chunk_id: {chunk_id}")
+        lines.append("")
+
+    lines.append(
+        "⚠️ RREGULL: Paraqit VETËM këta precedentë në raport. "
+        "NUK LEJOHET të shpikësh asnjë tjetër."
+    )
+    lines.append("")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -265,18 +351,6 @@ def _append_deadlines_with_sources(
 ) -> None:
     """
     V1.3: Shton bllokun me afatet + dokumentin burimor.
-
-    Shembull output:
-    ═══════════════════════════════════════════════════════════════════
-    📅 AFATET E IDENTIFIKUARA ME BURIME
-    ═══════════════════════════════════════════════════════════════════
-    ⚠️ ÇDO afat DUHET cituar ME BURIMIN e saktë në raport.
-    ⚠️ NËSE ka dy afate kontradiktore → listoji TË GJITHA me burime.
-
-      • 10 ditë — [Refuzimi_e_hedhjes_se_akuzes.pdf]
-          Konteksti: "Kundër këtij vendimi është i lejuar ankim..."
-      • 8 ditë — [KERKESE_PER_HUDHJE_Akuzes.pdf]
-          Konteksti: "...afat prej 8 ditësh..."
     """
     deadlines = _extract_deadlines_from_extractions(extractions)
 

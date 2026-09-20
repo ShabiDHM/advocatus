@@ -1,6 +1,10 @@
 # FILE: backend/app/services/document_review/precedent_search/service.py
-# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.2
-# V2.2: _cli_test() shfaq topic_label + rerank_score (Shtresa 2.1).
+# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.3
+# V2.3: Integrimi i Cohere Reranker dispatcher:
+#       - Import rerank() ne vend te rerank_deepseek()
+#       - Min score i veçante per Cohere (0-1) dhe DeepSeek (0-10)
+#       - Log shfaq reranker aktual
+# V2.2: _cli_test() shfaq topic_label + rerank_score.
 # V2.1: Filtrim me rerank_score >= PRECEDENT_RERANK_MIN_SCORE.
 # V2.0: Hybrid (Atlas + MongoDB text + RRF) + DeepSeek rerank.
 
@@ -17,6 +21,7 @@ from .config import (
     PRECEDENT_RRF_K,
     PRECEDENT_RERANKER,
     PRECEDENT_RERANK_MIN_SCORE,
+    PRECEDENT_RERANK_COHERE_MIN_SCORE,
 )
 from .helpers import is_real_case_number, format_result
 from .searchers import (
@@ -25,7 +30,7 @@ from .searchers import (
     search_fallback,
     rrf_fusion,
 )
-from .rerank import rerank_deepseek
+from .rerank import rerank
 
 logger = logging.getLogger(__name__)
 
@@ -41,34 +46,34 @@ def search_relevant_precedents(
     threshold: float = PRECEDENT_SIMILARITY_THRESHOLD,
 ) -> List[Dict[str, Any]]:
     """
-    V2.2: Hybrid (Atlas + MongoDB text + RRF) + DeepSeek rerank + topic enrichment.
+    V2.3: Hybrid (Atlas + MongoDB text + RRF) + Reranker (DeepSeek ose Cohere).
 
     Rrjedha:
       1. Embedding query
       2. Kandidatet: hybrid ose vector-only ose fallback
       3. Filtrim: _is_real_case_number + cosine threshold (VETEM per cosine)
       4. Dedup sipas case_number
-      5. Rerank me DeepSeek
-      6. Filtrim me rerank_score >= PRECEDENT_RERANK_MIN_SCORE
+      5. Rerank me reranker te zgjedhur (deepseek | cohere | none)
+      6. Filtrim me rerank_score >= min_score (i veçante per cdo reranker)
       7. Format + log
     """
     if not query_text or not query_text.strip():
-        logger.warning("[PRECEDENT] Query bosh - kthim []")
+        logger.warning("⚠️ [PRECEDENT] Query bosh - kthim []")
         return []
 
     if db is None:
-        logger.error("[PRECEDENT] db=None - kthim []")
+        logger.error("❌ [PRECEDENT] db=None - kthim []")
         return []
 
     # 1. Embedding
     try:
         query_vector = generate_embedding(query_text)
     except Exception as e:
-        logger.error(f"[PRECEDENT] Embedding deshtoi: {e}")
+        logger.error(f"❌ [PRECEDENT] Embedding deshtoi: {e}")
         return []
 
     if not query_vector:
-        logger.error("[PRECEDENT] Embedding bosh - kthim []")
+        logger.error("❌ [PRECEDENT] Embedding bosh - kthim []")
         return []
 
     # 2. Kandidatet
@@ -80,7 +85,7 @@ def search_relevant_precedents(
         text_results = search_mongo_text(db, query_text, limit=PRECEDENT_CANDIDATES)
 
         if not vector_results and not text_results:
-            logger.warning("[PRECEDENT] Hybrid bosh - fallback cosine")
+            logger.warning("⚠️ [PRECEDENT] Hybrid bosh - fallback cosine")
             candidates = search_fallback(db, query_vector, limit=PRECEDENT_CANDIDATES)
             strategy = "fallback_cosine"
         elif not text_results:
@@ -103,7 +108,7 @@ def search_relevant_precedents(
 
     if not candidates:
         logger.warning(
-            f"[PRECEDENT] Asnje kandidat (strategjia={strategy}). Kthim []"
+            f"⚠️ [PRECEDENT] Asnje kandidat (strategjia={strategy}). Kthim []"
         )
         return []
 
@@ -122,7 +127,7 @@ def search_relevant_precedents(
 
     if not filtered_for_dedup:
         logger.info(
-            f"[PRECEDENT] 0 kandidate pas filtrit (strategjia={strategy})"
+            f"ℹ️ [PRECEDENT] 0 kandidate pas filtrit (strategjia={strategy})"
         )
         return []
 
@@ -147,21 +152,30 @@ def search_relevant_precedents(
 
     deduped = list(seen.values())
 
-    # 5. Rerank
+    # 5. Rerank (dispatcher: deepseek | cohere | none)
     reranked = False
-    if PRECEDENT_RERANKER == "deepseek" and len(deduped) > 0:
-        reranked_docs = rerank_deepseek(query_text, deduped, top_n=top_k * 2)
+    if PRECEDENT_RERANKER in ("deepseek", "cohere") and len(deduped) > 0:
+        reranked_docs = rerank(query_text, deduped, top_n=top_k * 2)
         reranked = True
+
+        # V2.3: Min score i veçante per cdo reranker
+        if PRECEDENT_RERANKER == "cohere":
+            # Cohere: score origjinal 0-1 -> ne e ruajme rerank_score 0-10
+            # Min score i konfiguruar 0.5 (0-1) skalohet ne 5.0 (0-10)
+            min_score = PRECEDENT_RERANK_COHERE_MIN_SCORE * 10.0
+        else:
+            # DeepSeek: score 0-10 direkt
+            min_score = PRECEDENT_RERANK_MIN_SCORE
 
         final_docs = [
             d for d in reranked_docs
-            if d.get("rerank_score", 0.0) >= PRECEDENT_RERANK_MIN_SCORE
+            if d.get("rerank_score", 0.0) >= min_score
         ]
 
         if not final_docs and reranked_docs:
             logger.info(
-                f"[RERANK] Asnje kandidat me score >= "
-                f"{PRECEDENT_RERANK_MIN_SCORE}. Marr top 3 si fallback."
+                f"⚠️ [RERANK] Asnje kandidat me score >= "
+                f"{min_score:.2f}. Marr top 3 si fallback."
             )
             final_docs = reranked_docs[:3]
     else:
@@ -182,13 +196,13 @@ def search_relevant_precedents(
 
     # 7. Log
     logger.info(
-        f"[PRECEDENT] Strategjia={strategy}, "
+        f"🏛️ [PRECEDENT] Strategjia={strategy}, "
+        f"reranker={PRECEDENT_RERANKER}, "
         f"reranked={reranked}, "
         f"kandidate={len(candidates)}, "
         f"pas_threshold={len(filtered_for_dedup)}, "
         f"dedup={len(deduped)}, "
-        f"final={len(formatted)} "
-        f"(min_rerank_score={PRECEDENT_RERANK_MIN_SCORE})"
+        f"final={len(formatted)}"
     )
     for i, p in enumerate(formatted, 1):
         rs = p.get("rerank_score", "-")
@@ -205,7 +219,7 @@ def search_relevant_precedents(
 
     if not formatted:
         logger.info(
-            f"[PRECEDENT] Asnje precedent i mjaftueshem - "
+            f"ℹ️ [PRECEDENT] Asnje precedent i mjaftueshem - "
             f"raporti do te shkruaje frazen standarde"
         )
 
@@ -232,10 +246,13 @@ def _cli_test():
     )
 
     print(f"\n{'=' * 70}")
-    print(f"TEST V2.2 - Query: '{test_query}'")
+    print(f"TEST V2.3 - Query: '{test_query}'")
     print(f"Hybrid: {PRECEDENT_USE_HYBRID}, Reranker: {PRECEDENT_RERANKER}")
     print(f"Threshold: {PRECEDENT_SIMILARITY_THRESHOLD}, Top-K: {PRECEDENT_TOP_K}")
-    print(f"Min rerank score: {PRECEDENT_RERANK_MIN_SCORE}")
+    if PRECEDENT_RERANKER == "cohere":
+        print(f"Min Cohere score: {PRECEDENT_RERANK_COHERE_MIN_SCORE}")
+    else:
+        print(f"Min DeepSeek score: {PRECEDENT_RERANK_MIN_SCORE}")
     print('=' * 70)
 
     results = search_relevant_precedents(db, test_query, top_k=5)

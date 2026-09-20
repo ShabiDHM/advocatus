@@ -1,7 +1,14 @@
 # FILE: backend/app/services/synthesis/service.py
-# PHOENIX PROTOCOL - SYNTHESIS SERVICE V4.2 (modular + parallel + role fix)
-# V4.2: Shtuar forbidden_parties detection — fëmijët dhe anëtarët familjarë
-#       nuk klasifikohen si palë nga post-processing. Deterministik, jo-LLM.
+# PHOENIX PROTOCOL - SYNTHESIS SERVICE V4.3 (modular + parallel + role fix + precedents)
+# V4.3: INTEGRIMI I PRECEDENTEVE TE VERTETA:
+#       - Import search_synthesis_precedents nga precedent_search.py
+#       - Para build_digest(), therret search_synthesis_precedents() me
+#         case_type + extractions
+#       - Kalon precedents ne build_digest() per bllokun "🏛️ PRECEDENTE RELEVANTE"
+#       - Feature flag: SYNTHESIS_USE_PRECEDENTS (default true)
+#       - Stats shtuar: precedents_found
+# V4.2: Shtuar forbidden_parties detection — femijet dhe anetaret familjare
+#       nuk klasifikohen si pale nga post-processing.
 # V4.1: PARALLEL SECTIONS — ThreadPoolExecutor me max_workers=5 (env override).
 # V4.0: Modularizuar nga synthesis_service.py V3.8 — ZERO ndryshim funksional.
 
@@ -20,6 +27,7 @@ from .citation_extraction import (
     extract_articles_by_law,
 )
 from .digest import build_digest
+from .precedent_search import search_synthesis_precedents
 from .guardrails import (
     verify_citations_word_by_word,
     verify_attribution_word_by_word,
@@ -43,6 +51,11 @@ logger = logging.getLogger(__name__)
 
 # V4.1: Konfigurim paralelizmi
 MAX_CONCURRENT_SECTIONS = int(os.environ.get("SYNTHESIS_MAX_WORKERS", "3"))
+
+# V4.3: Feature flag per precedentët
+SYNTHESIS_USE_PRECEDENTS = (
+    os.environ.get("SYNTHESIS_USE_PRECEDENTS", "true").lower() == "true"
+)
 
 # Seksionet qe kane guardrails (korrigjim pas generimit)
 GUARDRAIL_SECTIONS = {
@@ -99,7 +112,7 @@ def _extract_forbidden_party_names(
 
 class SynthesisService:
     """
-    V4.2 (modular + parallel + role fix) — orchestration vetem.
+    V4.3 (modular + parallel + role fix + precedents) — orchestration vetem.
     """
 
     def __init__(self, db):
@@ -133,10 +146,10 @@ class SynthesisService:
         )
 
         case_type = detect_case_type(self.db, case_id, extractions)
-        logger.info(f"🎯 [SYNTHESIS V4.2] Case type detected: {case_type}")
+        logger.info(f"🎯 [SYNTHESIS V4.3] Case type detected: {case_type}")
 
         canonical = self._build_canonical_entities(extractions, defendants_groups)
-        logger.info(f"🎯 [SYNTHESIS V4.2] Canonical entities: {canonical.stats()}")
+        logger.info(f"🎯 [SYNTHESIS V4.3] Canonical entities: {canonical.stats()}")
 
         articles_by_law = extract_articles_by_law(self.db, case_id)
         total_articles = sum(len(v) for v in articles_by_law.values())
@@ -153,17 +166,50 @@ class SynthesisService:
             a["number"] for a in verified_citations.get("articles", [])
         }
 
+        # ═══════════════════════════════════════════════════════════════
+        # V4.3: PRECEDENT SEARCH (para build_digest)
+        # ═══════════════════════════════════════════════════════════════
+        precedents: List[Dict[str, Any]] = []
+        precedent_search_sec = 0.0
+
+        if SYNTHESIS_USE_PRECEDENTS:
+            t_prec = time.time()
+            try:
+                precedents = search_synthesis_precedents(
+                    db=self.db,
+                    case_type=case_type,
+                    extractions=extractions,
+                )
+                logger.info(
+                    f"🏛️ [SYNTHESIS V4.3] Precedent search: "
+                    f"{len(precedents)} rezultate"
+                )
+            except Exception as e:
+                logger.error(f"❌ [SYNTHESIS V4.3] Precedent search failed: {e}")
+                precedents = []
+            precedent_search_sec = round(time.time() - t_prec, 2)
+        else:
+            logger.info(
+                "ℹ️ [SYNTHESIS V4.3] Precedent search DISABLED "
+                "(SYNTHESIS_USE_PRECEDENTS=false)"
+            )
+
+        # ═══════════════════════════════════════════════════════════════
+        # BUILD DIGEST (me precedents)
+        # ═══════════════════════════════════════════════════════════════
         digest = build_digest(
             case, extractions, xrefs, defendants_groups,
-            articles_by_law, case_type, verified_citations
+            articles_by_law, case_type, verified_citations,
+            precedents=precedents,
         )
         logger.info(
-            f"🔍 [SYNTHESIS V4.2] Digest built: {len(digest)} chars, "
+            f"🔍 [SYNTHESIS V4.3] Digest built: {len(digest)} chars, "
             f"case_type={case_type or 'unknown'}, "
             f"docs={len(extractions)}, "
             f"verified_laws={verified_citations['total_laws']}, "
             f"verified_articles={verified_citations['total_articles']}, "
             f"verified_pairs={verified_citations['total_pairs']}, "
+            f"precedents={len(precedents)}, "
             f"case={case_id}"
         )
 
@@ -173,12 +219,12 @@ class SynthesisService:
         forbidden_parties = _extract_forbidden_party_names(extractions)
         if forbidden_parties:
             logger.info(
-                f"🚫 [SYNTHESIS V4.2] Forbidden party names (children): "
+                f"🚫 [SYNTHESIS V4.3] Forbidden party names (children): "
                 f"{sorted(forbidden_parties)}"
             )
         else:
             logger.info(
-                f"🚫 [SYNTHESIS V4.2] No forbidden party names detected"
+                f"🚫 [SYNTHESIS V4.3] No forbidden party names detected"
             )
 
         # ═══════════════════════════════════════════════════════════════
@@ -198,7 +244,7 @@ class SynthesisService:
         total_misattributed_roles_fixed = 0
 
         logger.warning(
-            f"🚀 [SYNTHESIS V4.2] Nisur {len(SECTION_PROMPTS)} seksione "
+            f"🚀 [SYNTHESIS V4.3] Nisur {len(SECTION_PROMPTS)} seksione "
             f"me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -343,7 +389,7 @@ class SynthesisService:
                         pass
 
             except Exception as e:
-                logger.error(f"❌ [SYNTHESIS V4.2] Section {section_key} failed: {e}")
+                logger.error(f"❌ [SYNTHESIS V4.3] Section {section_key} failed: {e}")
                 section_entry = {
                     "title": section_title,
                     "content": "",
@@ -382,7 +428,7 @@ class SynthesisService:
                         res = fut.result()
                     except Exception as e:
                         logger.error(
-                            f"❌ [SYNTHESIS V4.2] Future failed for {section_key}: {e}"
+                            f"❌ [SYNTHESIS V4.3] Future failed for {section_key}: {e}"
                         )
                         sections[section_key] = {
                             "title": SECTION_PROMPTS[section_key]["title"],
@@ -410,9 +456,9 @@ class SynthesisService:
                         all_deadline_contradictions.extend(res["deadline_contradictions"])
 
         except Exception as e:
-            logger.error(f"❌ [SYNTHESIS V4.2] ThreadPoolExecutor failed: {e}")
+            logger.error(f"❌ [SYNTHESIS V4.3] ThreadPoolExecutor failed: {e}")
             # Fallback: sequential
-            logger.warning("🔄 [SYNTHESIS V4.2] Fallback në sequential mode")
+            logger.warning("🔄 [SYNTHESIS V4.3] Fallback në sequential mode")
             for section_key, section_cfg in SECTION_PROMPTS.items():
                 try:
                     res = _run_section_worker(section_key, section_cfg)
@@ -478,19 +524,25 @@ class SynthesisService:
                 "duration_sec": duration,
                 "execution_mode": f"parallel_x{MAX_CONCURRENT_SECTIONS}",
                 "forbidden_parties": sorted(forbidden_parties) if forbidden_parties else [],
+                # V4.3
+                "precedents_found": len(precedents),
+                "precedent_search_sec": precedent_search_sec,
+                "use_precedents": SYNTHESIS_USE_PRECEDENTS,
             },
             "guardrail_reports": guardrail_reports,
             "regex_verified_citations": verified_citations,
             "deadline_contradictions": all_deadline_contradictions,
             "section_stats": section_stats,
+            "precedents": precedents,
             "status": "completed",
         }
 
         persist(self.db, result)
 
         logger.info(
-            f"✅ [SYNTHESIS V4.2] Complete: case={case_id}, "
+            f"✅ [SYNTHESIS V4.3] Complete: case={case_id}, "
             f"case_type={case_type}, "
+            f"precedents_found={len(precedents)} ({precedent_search_sec}s), "
             f"hallucinations_fixed={total_hallucinations_fixed}, "
             f"misattributed_roles_fixed={total_misattributed_roles_fixed}, "
             f"citation_hallucinations_fixed={total_citation_fixes}, "

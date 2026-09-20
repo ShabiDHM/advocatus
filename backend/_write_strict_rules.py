@@ -1,4 +1,8 @@
-# FILE: backend/app/services/synthesis/prompts/strict_rules.py
+# -*- coding: utf-8 -*-
+"""Krijon strict_rules.py V1.4 direkt (pa copy-paste)."""
+from pathlib import Path
+
+CONTENT = '''# FILE: backend/app/services/synthesis/prompts/strict_rules.py
 # PHOENIX PROTOCOL - STRICT RULES PROMPT V1.4
 # V1.4: Shtuar Rregulli 19 — PRECEDENTE TE GJYKATES SUPREME:
 #       - Precedentët VETEM nga blloku "🏛️ PRECEDENTE RELEVANTE".
@@ -247,3 +251,11 @@ STRICT_RULES = """
       - Te shpikesh numra precedentësh ose faqe.
       - Te spekulosh per lidhje qe nuk ekzistojne.
 """
+'''
+
+OUTPUT = Path("app/services/synthesis/prompts/strict_rules.py")
+OUTPUT.write_text(CONTENT, encoding="utf-8")
+
+print(f"✅ U shkrua: {OUTPUT}")
+print(f"   Madhësia: {len(CONTENT)} chars")
+print(f"   Linjat: {len(CONTENT.splitlines())}")

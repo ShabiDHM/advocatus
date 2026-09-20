@@ -71,3 +71,5 @@ pydub>=0.25.1
 
 # FIX: Pinned to v1 — kodi përdor 'from moviepy.editor import ...' që u hoq në v2
 moviepy>=1.0.3,<2.0.0
+# Reranker (Cohere Rerank API)
+cohere>=7.0.0

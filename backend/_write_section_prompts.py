@@ -1,4 +1,8 @@
-# FILE: backend/app/services/synthesis/prompts/section_prompts.py
+# -*- coding: utf-8 -*-
+"""Krijon section_prompts.py V1.5 direkt (pa copy-paste)."""
+from pathlib import Path
+
+CONTENT = '''# FILE: backend/app/services/synthesis/prompts/section_prompts.py
 # PHOENIX PROTOCOL - SECTION PROMPTS V1.5
 # V1.5: INTEGRIMI I PRECEDENTEVE TE VERTETA:
 #       - legal_framework: referon bllokun "🏛️ PRECEDENTE RELEVANTE" (V1.4 digest)
@@ -373,3 +377,11 @@ C. REKOMANDIMI PËRFUNDIMTAR
 """ + STRICT_RULES,
     },
 }
+'''
+
+OUTPUT = Path("app/services/synthesis/prompts/section_prompts.py")
+OUTPUT.write_text(CONTENT, encoding="utf-8")
+
+print(f"✅ U shkrua: {OUTPUT}")
+print(f"   Madhësia: {len(CONTENT)} chars")
+print(f"   Linjat: {len(CONTENT.splitlines())}")

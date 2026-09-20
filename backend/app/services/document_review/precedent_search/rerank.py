@@ -1,6 +1,12 @@
 # FILE: backend/app/services/document_review/precedent_search/rerank.py
-# PHOENIX PROTOCOL - PRECEDENT RERANK V2.2
-# V2.2: User prompt shton "[tema: X]" para fragmentit (nga topic_label).
+# PHOENIX PROTOCOL - PRECEDENT RERANK V2.3
+# V2.3: Shtuar Cohere Reranker + dispatcher:
+#       - rerank_deepseek(): i paprekur nga V2.2
+#       - rerank_cohere(): Cohere Rerank API (multilingual v3.0)
+#       - rerank(): dispatcher sipas PRECEDENT_RERANKER
+#       - Cohere score 0-1 skalohet ne 0-10 per konsistence me DeepSeek
+# V2.2: User prompt shton "[tema: X]" para fragmentit.
+# V2.1: Prompt me shembuj + kalibrim.
 
 import re
 import logging
@@ -10,10 +16,18 @@ from .config import (
     PRECEDENT_RERANK_TOP_N,
     PRECEDENT_RERANK_INPUT_N,
     PRECEDENT_RERANK_MIN_CANDIDATES,
+    PRECEDENT_RERANKER,
+    COHERE_API_KEY,
+    COHERE_RERANK_MODEL,
+    COHERE_RERANK_TIMEOUT,
 )
 
 logger = logging.getLogger(__name__)
 
+
+# ===========================================================================
+# PROMPT PER DEEPSEEK
+# ===========================================================================
 
 _RERANK_SYS_PROMPT = """Ti je gjyqtar i relevancës për precedentët e Gjykatave të Kosovës.
 
@@ -51,18 +65,24 @@ RREGULLA:
 """
 
 
+# ===========================================================================
+# DEEPSEEK RERANK
+# ===========================================================================
+
 def rerank_deepseek(
     query_text: str,
     candidates: List[Dict[str, Any]],
     top_n: int = PRECEDENT_RERANK_TOP_N,
 ) -> List[Dict[str, Any]]:
-    """Rerank candidates me DeepSeek-as-judge."""
+    """
+    Rerank me DeepSeek-as-judge. Kthen rerank_score 0-10.
+    """
     if not candidates:
         return []
 
     if len(candidates) < PRECEDENT_RERANK_MIN_CANDIDATES:
         logger.info(
-            f"ℹ️ [RERANK] {len(candidates)} kandidate < "
+            f"ℹ️ [RERANK-DS] {len(candidates)} kandidate < "
             f"{PRECEDENT_RERANK_MIN_CANDIDATES} -> skip rerank"
         )
         return candidates[:top_n]
@@ -74,12 +94,11 @@ def rerank_deepseek(
             DEEP_ANALYSIS_MODEL,
         )
     except Exception as e:
-        logger.warning(f"⚠️ [RERANK] Import DeepSeek deshtoi: {e}")
+        logger.warning(f"⚠️ [RERANK-DS] Import deshtoi: {e}")
         return candidates[:top_n]
 
     to_rerank = candidates[:PRECEDENT_RERANK_INPUT_N]
 
-    # Ndërto user prompt
     user_lines = [f"LËNDA: {query_text[:500]}", "", "PRECEDENTËT:"]
     for i, c in enumerate(to_rerank):
         cn = c.get("case_number") or c.get("title") or "?"
@@ -88,7 +107,6 @@ def rerank_deepseek(
 
         user_lines.append(f"\n[{i}] {cn}")
 
-        # V2.2: Shto topic_label nese ekziston
         topic = c.get("topic_label")
         if topic:
             user_lines.append(f"    [tema: {topic}]")
@@ -105,7 +123,7 @@ def rerank_deepseek(
             model=DEEP_ANALYSIS_MODEL,
         )
         if not raw:
-            logger.warning("⚠️ [RERANK] DeepSeek ktheu bosh")
+            logger.warning("⚠️ [RERANK-DS] DeepSeek ktheu bosh")
             return candidates[:top_n]
 
         parsed = clean_and_parse_json(raw)
@@ -113,7 +131,7 @@ def rerank_deepseek(
 
         if not scores_list:
             logger.warning(
-                f"⚠️ [RERANK] JSON pa 'scores': {str(raw)[:200]}"
+                f"⚠️ [RERANK-DS] JSON pa 'scores': {str(raw)[:200]}"
             )
             return candidates[:top_n]
 
@@ -140,12 +158,158 @@ def rerank_deepseek(
         if to_rerank:
             scores = [c.get("rerank_score", 0) for c in to_rerank]
             logger.info(
-                f"✅ [RERANK] DeepSeek vleresoi {applied}/{len(to_rerank)} kandidate | "
+                f"✅ [RERANK-DS] DeepSeek vleresoi {applied}/{len(to_rerank)} kandidate | "
                 f"max={max(scores):.1f} min={min(scores):.1f} "
                 f"avg={sum(scores)/len(scores):.1f}"
             )
         return to_rerank[:top_n]
 
     except Exception as e:
-        logger.error(f"❌ [RERANK] DeepSeek deshtoi: {e}")
+        logger.error(f"❌ [RERANK-DS] Deshtoi: {e}")
         return candidates[:top_n]
+
+
+# ===========================================================================
+# COHERE RERANK (V2.3)
+# ===========================================================================
+
+def _get_cohere_client():
+    """Kthen Cohere client (ose None nese mungon key / paketa)."""
+    if not COHERE_API_KEY:
+        logger.warning("⚠️ [RERANK-COHERE] COHERE_API_KEY mungon ne env")
+        return None
+
+    try:
+        import cohere
+    except ImportError:
+        logger.error(
+            "❌ [RERANK-COHERE] Paketa 'cohere' nuk eshte instaluar. "
+            "Ekzekuto: pip install cohere"
+        )
+        return None
+
+    try:
+        return cohere.ClientV2(
+            api_key=COHERE_API_KEY,
+            timeout=COHERE_RERANK_TIMEOUT,
+        )
+    except Exception as e:
+        logger.error(f"❌ [RERANK-COHERE] Client init deshtoi: {e}")
+        return None
+
+
+def rerank_cohere(
+    query_text: str,
+    candidates: List[Dict[str, Any]],
+    top_n: int = PRECEDENT_RERANK_TOP_N,
+) -> List[Dict[str, Any]]:
+    """
+    V2.3: Rerank me Cohere Rerank API (multilingual v3.0).
+
+    Cohere kthen relevance_score 0-1 per cdo dokument. Ne e ruajme si
+    rerank_score (0-1) dhe e skalojme ne 0-10 per konsistence me DeepSeek.
+    """
+    if not candidates:
+        return []
+
+    if len(candidates) < PRECEDENT_RERANK_MIN_CANDIDATES:
+        logger.info(
+            f"ℹ️ [RERANK-COHERE] {len(candidates)} kandidate < "
+            f"{PRECEDENT_RERANK_MIN_CANDIDATES} -> skip rerank"
+        )
+        return candidates[:top_n]
+
+    client = _get_cohere_client()
+    if not client:
+        logger.warning("⚠️ [RERANK-COHERE] Duke kaluar ne fallback (RRF)")
+        return candidates[:top_n]
+
+    to_rerank = candidates[:PRECEDENT_RERANK_INPUT_N]
+
+    # Nderto dokumentet per Cohere (case_number + excerpt + tema)
+    documents = []
+    for c in to_rerank:
+        cn = c.get("case_number") or c.get("title") or "?"
+        excerpt = (c.get("text") or "")[:500]
+        excerpt = re.sub(r'\s+', ' ', excerpt).strip()
+        topic = c.get("topic_label") or ""
+
+        doc_text = f"{cn}\n"
+        if topic:
+            doc_text += f"[tema: {topic}]\n"
+        doc_text += excerpt
+
+        documents.append(doc_text)
+
+    try:
+        response = client.rerank(
+            model=COHERE_RERANK_MODEL,
+            query=query_text[:2000],
+            documents=documents,
+            top_n=min(top_n * 2, len(documents)),
+        )
+
+        # Cohere kthen .results = [{index, relevance_score}, ...]
+        applied = 0
+        for result in response.results:
+            idx = result.index
+            score = result.relevance_score  # 0-1
+
+            if 0 <= idx < len(to_rerank):
+                # Ruaj score origjinal 0-1
+                to_rerank[idx]["cohere_score"] = float(score)
+                # Skalo ne 0-10 per konsistence me DeepSeek
+                to_rerank[idx]["rerank_score"] = float(score) * 10.0
+                applied += 1
+
+        to_rerank.sort(
+            key=lambda x: (
+                -x.get("rerank_score", -1.0),
+                -x.get("rrf_score", 0.0),
+            )
+        )
+
+        if to_rerank:
+            scores = [c.get("cohere_score", 0) for c in to_rerank]
+            logger.info(
+                f"✅ [RERANK-COHERE] Cohere vleresoi {applied}/{len(to_rerank)} kandidate | "
+                f"max={max(scores):.4f} min={min(scores):.4f} "
+                f"avg={sum(scores)/len(scores):.4f}"
+            )
+        return to_rerank[:top_n]
+
+    except Exception as e:
+        logger.error(f"❌ [RERANK-COHERE] Deshtoi: {e}")
+        return candidates[:top_n]
+
+
+# ===========================================================================
+# DISPATCHER (V2.3)
+# ===========================================================================
+
+def rerank(
+    query_text: str,
+    candidates: List[Dict[str, Any]],
+    top_n: int = PRECEDENT_RERANK_TOP_N,
+) -> List[Dict[str, Any]]:
+    """
+    V2.3: Dispatcher qe zgjedh reranker sipas PRECEDENT_RERANKER.
+
+    Vlera te lejuara:
+      - "deepseek" (default): DeepSeek-as-judge (0-10)
+      - "cohere": Cohere Rerank API (0-1 -> skalohet ne 0-10)
+      - "none": nuk ben rerank, kthen candidates[:top_n]
+    """
+    if PRECEDENT_RERANKER == "cohere":
+        return rerank_cohere(query_text, candidates, top_n=top_n)
+    elif PRECEDENT_RERANKER == "deepseek":
+        return rerank_deepseek(query_text, candidates, top_n=top_n)
+    elif PRECEDENT_RERANKER == "none":
+        logger.info("ℹ️ [RERANK] Reranker i çaktivizuar (none) - kthim candidates")
+        return candidates[:top_n]
+    else:
+        logger.warning(
+            f"⚠️ [RERANK] Vlerë e panjohur PRECEDENT_RERANKER='{PRECEDENT_RERANKER}' "
+            f"- duke perdorur 'deepseek'"
+        )
+        return rerank_deepseek(query_text, candidates, top_n=top_n)
