@@ -1,27 +1,53 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_dictionary.py
-# PHOENIX PROTOCOL - LAWS DICTIONARY V4.0 (STRICT STATUTORY CODES & STRIP ALPHA HELPER)
+# PHOENIX PROTOCOL - LAWS DICTIONARY V5.0 (REMOVED ACADEMIC KEYWORDS)
+# V5.0: Hequr keyword-et akademike nga _is_academic_file() sepse akademia
+#       u hoq nga sistemi. Mbeten vetem keyword-et per case law (per safety).
+#       Hequr nga lista: AKADEMIA, DORACAK, UDHEZUES, COMMENTARY, INSTITUTI,
+#       LËNDËSH, LENDESH, AKTGJYKMET_, VENDIME (singular/plural duplikate).
+# V4.0: STRICT STATUTORY CODES & STRIP ALPHA HELPER.
 
 import re
 from typing import List, Any
+
 
 def _strip_alpha(s: str) -> str:
     """Removes all spaces, hyphens, underscores, and .pdf extension for 100% exact matching."""
     clean = re.sub(r'\.pdf$', '', s.strip(), flags=re.IGNORECASE)
     return re.sub(r'[^a-zA-Z0-9]', '', clean).lower()
 
+
 def _natural_sort_key(article_any: Any) -> List[int]:
     article = str(article_any) if article_any is not None else "0"
     parts = re.findall(r'\d+', article)
     return [int(p) for p in parts] if parts else [0]
 
+
 def _is_academic_file(filename_or_title: str) -> bool:
+    """
+    V5.0: Detekton nese nje file NUK eshte statute (per filtirim).
+    Kjo perdoret per te perjashtuar file-a jo-statute qe mund te kene
+    mbetur ne folderin e ligjeve (data/laws/ks/).
+
+    V5.0: Hequr keyword-et akademike (akademia u hoq nga sistemi).
+    Mbeten keyword-et per case law si safety net (nese ndonje PDF
+    nga Gjykata Supreme ka mbetur rastesisht ne folder).
+    """
     text = str(filename_or_title).upper()
-    academic_keywords = [
-        "AKADEMIA", "DORACAK", "UDHEZUES", "UDHËZUES", "COMMENTARY", 
-        "CASE_LAW", "PRAKTIKË", "INSTITUTI", "LËNDËSH", "LENDESH",
-        "AKTGJYKMET", "AKTGJYKMET_", "VENDIM", "VENDIMET"
+
+    # V5.0: Vetem keyword-e per case law (jo-statute)
+    # Akademia nuk eshte me, ndaj keyword-et akademike u hoqen
+    non_statute_keywords = [
+        # Case law (siguri)
+        "CASE_LAW",
+        "PRAKTIKË",
+        "PRAKTIKE",
+        "AKTGJYKMET",
+        "VENDIM",
+        "VENDIMET",
     ]
-    return any(k in text for k in academic_keywords)
+
+    return any(k in text for k in non_statute_keywords)
+
 
 OFFICIAL_KOSOVO_LAWS = {
     # Generic & Relative AI Phrases ("Ligji Përkatës")
@@ -45,7 +71,7 @@ OFFICIAL_KOSOVO_LAWS = {
     "kppk": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "kpp": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "kushtetuta": "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
-    
+
     # Official Full Statute Titles
     "kodi penal": "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
     "procedurës penale": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
@@ -81,8 +107,9 @@ OFFICIAL_KOSOVO_LAWS = {
     "06/l-084": "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
     "08/l-257": "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
     "2004/32": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
-    "03/l-212": "LIGJI NR. 03/L-212 I PUNËS"
+    "03/l-212": "LIGJI NR. 03/L-212 I PUNËS",
 }
+
 
 def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
     title_lower = raw_title.lower().strip()

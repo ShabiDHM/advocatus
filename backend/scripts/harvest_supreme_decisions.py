@@ -1,15 +1,13 @@
 # FILE: backend/scripts/harvest_supreme_decisions.py
-# PHOENIX PROTOCOL - SUPREME COURT HARVESTER V2.0 (POST PAGINATION)
-# V2.0: RISHKRIM I MADH - Paginimi kerkon POST (jo GET URL).
-#       Zbuluar nga _probe_form.py: forma 'setPaged' POST-on 'paged=N' tek
-#       '?r=M&courtId=12&judgeStatus=1&ordBy=v.publicationDtTm&ordDir=DESC'.
-#       DB ka 21,636 aktgjykime total (~1,080 faqe).
-#       Argumentet CLI:
-#         python scripts/harvest_supreme_decisions.py                  -> 25 faqe (500 PDF)
-#         python scripts/harvest_supreme_decisions.py 50 1000          -> 50 faqe, 1000 PDF
-#         python scripts/harvest_supreme_decisions.py 5                -> 5 faqe (100 PDF)
-# V1.2: Default pages_to_scan=5, downloads_limit=50.
-# V1.1: FIX URL-t relative me urljoin().
+# PHOENIX PROTOCOL - SUPREME COURT HARVESTER V2.1 (RETRY 429)
+# V2.1: Retry per HTTP 429 (rate limiting):
+#       - Backoff exponential: 5s, 10s, 20s
+#       - Max 3 tentativa per PDF
+#       - Rrit pauza: 1.5s mes PDF-ve, 3s mes faqeve
+#       - Log ne file per monitoring (per harvest te gjate)
+#       - Skip total per PDF ekzistues
+# V2.0: POST pagination (i zbuluar nga _probe_form.py).
+# V1.1: FIX URL relative me urljoin().
 # V1.0: Versioni fillestar.
 
 import os
@@ -21,6 +19,7 @@ import logging
 import requests
 from pathlib import Path
 from urllib.parse import urljoin
+from datetime import datetime
 from bs4 import BeautifulSoup
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -34,7 +33,18 @@ DEST_DIR.mkdir(parents=True, exist_ok=True)
 
 PROGRESS_FILE = BACKEND_DIR / "_harvest_progress.json"
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%H:%M:%S")
+# V2.1: Log ne file
+LOG_FILE = BACKEND_DIR / f"_harvest_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(message)s",
+    datefmt="%H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+    ],
+)
 logger = logging.getLogger("supreme_harvester")
 
 # URL base + POST target
@@ -49,6 +59,11 @@ HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
 }
 
+# V2.1: Timings
+PAUSE_BETWEEN_PDFS = 1.5       # sekonda
+PAUSE_BETWEEN_PAGES = 3.0      # sekonda
+RETRY_BACKOFFS = [5, 10, 20]   # sekonda per 429
+
 
 def sanitize_filename(name: str) -> str:
     clean = re.sub(r'[\\/*?:"<>|]', '_', name)
@@ -57,7 +72,6 @@ def sanitize_filename(name: str) -> str:
 
 
 def absolute_url(base: str, url: str) -> str:
-    """V1.1: Konverton URL relative ne absolute."""
     if not url:
         return ""
     if url.startswith("http://") or url.startswith("https://"):
@@ -71,18 +85,16 @@ def absolute_url(base: str, url: str) -> str:
 
 
 def load_progress() -> dict:
-    """Lexon progresin e ruajtur."""
     if PROGRESS_FILE.exists():
         try:
             with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            return {"last_page": 0, "downloaded": 0}
+            pass
     return {"last_page": 0, "downloaded": 0}
 
 
 def save_progress(last_page: int, downloaded: int):
-    """Ruan progresin ne disk (per resume)."""
     try:
         with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
             json.dump({
@@ -95,7 +107,6 @@ def save_progress(last_page: int, downloaded: int):
 
 
 def fetch_page(session: requests.Session, paged: int) -> str:
-    """V2.0: POST per te marre faqen e N-te."""
     try:
         res = session.post(
             POST_URL,
@@ -115,34 +126,68 @@ def fetch_page(session: requests.Session, paged: int) -> str:
 
 def download_pdf(url: str, save_path: Path) -> bool:
     """
+    V2.1: Shkarkon PDF me retry per 429.
     Kthen:
       True  = shkarkim i re me sukses
-      False = ekzistonte tashme ose deshtoi
+      False = ekzistonte, deshtoi, ose u hoq
     """
-    try:
-        if save_path.exists() and save_path.stat().st_size > 1000:
-            return False  # ekziston, nuk numerohet si i re
+    if save_path.exists() and save_path.stat().st_size > 1000:
+        return False  # ekziston, nuk numerohet
 
-        logger.info(f"📥 Duke shkarkuar: {save_path.name}...")
-        response = requests.get(url, headers=HEADERS, timeout=30, stream=True)
-        if response.status_code == 200 and len(response.content) > 1000:
-            with open(save_path, "wb") as f:
-                f.write(response.content)
-            logger.info(f"   ✅ U ruajt: {save_path.name} ({len(response.content) // 1024} KB)")
-            return True
-        else:
-            logger.warning(f"   ❌ Dështoi: {save_path.name} (Status: {response.status_code})")
+    for attempt in range(1, 4):  # 3 tentativa
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=30, stream=True)
+
+            if response.status_code == 200 and len(response.content) > 1000:
+                with open(save_path, "wb") as f:
+                    f.write(response.content)
+                logger.info(
+                    f"   ✅ U ruajt: {save_path.name} ({len(response.content) // 1024} KB)"
+                )
+                return True
+
+            elif response.status_code == 429:
+                backoff = RETRY_BACKOFFS[min(attempt - 1, len(RETRY_BACKOFFS) - 1)]
+                logger.warning(
+                    f"   ⚠️ 429 Rate limit për {save_path.name}, "
+                    f"prit {backoff}s (tentativa {attempt}/3)"
+                )
+                time.sleep(backoff)
+                continue
+
+            elif response.status_code == 404:
+                logger.warning(f"   ❌ 404 për {save_path.name} - skip")
+                return False
+
+            else:
+                logger.warning(
+                    f"   ❌ Status {response.status_code} për {save_path.name}"
+                )
+                if attempt < 3:
+                    time.sleep(3)
+                    continue
+                return False
+
+        except requests.exceptions.Timeout:
+            logger.warning(f"   ⏱️ Timeout për {save_path.name} (tentativa {attempt}/3)")
+            if attempt < 3:
+                time.sleep(3)
+                continue
             return False
-    except Exception as e:
-        logger.error(f"   ❌ Gabim: {save_path.name}: {e}")
-        return False
+
+        except Exception as e:
+            logger.error(f"   ❌ Gabim për {save_path.name}: {e}")
+            if attempt < 3:
+                time.sleep(3)
+                continue
+            return False
+
+    logger.error(f"   ❌ Dështoi pas 3 tentativave: {save_path.name}")
+    return False
 
 
-def process_page(session: requests.Session, paged: int, max_downloads: int, current_total: int) -> tuple:
-    """
-    Perpunon nje faqe.
-    Kthen: (numri_i_re, numri_total)
-    """
+def process_page(session, paged: int, max_downloads: int, current_total: int) -> tuple:
+    """Perpunon nje faqe. Kthen (new_downloads, total)."""
     logger.info(f"🔍 Duke skanuar faqen {paged}...")
     html = fetch_page(session, paged)
 
@@ -159,6 +204,9 @@ def process_page(session: requests.Session, paged: int, max_downloads: int, curr
         return 0, current_total
 
     new_downloads = 0
+    skipped = 0
+    failed = 0
+
     for row in rows_td:
         if current_total >= max_downloads:
             break
@@ -168,7 +216,6 @@ def process_page(session: requests.Session, paged: int, max_downloads: int, curr
         numri_rastit = cols[1].get_text(strip=True) if len(cols) > 1 else ""
         gjyqtari = cols[4].get_text(strip=True) if len(cols) > 4 else ""
 
-        # Gjej PDF
         links = row.find_all("a")
         sq_link = None
         for a in links:
@@ -178,37 +225,51 @@ def process_page(session: requests.Session, paged: int, max_downloads: int, curr
                 sq_link = absolute_url(BASE_URL, href)
                 break
 
-        if sq_link and numri_rastit:
-            clean_case = sanitize_filename(f"{lloji}_{numri_rastit}")
-            clean_judge = sanitize_filename(gjyqtari.split("-")[0].strip()) if gjyqtari else "Gjykata_Supreme"
-            filename = f"{clean_case}_{clean_judge}.pdf"
-            save_path = DEST_DIR / filename
+        if not (sq_link and numri_rastit):
+            continue
 
-            success = download_pdf(sq_link, save_path)
-            if success:
-                new_downloads += 1
-                current_total += 1
+        clean_case = sanitize_filename(f"{lloji}_{numri_rastit}")
+        clean_judge = (
+            sanitize_filename(gjyqtari.split("-")[0].strip())
+            if gjyqtari else "Gjykata_Supreme"
+        )
+        filename = f"{clean_case}_{clean_judge}.pdf"
+        save_path = DEST_DIR / filename
 
-            time.sleep(0.3)  # Respekt ndaj serverit
+        if save_path.exists() and save_path.stat().st_size > 1000:
+            skipped += 1
+            continue
 
-    logger.info(f"   ✅ Faqja {paged}: {new_downloads} te reja (total: {current_total})")
+        success = download_pdf(sq_link, save_path)
+        if success:
+            new_downloads += 1
+            current_total += 1
+        else:
+            failed += 1
+
+        time.sleep(PAUSE_BETWEEN_PDFS)
+
+    logger.info(
+        f"   ✅ Faqja {paged}: +{new_downloads} te reja, "
+        f"{skipped} skipped, {failed} deshtuan (total: {current_total})"
+    )
     return new_downloads, current_total
 
 
-def harvest(max_pages: int = 25, max_downloads: int = 500, resume: bool = True):
+def harvest(max_pages: int = 200, max_downloads: int = 5000, resume: bool = True):
     print("\n" + "="*70)
-    print("🏛️ PHOENIX HARVESTER V2.0 - GJYKATA SUPREME E KOSOVËS")
+    print("🏛️ PHOENIX HARVESTER V2.1 - GJYKATA SUPREME E KOSOVËS")
     print(f"📂 Destinacioni: {DEST_DIR}")
     print(f"📄 Faqe: {max_pages}  |  Limit PDF: {max_downloads}  |  Resume: {resume}")
+    print(f"📝 Log: {LOG_FILE.name}")
     print("="*70 + "\n")
 
-    # Progres
     progress = load_progress() if resume else {"last_page": 0, "downloaded": 0}
     start_page = progress.get("last_page", 0) + 1 if resume else 1
     total_downloaded = progress.get("downloaded", 0)
 
     if start_page > 1:
-        logger.info(f"▶️ Resume nga faqja {start_page} (total tashme: {total_downloaded})")
+        logger.info(f"▶️  Resume nga faqja {start_page} (total tashme: {total_downloaded})")
 
     session = requests.Session()
     end_page = start_page + max_pages - 1
@@ -218,24 +279,27 @@ def harvest(max_pages: int = 25, max_downloads: int = 500, resume: bool = True):
             print(f"\n🛑 U arrit limiti prej {max_downloads} PDF.")
             break
 
-        new, total_downloaded = process_page(session, paged, max_downloads, total_downloaded)
+        new, total_downloaded = process_page(
+            session, paged, max_downloads, total_downloaded
+        )
         save_progress(paged, total_downloaded)
 
-        time.sleep(1.0)  # Pauze mes faqeve
+        time.sleep(PAUSE_BETWEEN_PAGES)
 
     print("\n" + "="*70)
     print(f"🏁 HARVESTING PËRFUNDOI")
     print(f"   • Total PDF ne dosje: {total_downloaded}")
     print(f"   • Destinacioni: {DEST_DIR}")
+    print(f"   • Log: {LOG_FILE}")
     if PROGRESS_FILE.exists():
-        print(f"   • Progresi u ruajt: {PROGRESS_FILE}")
-        print(f"     (fshij per te rifilluar nga e para: Remove-Item {PROGRESS_FILE.name})")
+        print(f"   • Progresi: {PROGRESS_FILE}")
+        print(f"     Fshije per rifillim: Remove-Item {PROGRESS_FILE.name}")
     print("="*70 + "\n")
 
 
 if __name__ == "__main__":
-    pages_to_scan = 25       # 25 faqe = 500 PDF
-    downloads_limit = 500
+    pages_to_scan = 200       # default per sesion te gjate
+    downloads_limit = 5000
 
     if len(sys.argv) > 1:
         try:

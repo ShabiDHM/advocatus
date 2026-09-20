@@ -1,12 +1,17 @@
 # FILE: backend/scripts/master_clean_and_sync.py
-# PHOENIX PROTOCOL - ROBUST 1,425-PAGE SUPREME COURT INGESTOR V20.1
-# V20.1: CRITICAL FIX — SKIP CHECK per caselaw + academic.
-#        - Nuk fshihen me caselaw ekzistues kur shtohen PDF te re.
+# PHOENIX PROTOCOL - ROBUST SUPREME COURT INGESTOR V20.2 (REMOVED ACADEMIC)
+# V20.2: Hequr akademinë nga sistemi:
+#        - Hequr seksionin 3 (AKADEMIA E DREJTËSISË) plotësisht.
+#        - Hequr flag-et --academic dhe --force-academic.
+#        - Hequr acad_new, acad_skipped nga stats.
+#        - Hequr referencat ndaj folderit data/academic.
+#        - Clean: vetem statutes + caselaw.
+#        - FIX typo: hequr `clean_law_title_from_format_name` (nuk ekziston).
+# V20.1: CRITICAL FIX — SKIP CHECK per caselaw.
+#        - Nuk fshihen caselaw ekzistues kur shtohen PDF te re.
 #        - topic_id + topic_label mbeten te paprekura.
-#        - --caselaw / --academic nuk bejne me hard-delete.
-#        - Vetem --clean fshin gjithcka (per reset te plote).
 #        - Skip check: nese source + file_hash ekziston, kalon.
-# V20.0: Robust 1,425-page ingestor.
+# V20.0: Robust ingestor.
 
 import os
 import sys
@@ -22,7 +27,7 @@ BACKEND_DIR = SCRIPT_DIR.parent
 ROOT_DIR = BACKEND_DIR.parent
 
 for p in [ROOT_DIR / ".env", BACKEND_DIR / ".env"]:
-    if p.exists(): 
+    if p.exists():
         load_dotenv(p, override=True)
 
 sys.path.insert(0, str(BACKEND_DIR))
@@ -36,7 +41,7 @@ logger = logging.getLogger("master_sync")
 
 CASE_NO_PATTERN = re.compile(
     r'((?:ARJ|PML|Pml|Rev|REV|PA1|Pa1|A|CP|PKR|P|KMLP|Kmlp|KA|CN)\s*\.?\s*Nr\s*\.?\s*\d+\s*/\s*(?:20\d{2}|\d{2})|'
-    r'(?:Mendim\s+Juridik|Qëndrim\s+Parimor|Qendrim\s+Parimor|Mendimi\s+Juridik)\s*(?:-\s*)?(?:Nr\.?\s*)?\d+\s*/\s*(?:20\d{2}|\d{2}))', 
+    r'(?:Mendim\s+Juridik|Qëndrim\s+Parimor|Qendrim\s+Parimor|Mendimi\s+Juridik)\s*(?:-\s*)?(?:Nr\.?\s*)?\d+\s*/\s*(?:20\d{2}|\d{2}))',
     re.IGNORECASE
 )
 
@@ -45,6 +50,7 @@ CASE_HEADER_START_REGEX = re.compile(
     r'(?:i\s+kolegjit\s+)?(?:penal|civil|administrativ|tregtar|të\s+përgjithshëm)?\s*(?:të\s+Gjykatës\s+Supreme)?',
     re.IGNORECASE
 )
+
 
 def calculate_file_hash(filepath: str) -> str:
     hasher = hashlib.md5()
@@ -56,6 +62,7 @@ def calculate_file_hash(filepath: str) -> str:
     except Exception:
         return ""
 
+
 def clean_law_title_from_filename(filename: str) -> str:
     clean = filename.replace(".pdf.pdf", "").replace(".pd.pdf", "").replace("..pdf", "").replace(".pdf", "").replace(".PDF", "").replace("_", " ").replace("-", " ")
     clean = re.sub(r'^\d+_\d*\.?\s*', '', clean)
@@ -64,7 +71,8 @@ def clean_law_title_from_filename(filename: str) -> str:
     clean = re.sub(r'\s+', ' ', clean).strip()
     return clean.upper()
 
-def extract_articles_from_pdf(filepath: str) -> list[dict]:
+
+def extract_articles_from_pdf(filepath: str) -> list:
     doc = fitz.open(filepath)
     full_text_pages = [(page_idx + 1, doc[page_idx].get_text("text") or "") for page_idx in range(len(doc))]
     doc.close()
@@ -113,6 +121,7 @@ def extract_articles_from_pdf(filepath: str) -> list[dict]:
             })
     return articles
 
+
 def run_master_sync():
     uri = os.getenv("DATABASE_URI")
     db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
@@ -128,35 +137,36 @@ def run_master_sync():
     force_clean_all = "--clean" in args
     sync_only_caselaw = "--caselaw" in args
     sync_only_statutes = "--statutes" in args
-    sync_only_academic = "--academic" in args
-    # V20.1: --force-caselaw: fshin caselaw ekzistues + riproceson (per reset)
-    #         --force-academic: e njejta per academic
+    # V20.2: --force-caselaw: fshin caselaw ekzistues + riproceson (per reset)
     force_caselaw = "--force-caselaw" in args
-    force_academic = "--force-academic" in args
+    # V20.2: --force-academic u hoq (akademia nuk ekziston me)
 
-    sync_all = not (sync_only_caselaw or sync_only_statutes or sync_only_academic)
+    sync_all = not (sync_only_caselaw or sync_only_statutes)
 
     if force_clean_all:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("🧹 PASTRIMI TOTAL I DITURISË GLOBALE NGA MONGODB")
-        print("="*60)
+        print("=" * 60)
         coll.delete_many({})
         logger.info("✅ Koleksioni 'legal_knowledge_base' u pastrua në 0 mbeturina.")
 
+    # V20.2: Hequr acad_new, acad_skipped
     stats = {
         "laws_new": 0, "laws_skipped": 0,
         "caselaw_new": 0, "caselaw_skipped": 0,
-        "acad_new": 0, "acad_skipped": 0,
     }
 
+    # ═══════════════════════════════════════════════════════════════════
     # 1. LIGJET STATUTORE
+    # ═══════════════════════════════════════════════════════════════════
     if sync_all or sync_only_statutes:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("⚖️ KONTROLLI I LIGJEVE STATUTORE (data/laws/ks)")
-        print("="*60)
+        print("=" * 60)
 
         laws_dir = ROOT_DIR / "data" / "laws" / "ks"
-        if not laws_dir.exists(): laws_dir = BACKEND_DIR / "data" / "laws" / "ks"
+        if not laws_dir.exists():
+            laws_dir = BACKEND_DIR / "data" / "laws" / "ks"
 
         law_files = []
         if laws_dir.exists():
@@ -179,12 +189,13 @@ def run_master_sync():
             coll.delete_many({"source": fname})
 
             parsed_articles = extract_articles_from_pdf(str(file_path))
-            if not parsed_articles: continue
+            if not parsed_articles:
+                continue
 
             texts_to_embed = [art["text"][:3500] for art in parsed_articles]
             all_embeddings = []
             for b_idx in range(0, len(texts_to_embed), 50):
-                all_embeddings.extend(generate_embeddings_batch(texts_to_embed[b_idx:b_idx+50]))
+                all_embeddings.extend(generate_embeddings_batch(texts_to_embed[b_idx:b_idx + 50]))
 
             docs_to_insert = []
             for idx, art in enumerate(parsed_articles):
@@ -211,14 +222,16 @@ def run_master_sync():
                 logger.info(f"   ✅ [U ruajtën {len(docs_to_insert)} nene]: {law_title}")
                 stats["laws_new"] += 1
 
+    # ═══════════════════════════════════════════════════════════════════
     # 2. VENDIMET DHE MENDIMET PARIMORE TË GJYKATËS SUPREME
+    # ═══════════════════════════════════════════════════════════════════
     if sync_all or sync_only_caselaw:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("🏛️ KONTROLLI I GJYKATËS SUPREME (data/case_law)")
-        print("="*60)
+        print("=" * 60)
 
-        # V20.1: Hard-delete NUK ndodh me automatikisht.
-        # Skip check (source + file_hash) e ben te njejtin efekt pa humbur topic_id.
+        # V20.1/V20.2: Hard-delete NUK ndodh me automatikisht.
+        # Skip check (source + file_hash) ruan topic_id + topic_label.
         # Vetem --force-caselaw fshin caselaw ekzistues.
         if force_caselaw:
             print("⚠️  --force-caselaw: DUKE FSHIRE te gjitha caselaw ekzistuese...")
@@ -226,7 +239,8 @@ def run_master_sync():
             logger.info("✅ Caselaw u fshi (force mode).")
 
         caselaw_dir = ROOT_DIR / "data" / "case_law"
-        if not caselaw_dir.exists(): caselaw_dir = BACKEND_DIR / "data" / "case_law"
+        if not caselaw_dir.exists():
+            caselaw_dir = BACKEND_DIR / "data" / "case_law"
 
         caselaw_files = []
         if caselaw_dir.exists():
@@ -241,10 +255,10 @@ def run_master_sync():
         for file_path in caselaw_files:
             fname = file_path.name
             fhash = calculate_file_hash(str(file_path))
-            default_doc_title = clean_law_title_from_format_name(fname) if False else clean_law_title_from_filename(fname)
+            # V20.2: FIX typo - hequr clean_law_title_from_format_name (nuk ekziston)
+            default_doc_title = clean_law_title_from_filename(fname)
 
-            # V20.1: SKIP check — nese ekziston me te njejtin hash, kalon
-            # Kjo ruan topic_id + topic_label + te gjitha fushat e tjera
+            # V20.1: SKIP check — ruan topic_id + topic_label
             existing_count = coll.count_documents({
                 "source": fname,
                 "file_hash": fhash,
@@ -271,11 +285,12 @@ def run_master_sync():
 
             for page_num in range(len(doc)):
                 page_text = doc[page_num].get_text("text") or ""
-                if not page_text.strip(): continue
+                if not page_text.strip():
+                    continue
 
                 is_new_header = bool(CASE_HEADER_START_REGEX.search(page_text))
                 matches = CASE_NO_PATTERN.findall(page_text)
-                
+
                 if is_new_header or matches:
                     if matches:
                         current_case_no = matches[0].strip().replace("  ", " ")
@@ -312,7 +327,7 @@ def run_master_sync():
                 texts_to_embed = [c["text"] for c in raw_chunks]
                 all_embeddings = []
                 for b_idx in range(0, len(texts_to_embed), 50):
-                    all_embeddings.extend(generate_embeddings_batch(texts_to_embed[b_idx:b_idx+50]))
+                    all_embeddings.extend(generate_embeddings_batch(texts_to_embed[b_idx:b_idx + 50]))
 
                 for idx, c_data in enumerate(raw_chunks):
                     c_data["embedding"] = all_embeddings[idx] if idx < len(all_embeddings) else []
@@ -321,104 +336,18 @@ def run_master_sync():
                 logger.info(f"   ✅ [U ruajtën {len(raw_chunks)} pjesëza me embeddings]: {fname}")
                 stats["caselaw_new"] += 1
 
-    # 3. AKADEMIA E DREJTËSISË
-    if sync_all or sync_only_academic:
-        print("\n" + "="*60)
-        print("📚 KONTROLLI I AKADEMISË SË DREJTËSISË (data/academic)")
-        print("="*60)
+    # ═══════════════════════════════════════════════════════════════════
+    # V20.2: SEKSIONI 3 (AKADEMIA E DREJTËSISË) U HOQ PLOTËSISHT
+    # ═══════════════════════════════════════════════════════════════════
+    # Nuk ka me --academic, --force-academic, data/academic, is_academic.
 
-        # V20.1: Hard-delete NUK ndodh me automatikisht.
-        if force_academic:
-            print("⚠️  --force-academic: DUKE FSHIRE te gjitha academic ekzistuese...")
-            coll.delete_many({"category": "academic"})
-            logger.info("✅ Academic u fshi (force mode).")
-
-        academic_dir = ROOT_DIR / "data" / "academic"
-        if not academic_dir.exists(): academic_dir = BACKEND_DIR / "data" / "academic"
-
-        academic_files = []
-        if academic_dir.exists():
-            for p in sorted(list(academic_dir.iterdir())):
-                if p.is_file() and p.suffix.lower() == ".pdf":
-                    academic_files.append(p)
-
-        for file_path in academic_files:
-            fname = file_path.name
-            fhash = calculate_file_hash(str(file_path))
-            doc_title = clean_law_title_from_filename(fname)
-
-            # V20.1: SKIP check
-            existing_count = coll.count_documents({
-                "source": fname,
-                "file_hash": fhash,
-                "category": "academic",
-            })
-            if existing_count > 0 and not force_clean_all and not force_academic:
-                logger.info(f"⏭️  [Academic synced - {existing_count} chunks]: {fname}")
-                stats["acad_skipped"] += 1
-                continue
-
-            logger.info(f"🔄 Duke procesuar materialin e Akademisë: {fname}...")
-            coll.delete_many({"source": fname})
-
-            try:
-                doc = fitz.open(str(file_path))
-            except Exception as e:
-                logger.warning(f"❌ Dështoi hapja e {fname}: {e}")
-                continue
-
-            raw_chunks = []
-            chunk_idx = 1
-
-            for page_num in range(len(doc)):
-                page_text = doc[page_num].get_text("text") or ""
-                if not page_text.strip(): continue
-
-                chunk_size = 1400
-                overlap = 150
-                start = 0
-                while start < len(page_text):
-                    end = start + chunk_size
-                    chunk_str = page_text[start:end].strip()
-                    start += chunk_size - overlap
-                    if len(chunk_str) > 20:
-                        raw_chunks.append({
-                            "chunk_id": str(uuid.uuid4()),
-                            "law_title": f"Akademia e Drejtësisë - {doc_title}",
-                            "title": doc_title,
-                            "source": fname,
-                            "file_hash": fhash,
-                            "page": page_num + 1,
-                            "text": chunk_str,
-                            "chunk_index": chunk_idx,
-                            "is_academic": True,
-                            "is_case_law": False,
-                            "is_article": False,
-                            "category": "academic",
-                            "jurisdiction": "ks"
-                        })
-                        chunk_idx += 1
-            doc.close()
-
-            if raw_chunks:
-                texts_to_embed = [c["text"] for c in raw_chunks]
-                all_embeddings = []
-                for b_idx in range(0, len(texts_to_embed), 50):
-                    all_embeddings.extend(generate_embeddings_batch(texts_to_embed[b_idx:b_idx+50]))
-
-                for idx, c_data in enumerate(raw_chunks):
-                    c_data["embedding"] = all_embeddings[idx] if idx < len(all_embeddings) else []
-
-                coll.insert_many(raw_chunks)
-                logger.info(f"   ✅ [U ruajtën {len(raw_chunks)} pjesëza]: {fname}")
-                stats["acad_new"] += 1
-
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🏁 SINKRONIZIMI PËRFUNDOI ME SUKSES:")
     print(f"   • Ligje:      {stats['laws_new']} te re, {stats['laws_skipped']} skipped")
     print(f"   • Gj.Supreme: {stats['caselaw_new']} te re, {stats['caselaw_skipped']} skipped ({len(caselaw_files)} total)")
-    print(f"   • Akademia:   {stats['acad_new']} te re, {stats['acad_skipped']} skipped")
-    print("="*60 + "\n")
+    # V20.2: Hequr rreshti i Akademisë
+    print("=" * 60 + "\n")
+
 
 if __name__ == "__main__":
     run_master_sync()

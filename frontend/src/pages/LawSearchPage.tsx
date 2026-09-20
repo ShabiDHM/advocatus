@@ -1,5 +1,11 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - DYNAMIC LAW SEARCH ENGINE V124.0 (ZERO HARDCODED COLORS)
+// PHOENIX PROTOCOL - DYNAMIC LAW SEARCH ENGINE V125.0 (REMOVED ACADEMIC TAB)
+// V125.0: Hequr tab "AKADEMIA" — korpusi tani ka vetem KODET + AKTGJYKIMET.
+//         - Hiqur 'academic' nga activeTab
+//         - Hiqur academicTitles state
+//         - Hiqur GraduationCap import
+//         - Grid 3-kolona -> 2-kolona
+//         - Backend vazhdon te dergoj akademine, ne e shperfillim
 // V124.0: Slate/emerald/amber → semantic tokens (surface, success-start, warning-start, text-*).
 // V123.1: DYNAMIC LAW SEARCH ENGINE
 
@@ -7,7 +13,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Search, X, Scale, ArrowLeft, ChevronDown, Check, 
-  ShieldCheck, GraduationCap, Gavel, 
+  ShieldCheck, Gavel, 
   BookOpen, ArrowRight, ExternalLink, Loader2, Bot, FileText,
   Sparkles, BookMarked, CheckCircle2
 } from 'lucide-react';
@@ -78,15 +84,15 @@ export default function LawSearchPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
-  const [activeTab, setActiveTab] = useState<'statutes' | 'academic' | 'caselaw'>('statutes');
+
+  // V125.0: vetem 'statutes' | 'caselaw'
+  const [activeTab, setActiveTab] = useState<'statutes' | 'caselaw'>('statutes');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [statuteTitles, setStatuteTitles] = useState<string[]>([]);
-  const [academicTitles, setAcademicTitles] = useState<string[]>([]);
   const [caselawTitles, setCaselawTitles] = useState<string[]>([]);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
-  
+
   const [isListExpanded, setIsListExpanded] = useState(true);
   const [selectedPdfFilename, setSelectedPdfFilename] = useState<string | null>(null);
   const [initialPageNumber, setInitialPageNumber] = useState<number>(1);
@@ -140,11 +146,10 @@ export default function LawSearchPage() {
       .then((res: any) => {
         if (res) {
           const loadedStatutes = (res.statutes && Array.isArray(res.statutes)) ? res.statutes : [];
-          const loadedAcademic = (res.academic_manuals && Array.isArray(res.academic_manuals)) ? res.academic_manuals : [];
+          // V125.0: academic_manuals injorohet
           const loadedCaselaw = (res.case_law && Array.isArray(res.case_law)) ? res.case_law : [];
 
           setStatuteTitles(loadedStatutes);
-          setAcademicTitles(loadedAcademic);
           setCaselawTitles(loadedCaselaw);
 
           if (queryFromUrl) {
@@ -203,17 +208,16 @@ export default function LawSearchPage() {
   }, [searchQuery]);
 
   const filteredStatutes = useMemo(() => filterListByQuery(statuteTitles), [filterListByQuery, statuteTitles]);
-  const filteredAcademic = useMemo(() => filterListByQuery(academicTitles), [filterListByQuery, academicTitles]);
   const filteredCaselaw = useMemo(() => filterListByQuery(caselawTitles), [filterListByQuery, caselawTitles]);
 
   const activeList = useMemo(() => {
-    if (activeTab === 'academic') return filteredAcademic;
     if (activeTab === 'caselaw') return filteredCaselaw;
     return filteredStatutes;
-  }, [activeTab, filteredStatutes, filteredAcademic, filteredCaselaw]);
+  }, [activeTab, filteredStatutes, filteredCaselaw]);
 
   const handleSelectLaw = async (lawTitle: string) => {
-    if (activeTab === 'academic' || activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf')) {
+    // V125.0: akademia u hoq
+    if (activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf')) {
       setSelectedPdfFilename(lawTitle);
 
       try {
@@ -237,16 +241,14 @@ export default function LawSearchPage() {
 
   const pdfUrl = useMemo(() => {
     if (!selectedPdfFilename) return null;
-    
+
     const nameWithPdf = selectedPdfFilename.toLowerCase().endsWith('.pdf') 
       ? selectedPdfFilename 
       : `${selectedPdfFilename}.pdf`;
 
     const encoded = encodeURIComponent(nameWithPdf);
 
-    if (activeTab === 'academic') {
-      return `${API_V1_URL}/laws/academia/pdf/${encoded}`;
-    }
+    // V125.0: vetem caselaw dhe statutes
     if (activeTab === 'caselaw') {
       return `${API_V1_URL}/laws/caselaw/pdf/${encoded}`;
     }
@@ -286,7 +288,7 @@ export default function LawSearchPage() {
             </div>
             
             <div className="px-4 py-2 bg-primary-start/10 border border-primary-start/20 rounded-xl text-primary-start font-mono text-xs font-bold">
-              {isLoadingData ? 'Duke u ngarkuar...' : `${statuteTitles.length + academicTitles.length + caselawTitles.length} Dokumente Zyrtare`}
+              {isLoadingData ? 'Duke u ngarkuar...' : `${statuteTitles.length + caselawTitles.length} Dokumente Zyrtare`}
             </div>
           </div>
         </div>
@@ -423,7 +425,6 @@ export default function LawSearchPage() {
                                   <span>Verifikuar në Bazë</span>
                                 </span>
 
-                                {/* TOOLTIP FAKTIK NGA BAZA */}
                                 <AnimatePresence>
                                   {isStatuteHovered && (
                                     <motion.div
@@ -591,8 +592,8 @@ export default function LawSearchPage() {
           </AnimatePresence>
         </div>
 
-        {/* 3 TABS KRYESORE */}
-        <div className="grid grid-cols-3 w-full gap-2 mb-6 bg-surface p-1.5 sm:p-2 rounded-2xl border border-main shadow-sm">
+        {/* V125.0: 2 TABS (KODET + AKTGJYKIMET) — AKADEMIA u hoq */}
+        <div className="grid grid-cols-2 w-full gap-2 mb-6 bg-surface p-1.5 sm:p-2 rounded-2xl border border-main shadow-sm">
           <button
             type="button"
             onClick={() => { setActiveTab('statutes'); }}
@@ -602,17 +603,6 @@ export default function LawSearchPage() {
           >
             <Scale size={16} className="shrink-0 hidden xs:inline" />
             <span className="truncate">Kodet ({filteredStatutes.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab('academic'); }}
-            className={`w-full py-3 sm:py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
-              activeTab === 'academic' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            <GraduationCap size={16} className="shrink-0 hidden xs:inline" />
-            <span className="truncate">Akademia ({filteredAcademic.length})</span>
           </button>
 
           <button
@@ -637,7 +627,7 @@ export default function LawSearchPage() {
             >
               <BookOpen size={18} className="text-primary-start" />
               <span>
-                {activeTab === 'statutes' ? 'Kodet Zyrtare të Kosovës' : activeTab === 'academic' ? 'Manualet e Akademisë së Drejtësisë' : 'Precedentët & Aktgjykimet e Gjykatës Supreme'}
+                {activeTab === 'statutes' ? 'Kodet Zyrtare të Kosovës' : 'Precedentët & Aktgjykimet e Gjykatës Supreme'}
               </span>
               <ChevronDown size={18} className={`transition-transform duration-200 ${isListExpanded ? 'rotate-180 text-primary-start' : ''}`} />
             </button>
@@ -681,7 +671,7 @@ export default function LawSearchPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     {activeList.map((lawTitle, idx) => {
                       const displayTitle = normalizeForDisplay(lawTitle);
-                      const isPdf = activeTab === 'academic' || activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf');
+                      const isPdf = activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf');
 
                       return (
                         <button
@@ -692,9 +682,7 @@ export default function LawSearchPage() {
                         >
                           <div className="flex items-center gap-3.5 min-w-0 pr-3">
                             <div className="p-2.5 rounded-xl bg-surface group-hover:bg-white/20 border border-main group-hover:border-white/20 shrink-0 transition-colors">
-                              {activeTab === 'academic' ? (
-                                <GraduationCap size={18} className="text-primary-start group-hover:text-white" />
-                              ) : activeTab === 'caselaw' ? (
+                              {activeTab === 'caselaw' ? (
                                 <Gavel size={18} className="text-primary-start group-hover:text-white" />
                               ) : (
                                 <Scale size={18} className="text-primary-start group-hover:text-white" />

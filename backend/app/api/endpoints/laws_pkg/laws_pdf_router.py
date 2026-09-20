@@ -1,6 +1,9 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_pdf_router.py
-# PHOENIX PROTOCOL - LAWS PDF ROUTER V91.0 (SUPREME CASELAW ELASTIC MATCHER)
-# 100% COMPLETE CODE • ZERO 404 MISSES • FUZZY PREFIX-NUMBER-YEAR MATCHER • B2 & LOCAL RECURSIVE
+# PHOENIX PROTOCOL - LAWS PDF ROUTER V92.0 (REMOVED ACADEMIC ENDPOINT)
+# V92.0: Hequr endpoint /academia/pdf/* + prefix "academic/" nga kerkesat B2/disk.
+#        Akademia u hoq nga sistemi, ndaj nuk ka me PDF per te sherbyer.
+#        Mbeten vetem: /pdf/{filename} (statute) + /caselaw/pdf/{filename}.
+# V91.0: SUPREME CASELAW ELASTIC MATCHER. 100% COMPLETE CODE • ZERO 404 MISSES.
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -59,7 +62,7 @@ def _parse_supreme_case_components(filename_or_query: str) -> Optional[Tuple[str
 def _matches_case_components(filename: str, prefix: str, number: str, year: str) -> bool:
     """Kontrollon nëse një skedar në B2 ose disk përmban saktësisht prefiksin, numrin dhe vitin."""
     clean_f = filename.lower().replace("ë", "e").replace("ç", "c")
-    
+
     # 1. Kontrollo prefiksin
     if prefix not in clean_f:
         return False
@@ -78,10 +81,10 @@ def _matches_case_components(filename: str, prefix: str, number: str, year: str)
     return True
 
 
-def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> StreamingResponse | FileResponse | None:
+def _stream_from_b2_or_local(filename: str, target_prefixes: list) -> Optional[StreamingResponse | FileResponse]:
     raw_unquoted = urllib.parse.unquote(filename).strip()
     raw_name = _normalize_str(raw_unquoted)
-    
+
     # Heqim çdo shtesë path-i të jashtëm
     raw_basename = os.path.basename(raw_name) if "/" in raw_name and not raw_name.startswith("data/") else raw_name
     clean_search_name = re.sub(r'\.pdf$', '', raw_basename, flags=re.IGNORECASE).strip()
@@ -130,6 +133,7 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     # =========================================================================
     # HAPI 2: DISK LOKAL (KËRKIM REKURZIV ME MATCHER TË TREFISHTË)
     # =========================================================================
+    # V92.0: Hequr "academic" nga candidate_roots
     this_file = Path(__file__).resolve()
     candidate_roots = [
         Path.cwd() / "data",
@@ -144,7 +148,6 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     for p_idx in range(len(this_file.parents)):
         candidate_roots.append(this_file.parents[p_idx] / "data")
         candidate_roots.append(this_file.parents[p_idx] / "data" / "case_law")
-        candidate_roots.append(this_file.parents[p_idx] / "data" / "academic")
 
     search_roots = []
     seen_roots = set()
@@ -186,10 +189,11 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     # =========================================================================
     # HAPI 3: BACKBLAZE B2 CLOUD SEARCH (ME SKANIM TEKSTUAL TË TREFISHTË)
     # =========================================================================
+    # V92.0: Hequr "academic/" nga prefixes_to_check
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
-        prefixes_to_check = ["case_law/", "data/case_law/", "", "laws/ks/", "academic/"]
+        prefixes_to_check = ["case_law/", "data/case_law/", "", "laws/ks/"]
 
         # 3.1 Kontroll i drejtpërdrejtë Head-Object
         for prefix in prefixes_to_check:
@@ -262,20 +266,20 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     raise HTTPException(status_code=404, detail=f"Aktgjykimi suprem '{raw_basename}' nuk u gjet në arkivën zyrtare.")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════
+
 @router.get("/pdf/{filename:path}")
 async def get_law_pdf(filename: str):
-    res = _stream_from_b2_or_local(filename, ["laws/ks/", "academic/", "case_law/", "laws/", ""])
+    # V92.0: Hequr "academic/" nga lista e prefixeve
+    res = _stream_from_b2_or_local(filename, ["laws/ks/", "case_law/", "laws/", ""])
     if res:
         return res
     raise HTTPException(status_code=404, detail=f"Dokumenti PDF '{filename}' nuk u gjet në server apo cloud.")
 
 
-@router.get("/academia/pdf/{filename:path}")
-async def get_academia_pdf(filename: str):
-    res = _stream_from_b2_or_local(filename, ["academic/", "academic_manuals/", ""])
-    if res:
-        return res
-    raise HTTPException(status_code=404, detail=f"Materiali akademik PDF '{filename}' nuk u gjet në server apo cloud.")
+# V92.0: ENDPOINT /academia/pdf/* U HOQ (akademia nuk ekziston me)
 
 
 @router.get("/caselaw/pdf/{filename:path}")

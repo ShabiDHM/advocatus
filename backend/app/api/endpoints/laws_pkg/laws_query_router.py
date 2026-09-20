@@ -1,8 +1,14 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - ULTRA-FAST JURIDICAL RAG ENGINE V205.0 (PHASE 1 OPTIMIZATIONS)
+# PHOENIX PROTOCOL - ULTRA-FAST JURIDICAL RAG ENGINE V206.0 (REMOVED ACADEMIC)
+# V206.0: Hequr akademinë nga sistemi:
+#   - Hequr academic_filter + academic_db_sources + academic_db_titles
+#   - Hequr b2_academic + clean_academic
+#   - Hequr "academic_manuals" nga response i /titles
+#   - Hequr {"category": "academic"} + {"is_academic": True} nga statutes_filter $nor
+#   - all_titles tani vetem statutes + caselaw
 # V205.0: Fazë 1 optimizime performance:
-#   - Ekzekutim paralel i dy thirrjeve LLM (rerank + qualification) — fitim ~400-900ms
-#   - Skip PDF scan nëse faqja ekziston në DB (actual_page) — fitim ~1-5s
+#   - Ekzekutim paralel i dy thirrjeve LLM (rerank + qualification)
+#   - Skip PDF scan nëse faqja ekziston në DB (actual_page)
 # V204.0: TOC IGNORANCE & 1-INDEX NORMALIZER
 # 100% COMPLETE CODE • ZERO TOC JUMPS • EXACT PAGE JUMPING • DEEPSEEK & GPT-4O-MINI
 
@@ -446,8 +452,6 @@ async def ai_semantic_law_search(
 
         # ═══════════════════════════════════════════════════════════════════
         # V205.0: Ekzekutim PARALEL i dy thirrjeve LLM (fitim ~400-900ms)
-        # Kualifikimi nuk varet nga caselaw-i i verifikuar — ai shfaqet veçmas
-        # në përgjigje dhe përdoret për "supreme_court_interpretations".
         # ═══════════════════════════════════════════════════════════════════
         verified_caselaw, qualification = await asyncio.gather(
             _rerank_and_verify_caselaw_with_ai(clean_q, raw_caselaw_candidates),
@@ -506,10 +510,9 @@ async def get_case_starting_page(law_title: str = Query(...), current_user = Dep
         db = get_db_instance()
         clean_title = law_title.strip()
 
-        # Ne kërkojmë vetëm faqe reale pasqyruese, duke shmangur faqet e para (ku gjendet Treguesi)
         doc = db.legal_knowledge_base.find_one(
             {
-                "page": {"$gt": 20}, # Injoron Tabelat e Përmbajtjes
+                "page": {"$gt": 20},
                 "$or": [
                     {"law_title": clean_title},
                     {"law_title": {"$regex": re.escape(clean_title), "$options": "i"}},
@@ -518,10 +521,9 @@ async def get_case_starting_page(law_title: str = Query(...), current_user = Dep
                     {"text": {"$regex": re.escape(clean_title), "$options": "i"}}
                 ]
             },
-            sort=[("page", 1)] # Merr faqen e parë që plotëson kushtin
+            sort=[("page", 1)]
         )
 
-        # Nëse nuk gjendet asgjë pas faqes 20, provo sërish pa kufizim
         if not doc:
             doc = db.legal_knowledge_base.find_one(
                 {
@@ -551,27 +553,17 @@ async def get_case_starting_page(law_title: str = Query(...), current_user = Dep
 
 @router.get("/titles")
 async def get_law_titles(current_user = Depends(get_current_user)):
+    """
+    V206.0: Kthen vetem statutes + caselaw.
+    Akademia u hoq nga sistemi.
+    """
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
-        
-        academic_filter = {
-            "$or": [
-                {"category": "academic"},
-                {"is_academic": True},
-                {"source": {"$regex": "akademia|doracak|komentar", "$options": "i"}}
-            ]
-        }
-        academic_db_sources = db.legal_knowledge_base.distinct("source", academic_filter)
-        academic_db_titles = db.legal_knowledge_base.distinct("law_title", academic_filter)
-        b2_academic = _get_b2_filenames("academic/")
-        
-        raw_academic_sources = set([
-            s.strip() for s in (academic_db_sources + academic_db_titles + b2_academic) 
-            if s and s.strip()
-        ])
-        clean_academic = sorted(list(raw_academic_sources))
 
+        # ═══════════════════════════════════════════════════════════════════
+        # CASELAW
+        # ═══════════════════════════════════════════════════════════════════
         caselaw_filter = {
             "$or": [
                 {"category": "caselaw"},
@@ -588,13 +580,14 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         raw_caselaw = set([t.strip() for t in (caselaw_db_titles + caselaw_db_sources + b2_caselaw) if t and t.strip()])
         clean_caselaw = sorted(list(raw_caselaw))
 
+        # ═══════════════════════════════════════════════════════════════════
+        # STATUTES (V206.0: hequr academic nga $nor)
+        # ═══════════════════════════════════════════════════════════════════
         statutes_filter = {
             "is_article": True,
             "$nor": [
                 {"category": "caselaw"},
                 {"is_case_law": True},
-                {"category": "academic"},
-                {"is_academic": True},
                 {"source": {"$regex": r"case_law|supreme|praktikës|praktikes|vendime", "$options": "i"}},
                 {"law_title": {"$regex": r"Gjykata\s+Supreme|PML|REV|PA1|PKR", "$options": "i"}}
             ]
@@ -609,11 +602,11 @@ async def get_law_titles(current_user = Depends(get_current_user)):
 
         clean_statutes = sorted(list(set(raw_statutes)))
 
+        # V206.0: Vetem statutes + caselaw (akademia u hoq)
         return {
             "statutes": clean_statutes,
-            "academic_manuals": clean_academic,
             "case_law": clean_caselaw,
-            "all_titles": sorted(list(set(clean_statutes + clean_academic + clean_caselaw)))
+            "all_titles": sorted(list(set(clean_statutes + clean_caselaw)))
         }
     except Exception as e:
         logger.error(f"Error fetching law titles: {e}")
@@ -747,10 +740,6 @@ async def get_law_article(
         if not doc_source:
             raise HTTPException(status_code=404, detail=f"Ligji '{clean_law_title}' nuk u gjet.")
 
-        # ═══════════════════════════════════════════════════════════════════
-        # V205.0: Skip PDF scan nëse faqja ekziston tashmë në DB (fitim ~1-5s)
-        # Kontrollon actual_page → page → page_number, dhe përdor direkt nëse > 0.
-        # ═══════════════════════════════════════════════════════════════════
         cached_page = None
         if statute_docs:
             cached_page = (
@@ -765,10 +754,8 @@ async def get_law_article(
             cached_page_int = 0
 
         if cached_page_int > 0:
-            # ✅ Fast path: faqja është e njohur → asnjë scan PDF
             page_val = cached_page_int
         else:
-            # 🐢 Slow path: scan PDF një herë dhe ruaj për herën tjetër
             real_physical_page = _scan_exact_article_page(doc_source, art_digits)
 
             if real_physical_page:
