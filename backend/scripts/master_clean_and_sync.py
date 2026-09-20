@@ -1,5 +1,12 @@
 # FILE: backend/scripts/master_clean_and_sync.py
-# PHOENIX PROTOCOL - ROBUST 1,425-PAGE SUPREME COURT INGESTOR V20.0
+# PHOENIX PROTOCOL - ROBUST 1,425-PAGE SUPREME COURT INGESTOR V20.1
+# V20.1: CRITICAL FIX — SKIP CHECK per caselaw + academic.
+#        - Nuk fshihen me caselaw ekzistues kur shtohen PDF te re.
+#        - topic_id + topic_label mbeten te paprekura.
+#        - --caselaw / --academic nuk bejne me hard-delete.
+#        - Vetem --clean fshin gjithcka (per reset te plote).
+#        - Skip check: nese source + file_hash ekziston, kalon.
+# V20.0: Robust 1,425-page ingestor.
 
 import os
 import sys
@@ -122,6 +129,10 @@ def run_master_sync():
     sync_only_caselaw = "--caselaw" in args
     sync_only_statutes = "--statutes" in args
     sync_only_academic = "--academic" in args
+    # V20.1: --force-caselaw: fshin caselaw ekzistues + riproceson (per reset)
+    #         --force-academic: e njejta per academic
+    force_caselaw = "--force-caselaw" in args
+    force_academic = "--force-academic" in args
 
     sync_all = not (sync_only_caselaw or sync_only_statutes or sync_only_academic)
 
@@ -132,15 +143,17 @@ def run_master_sync():
         coll.delete_many({})
         logger.info("✅ Koleksioni 'legal_knowledge_base' u pastrua në 0 mbeturina.")
 
-    stats = {"laws_new": 0, "laws_skipped": 0, "caselaw_new": 0, "caselaw_skipped": 0, "acad_new": 0, "acad_skipped": 0}
+    stats = {
+        "laws_new": 0, "laws_skipped": 0,
+        "caselaw_new": 0, "caselaw_skipped": 0,
+        "acad_new": 0, "acad_skipped": 0,
+    }
 
     # 1. LIGJET STATUTORE
     if sync_all or sync_only_statutes:
         print("\n" + "="*60)
         print("⚖️ KONTROLLI I LIGJEVE STATUTORE (data/laws/ks)")
         print("="*60)
-        if sync_only_statutes:
-            coll.delete_many({"category": "statute"})
 
         laws_dir = ROOT_DIR / "data" / "laws" / "ks"
         if not laws_dir.exists(): laws_dir = BACKEND_DIR / "data" / "laws" / "ks"
@@ -157,7 +170,7 @@ def run_master_sync():
             law_title = clean_law_title_from_filename(fname)
 
             existing_count = coll.count_documents({"source": fname, "file_hash": fhash})
-            if existing_count > 5 and not (force_clean_all or sync_only_statutes):
+            if existing_count > 5 and not force_clean_all:
                 logger.info(f"⏭️  [Synced - {existing_count} nene]: {fname}")
                 stats["laws_skipped"] += 1
                 continue
@@ -198,13 +211,19 @@ def run_master_sync():
                 logger.info(f"   ✅ [U ruajtën {len(docs_to_insert)} nene]: {law_title}")
                 stats["laws_new"] += 1
 
-    # 2. VENDIMET DHE MENDIMET PARIMORE TË GJYKATËS SUPREME (1,425 FAQE)
+    # 2. VENDIMET DHE MENDIMET PARIMORE TË GJYKATËS SUPREME
     if sync_all or sync_only_caselaw:
         print("\n" + "="*60)
         print("🏛️ KONTROLLI I GJYKATËS SUPREME (data/case_law)")
         print("="*60)
-        if sync_only_caselaw:
+
+        # V20.1: Hard-delete NUK ndodh me automatikisht.
+        # Skip check (source + file_hash) e ben te njejtin efekt pa humbur topic_id.
+        # Vetem --force-caselaw fshin caselaw ekzistues.
+        if force_caselaw:
+            print("⚠️  --force-caselaw: DUKE FSHIRE te gjitha caselaw ekzistuese...")
             coll.delete_many({"category": "caselaw"})
+            logger.info("✅ Caselaw u fshi (force mode).")
 
         caselaw_dir = ROOT_DIR / "data" / "case_law"
         if not caselaw_dir.exists(): caselaw_dir = BACKEND_DIR / "data" / "case_law"
@@ -212,7 +231,7 @@ def run_master_sync():
         caselaw_files = []
         if caselaw_dir.exists():
             for p in sorted(list(caselaw_dir.iterdir())):
-                if p.is_file():
+                if p.is_file() and p.suffix.lower() == ".pdf":
                     caselaw_files.append(p)
 
         print(f"📂 Duke përpunuar {len(caselaw_files)} skedarë të Gjykatës Supreme:")
@@ -222,7 +241,19 @@ def run_master_sync():
         for file_path in caselaw_files:
             fname = file_path.name
             fhash = calculate_file_hash(str(file_path))
-            default_doc_title = clean_law_title_from_filename(fname)
+            default_doc_title = clean_law_title_from_format_name(fname) if False else clean_law_title_from_filename(fname)
+
+            # V20.1: SKIP check — nese ekziston me te njejtin hash, kalon
+            # Kjo ruan topic_id + topic_label + te gjitha fushat e tjera
+            existing_count = coll.count_documents({
+                "source": fname,
+                "file_hash": fhash,
+                "category": "caselaw",
+            })
+            if existing_count > 0 and not force_clean_all and not force_caselaw:
+                logger.info(f"⏭️  [Caselaw synced - {existing_count} chunks]: {fname}")
+                stats["caselaw_skipped"] += 1
+                continue
 
             logger.info(f"🔄 Duke procesuar: {fname}...")
             coll.delete_many({"source": fname})
@@ -295,8 +326,12 @@ def run_master_sync():
         print("\n" + "="*60)
         print("📚 KONTROLLI I AKADEMISË SË DREJTËSISË (data/academic)")
         print("="*60)
-        if sync_only_academic:
+
+        # V20.1: Hard-delete NUK ndodh me automatikisht.
+        if force_academic:
+            print("⚠️  --force-academic: DUKE FSHIRE te gjitha academic ekzistuese...")
             coll.delete_many({"category": "academic"})
+            logger.info("✅ Academic u fshi (force mode).")
 
         academic_dir = ROOT_DIR / "data" / "academic"
         if not academic_dir.exists(): academic_dir = BACKEND_DIR / "data" / "academic"
@@ -304,13 +339,24 @@ def run_master_sync():
         academic_files = []
         if academic_dir.exists():
             for p in sorted(list(academic_dir.iterdir())):
-                if p.is_file():
+                if p.is_file() and p.suffix.lower() == ".pdf":
                     academic_files.append(p)
 
         for file_path in academic_files:
             fname = file_path.name
             fhash = calculate_file_hash(str(file_path))
             doc_title = clean_law_title_from_filename(fname)
+
+            # V20.1: SKIP check
+            existing_count = coll.count_documents({
+                "source": fname,
+                "file_hash": fhash,
+                "category": "academic",
+            })
+            if existing_count > 0 and not force_clean_all and not force_academic:
+                logger.info(f"⏭️  [Academic synced - {existing_count} chunks]: {fname}")
+                stats["acad_skipped"] += 1
+                continue
 
             logger.info(f"🔄 Duke procesuar materialin e Akademisë: {fname}...")
             coll.delete_many({"source": fname})
@@ -369,9 +415,9 @@ def run_master_sync():
 
     print("\n" + "="*60)
     print("🏁 SINKRONIZIMI PËRFUNDOI ME SUKSES:")
-    print(f"   • Ligje:      {stats['laws_new']} të reja")
-    print(f"   • Gj.Supreme: {stats['caselaw_new']} skedarë të përpunuar ({len(caselaw_files)} total)")
-    print(f"   • Akademia:   {stats['acad_new']} të reja")
+    print(f"   • Ligje:      {stats['laws_new']} te re, {stats['laws_skipped']} skipped")
+    print(f"   • Gj.Supreme: {stats['caselaw_new']} te re, {stats['caselaw_skipped']} skipped ({len(caselaw_files)} total)")
+    print(f"   • Akademia:   {stats['acad_new']} te re, {stats['acad_skipped']} skipped")
     print("="*60 + "\n")
 
 if __name__ == "__main__":
