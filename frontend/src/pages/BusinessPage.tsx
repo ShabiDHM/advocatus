@@ -1,5 +1,10 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V13.4 (REMOVED ADMIN ROLE SUFFIX)
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.5 (HEADER CONSISTENCY)
+// V13.5: Harmonizuar stil-et e tab-ave aktivë me Header V22.0:
+//        - Hequr glass-panel (saturate 160% krijonte perceptim të ngjyrës)
+//        - rounded-full → rounded-xl, shadow-lg/15 → shadow-md/20
+//        - h-9 → py-2, tracking-wider → tracking-widest
+// V13.4: Removed admin role suffix
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -43,10 +48,10 @@ const BusinessPage: React.FC = () => {
   return (
     <div className="w-full min-h-screen pt-12 pb-12 bg-canvas">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        
+
         {/* Executive Row: Greeting (Left) and Tabs (Right) */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
-            
+
             {/* The Greeting without (admin) */}
             <div className="text-center lg:text-left">
                 <h1 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-widest mb-1 select-none">
@@ -57,23 +62,23 @@ const BusinessPage: React.FC = () => {
                 </p>
             </div>
 
-            {/* Navigation Tabs - Standardized h-11 / 44px capsule layout */}
-            <div className="glass-panel p-1 rounded-full bg-surface border border-main shadow-sm w-full lg:w-auto flex flex-wrap justify-center gap-1 h-11 items-center shrink-0">
+            {/* Navigation Tabs — Standardized me Header V22.0 (konsistencë ngjyre) */}
+            <div className="p-1 rounded-2xl bg-surface border border-main shadow-xs w-full lg:w-auto flex flex-wrap justify-center gap-1 shrink-0">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         type="button"
                         onClick={() => setActiveTab(tab.id as ActiveTab)}
                         className={`
-                            flex items-center gap-2 px-4 sm:px-6 h-9 rounded-full text-[10px] sm:text-xs 
-                            font-black uppercase tracking-wider transition-all whitespace-nowrap focus:outline-none
-                            ${activeTab === tab.id 
-                                ? 'bg-primary-start text-white shadow-lg shadow-primary-start/15' 
+                            flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs
+                            font-black uppercase tracking-widest transition-all duration-200 whitespace-nowrap focus:outline-none
+                            ${activeTab === tab.id
+                                ? 'bg-primary-start text-white shadow-md shadow-primary-start/20'
                                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
                             }
                         `}
                     >
-                        {tab.icon} 
+                        {tab.icon}
                         <span className="hidden sm:inline">{tab.label}</span>
                         <span className="sm:hidden">{tab.label.substring(0, 3)}</span>
                     </button>
@@ -82,10 +87,10 @@ const BusinessPage: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <motion.div 
+        <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 10 }} 
-            animate={{ opacity: 1, y: 0 }} 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
             className="w-full"
         >
             {renderActiveTab()}
