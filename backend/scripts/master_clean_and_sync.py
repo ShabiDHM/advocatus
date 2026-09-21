@@ -1,16 +1,13 @@
 # FILE: backend/scripts/master_clean_and_sync.py
-# PHOENIX PROTOCOL - ROBUST SUPREME COURT INGESTOR V20.2 (REMOVED ACADEMIC)
-# V20.2: Hequr akademinë nga sistemi:
-#        - Hequr seksionin 3 (AKADEMIA E DREJTËSISË) plotësisht.
-#        - Hequr flag-et --academic dhe --force-academic.
-#        - Hequr acad_new, acad_skipped nga stats.
-#        - Hequr referencat ndaj folderit data/academic.
-#        - Clean: vetem statutes + caselaw.
-#        - FIX typo: hequr `clean_law_title_from_format_name` (nuk ekziston).
-# V20.1: CRITICAL FIX — SKIP CHECK per caselaw.
-#        - Nuk fshihen caselaw ekzistues kur shtohen PDF te re.
-#        - topic_id + topic_label mbeten te paprekura.
-#        - Skip check: nese source + file_hash ekziston, kalon.
+# PHOENIX PROTOCOL - ROBUST SUPREME COURT INGESTOR V20.3
+# V20.3: Struktura BY YEAR per caselaw:
+#        - Skanon REKURSIVISHT (**/*.pdf) ne data/case_law/.
+#        - Nxjerr `year` nga folderi (2024, 2025, ...).
+#        - Ruan fushen `year` ne cdo chunk caselaw.
+#        - Filtro me --years 2024,2025,2026 (opsionale).
+#        - Renditje: vitet me te reja te para (2026 -> 2000).
+# V20.2: Hequr akademinë.
+# V20.1: Skip check per caselaw (source + file_hash).
 # V20.0: Robust ingestor.
 
 import os
@@ -20,6 +17,7 @@ import logging
 import hashlib
 import re
 from pathlib import Path
+from typing import Optional, Set
 from dotenv import load_dotenv
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -51,6 +49,49 @@ CASE_HEADER_START_REGEX = re.compile(
     re.IGNORECASE
 )
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V20.3: YEAR EXTRACTION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def extract_year_from_path(file_path: Path) -> Optional[int]:
+    """
+    V20.3: Nxjerr vitin nga folderi prind.
+    Shembull:
+      data/case_law/2024/file.pdf -> 2024
+      data/case_law/_unknown/file.pdf -> None
+    """
+    parent_name = file_path.parent.name
+    if parent_name.isdigit():
+        year = int(parent_name)
+        if 2000 <= year <= 2030:
+            return year
+    return None
+
+
+def collect_caselaw_files(caselaw_dir: Path, allowed_years: Set[int]) -> list:
+    """
+    V20.3: Mbledh te gjithe PDF-t ne menyre rekursive.
+    Renditje: vitet me te reja te para (2026, 2025, ...).
+    Filtron sipas `allowed_years` nese eshte jo-bosh.
+    """
+    all_pdfs = []
+    for p in caselaw_dir.rglob("*.pdf"):
+        if not p.is_file():
+            continue
+        year = extract_year_from_path(p)
+        if allowed_years and year not in allowed_years:
+            continue
+        all_pdfs.append((year or 0, p))
+
+    # Rendit: vitet me te reja te para, pastaj alfabetikisht
+    all_pdfs.sort(key=lambda x: (-x[0], x[1].name))
+    return [p for _, p in all_pdfs]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
 
 def calculate_file_hash(filepath: str) -> str:
     hasher = hashlib.md5()
@@ -122,6 +163,10 @@ def extract_articles_from_pdf(filepath: str) -> list:
     return articles
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════
+
 def run_master_sync():
     uri = os.getenv("DATABASE_URI")
     db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
@@ -133,13 +178,30 @@ def run_master_sync():
     db = client[db_name]
     coll = db["legal_knowledge_base"]
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # PARSE ARGS
+    # ═══════════════════════════════════════════════════════════════════════
     args = sys.argv[1:]
     force_clean_all = "--clean" in args
     sync_only_caselaw = "--caselaw" in args
     sync_only_statutes = "--statutes" in args
-    # V20.2: --force-caselaw: fshin caselaw ekzistues + riproceson (per reset)
     force_caselaw = "--force-caselaw" in args
-    # V20.2: --force-academic u hoq (akademia nuk ekziston me)
+
+    # V20.3: Parse --years 2024,2025,2026
+    allowed_years: Set[int] = set()
+    for i, arg in enumerate(args):
+        years_str = None
+        if arg == "--years" and i + 1 < len(args):
+            years_str = args[i + 1]
+        elif arg.startswith("--years="):
+            years_str = arg.split("=", 1)[1]
+
+        if years_str:
+            for y in years_str.split(","):
+                y = y.strip()
+                if y.isdigit():
+                    allowed_years.add(int(y))
+            break
 
     sync_all = not (sync_only_caselaw or sync_only_statutes)
 
@@ -150,15 +212,18 @@ def run_master_sync():
         coll.delete_many({})
         logger.info("✅ Koleksioni 'legal_knowledge_base' u pastrua në 0 mbeturina.")
 
-    # V20.2: Hequr acad_new, acad_skipped
+    if allowed_years:
+        print(f"\n🎯 FILTER: Vetem vitet {sorted(allowed_years)}")
+
     stats = {
         "laws_new": 0, "laws_skipped": 0,
         "caselaw_new": 0, "caselaw_skipped": 0,
+        "caselaw_failed": 0,
     }
 
-    # ═══════════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
     # 1. LIGJET STATUTORE
-    # ═══════════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
     if sync_all or sync_only_statutes:
         print("\n" + "=" * 60)
         print("⚖️ KONTROLLI I LIGJEVE STATUTORE (data/laws/ks)")
@@ -171,7 +236,7 @@ def run_master_sync():
         law_files = []
         if laws_dir.exists():
             for p in sorted(list(laws_dir.iterdir())):
-                if p.is_file():
+                if p.is_file() and p.suffix.lower() == ".pdf":
                     law_files.append(p)
 
         for file_path in law_files:
@@ -222,17 +287,14 @@ def run_master_sync():
                 logger.info(f"   ✅ [U ruajtën {len(docs_to_insert)} nene]: {law_title}")
                 stats["laws_new"] += 1
 
-    # ═══════════════════════════════════════════════════════════════════
-    # 2. VENDIMET DHE MENDIMET PARIMORE TË GJYKATËS SUPREME
-    # ═══════════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════
+    # 2. VENDIMET E GJYKATËS SUPREME (BY YEAR)
+    # ═══════════════════════════════════════════════════════════════════════
     if sync_all or sync_only_caselaw:
         print("\n" + "=" * 60)
-        print("🏛️ KONTROLLI I GJYKATËS SUPREME (data/case_law)")
+        print("🏛️ KONTROLLI I GJYKATËS SUPREME (data/case_law/)")
         print("=" * 60)
 
-        # V20.1/V20.2: Hard-delete NUK ndodh me automatikisht.
-        # Skip check (source + file_hash) ruan topic_id + topic_label.
-        # Vetem --force-caselaw fshin caselaw ekzistues.
         if force_caselaw:
             print("⚠️  --force-caselaw: DUKE FSHIRE te gjitha caselaw ekzistuese...")
             coll.delete_many({"category": "caselaw"})
@@ -242,32 +304,54 @@ def run_master_sync():
         if not caselaw_dir.exists():
             caselaw_dir = BACKEND_DIR / "data" / "case_law"
 
-        caselaw_files = []
-        if caselaw_dir.exists():
-            for p in sorted(list(caselaw_dir.iterdir())):
-                if p.is_file() and p.suffix.lower() == ".pdf":
-                    caselaw_files.append(p)
+        if not caselaw_dir.exists():
+            logger.error(f"❌ Nuk ekziston: {caselaw_dir}")
+            return
 
-        print(f"📂 Duke përpunuar {len(caselaw_files)} skedarë të Gjykatës Supreme:")
+        caselaw_files = collect_caselaw_files(caselaw_dir, allowed_years)
+
+        print(f"📂 Gjetur {len(caselaw_files)} PDF (rekursiv, by year):")
+        if not allowed_years:
+            print(f"   (të gjitha vitet)")
+        else:
+            print(f"   (vetem vitet: {sorted(allowed_years)})")
+        print()
+
+        # Numëro per vit
+        from collections import Counter
+        by_year = Counter()
         for cf in caselaw_files:
-            print(f"   👉 {cf.name}")
+            year = extract_year_from_path(cf) or 0
+            by_year[year] += 1
+        for year in sorted(by_year.keys(), reverse=True):
+            print(f"   {year if year > 0 else '_unknown':<10}: {by_year[year]} PDF")
+        print()
 
+        # Process
+        idx_global = 0
         for file_path in caselaw_files:
+            idx_global += 1
             fname = file_path.name
             fhash = calculate_file_hash(str(file_path))
-            # V20.2: FIX typo - hequr clean_law_title_from_format_name (nuk ekziston)
+            year = extract_year_from_path(file_path)
             default_doc_title = clean_law_title_from_filename(fname)
 
-            # V20.1: SKIP check — ruan topic_id + topic_label
+            # V20.1: SKIP check
             existing_count = coll.count_documents({
                 "source": fname,
                 "file_hash": fhash,
                 "category": "caselaw",
             })
             if existing_count > 0 and not force_clean_all and not force_caselaw:
-                logger.info(f"⏭️  [Caselaw synced - {existing_count} chunks]: {fname}")
                 stats["caselaw_skipped"] += 1
                 continue
+
+            # Log progres (per çdo 100)
+            if idx_global % 100 == 0:
+                logger.info(
+                    f"📊 Progres: {idx_global}/{len(caselaw_files)} "
+                    f"(new: {stats['caselaw_new']}, skipped: {stats['caselaw_skipped']})"
+                )
 
             logger.info(f"🔄 Duke procesuar: {fname}...")
             coll.delete_many({"source": fname})
@@ -276,6 +360,7 @@ def run_master_sync():
                 doc = fitz.open(str(file_path))
             except Exception as e:
                 logger.warning(f"❌ Dështoi hapja e {fname}: {e}")
+                stats["caselaw_failed"] += 1
                 continue
 
             raw_chunks = []
@@ -304,7 +389,7 @@ def run_master_sync():
                     chunk_str = page_text[start:end].strip()
                     start += chunk_size - overlap
                     if len(chunk_str) > 20:
-                        raw_chunks.append({
+                        chunk_doc = {
                             "chunk_id": str(uuid.uuid4()),
                             "law_title": f"Gjykata Supreme - {current_case_no}",
                             "title": current_case_no,
@@ -318,8 +403,12 @@ def run_master_sync():
                             "is_case_law": True,
                             "is_article": False,
                             "category": "caselaw",
-                            "jurisdiction": "ks"
-                        })
+                            "jurisdiction": "ks",
+                        }
+                        # V20.3: Shto year nese ekziston
+                        if year is not None:
+                            chunk_doc["year"] = year
+                        raw_chunks.append(chunk_doc)
                         chunk_idx += 1
             doc.close()
 
@@ -329,23 +418,24 @@ def run_master_sync():
                 for b_idx in range(0, len(texts_to_embed), 50):
                     all_embeddings.extend(generate_embeddings_batch(texts_to_embed[b_idx:b_idx + 50]))
 
-                for idx, c_data in enumerate(raw_chunks):
-                    c_data["embedding"] = all_embeddings[idx] if idx < len(all_embeddings) else []
+                for i, c_data in enumerate(raw_chunks):
+                    c_data["embedding"] = all_embeddings[i] if i < len(all_embeddings) else []
 
                 coll.insert_many(raw_chunks)
-                logger.info(f"   ✅ [U ruajtën {len(raw_chunks)} pjesëza me embeddings]: {fname}")
+                logger.info(
+                    f"   ✅ [U ruajtën {len(raw_chunks)} pjesëza, vit={year}]: {fname}"
+                )
                 stats["caselaw_new"] += 1
 
-    # ═══════════════════════════════════════════════════════════════════
-    # V20.2: SEKSIONI 3 (AKADEMIA E DREJTËSISË) U HOQ PLOTËSISHT
-    # ═══════════════════════════════════════════════════════════════════
-    # Nuk ka me --academic, --force-academic, data/academic, is_academic.
-
+    # ═══════════════════════════════════════════════════════════════════════
+    # FINAL REPORT
+    # ═══════════════════════════════════════════════════════════════════════
     print("\n" + "=" * 60)
     print("🏁 SINKRONIZIMI PËRFUNDOI ME SUKSES:")
     print(f"   • Ligje:      {stats['laws_new']} te re, {stats['laws_skipped']} skipped")
-    print(f"   • Gj.Supreme: {stats['caselaw_new']} te re, {stats['caselaw_skipped']} skipped ({len(caselaw_files)} total)")
-    # V20.2: Hequr rreshti i Akademisë
+    print(f"   • Gj.Supreme: {stats['caselaw_new']} te re, {stats['caselaw_skipped']} skipped, {stats['caselaw_failed']} deshtuan")
+    if allowed_years:
+        print(f"   • Filter vitet: {sorted(allowed_years)}")
     print("=" * 60 + "\n")
 
 

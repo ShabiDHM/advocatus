@@ -1,19 +1,11 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.10
-# V282.10: MULTI-LAW CHAT — nene me law_hint bosh ose te gabuar tani
-#          raportohen si AMBIGUOUS (jo missing) me liste ligjesh alternative.
-#          Zgjidh false-negative "Neni 42 nuk u gjet" kur ekziston ne 3 ligje.
-# V282.9: FIX — heq titujt e përsëritur KUdo në tekst (jo vetëm në krye),
-#         me _is_law_header_candidate dinamik.
-# V282.8: CLEANER DINAMIK — heq header-a të përsëritur të çdo ligji.
-# V282.7: Fix format ligji (08/L-185) + heqje titujsh të përsëritur.
-# V282.6: FORMATIM PROFESIONAL fast-path DIRECT.
-# V282.5: DIRECT RETURN — SKIP LLM fare.
-# V282.4: LAZY LOAD db_documents.
-# V282.3: Fix bug whitelist në fast path.
-# V282.2: FAST PATH për pyetje faktike ligjore.
-# V282.1: Instrumentim timing.
-# V282.0: Pre-verification.
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.13
+# V282.13: Rregull i re për precedentët — NUK LEJOHET të shpikësh numra
+#          lëndësh. Përdor VETËM ata që shfaqen në "JURISPRUDENCA DHE
+#          DITURIA GLOBALE E KOSOVËS".
+# V282.12: Skip global për pyetje faktuale; global vetëm nëse përdoruesi
+#          kërkon eksplicitisht precedentë.
+# V282.11: Chat përdor FAST_SEARCH_MODEL (GPT-4o-mini).
 
 import os
 import logging
@@ -37,11 +29,38 @@ from app.services.pillars.base_pillar_service import BasePillarService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
-from app.services.llm.llm_client import DEEP_ANALYSIS_MODEL
+from app.services.llm.llm_client import DEEP_ANALYSIS_MODEL, FAST_SEARCH_MODEL
 
 logger = logging.getLogger(__name__)
 
 CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V282.12: FJALË KYÇE PËR KËRKIM EKSPLICIT TË PRECEDENTËVE
+# ═══════════════════════════════════════════════════════════════════════════
+
+GLOBAL_SEARCH_TRIGGERS = [
+    "precedent",
+    "precedente",
+    "precedentë",
+    "jurisprudenc",
+    "gjykata supreme",
+    "gjykatës supreme",
+    "praktikë gjyqësore",
+    "praktike gjyqesore",
+    "praktikën gjyqësore",
+    "vendime gjyqësore",
+    "aktgjykim supreme",
+    "mendim juridik",
+    "qëndrim parimor",
+    "qendrim parimor",
+]
+
+
+def _user_wants_global_search(query_lower: str) -> bool:
+    """V282.12: Kontrollo nëse përdoruesi kërkon eksplicitisht precedentë."""
+    return any(trigger in query_lower for trigger in GLOBAL_SEARCH_TRIGGERS)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # UDHËZIMI I BASHKËPUNIMIT + ANTI-HALUDINACIONI (V282.0)
@@ -127,6 +146,18 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
     - SHEMBULL i saktë:
         "Neni 42 ekziston në: Ligji Nr. 03/L-006, Ligji Nr. 04/L-077, Kodi Penal Nr. 06/L-074.
          Ju lutem specifikoni se cilën ligj synoni të citoni."
+
+14. ⚠️ PRECEDENTËT E GJYKATËS SUPREME (KRITIKE — V282.13):
+    - NËSE në kontekst shfaqet seksioni "<<< JURISPRUDENCA DHE DITURIA GLOBALE E KOSOVËS >>>":
+       → PËRDOR VETËM numrat e lëndëve që shfaqen Aty (të etiketuar "🏛️ BURIMI:").
+       → NUK LEJOHET të shpikësh numra lëndësh (p.sh. "REV.Nr.43/2022") që nuk shfaqen në kontekst.
+       → NËSE nuk gjendet precedent relevant → thuaj SAKTËSISHT:
+           "Nuk u identifikua precedent relevant në bazën e Gjykatës Supreme për këtë pyetje."
+    - NËSE NUK ka seksion "<<< JURISPRUDENCA DHE DITURIA GLOBALE E KOSOVËS >>>" në kontekst:
+       → NUK LEJOHET të përmendësh asnjë numër precedenti.
+       → Thuaj: "Për kërkim precedentësh, specifikoni eksplicitisht 'precedent' ose
+         'jurisprudencë' në pyetjen tuaj."
+    - NUK LEJOHET të përmendësh vendime gjykate që nuk shfaqen në kontekst.
 """
 
 
@@ -156,12 +187,6 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
 
 
 def _format_alternative_laws(v: Dict[str, Any]) -> str:
-    """
-    V282.10: Format listen e ligjeve alternative per display.
-    Trajton te dyja format:
-      - strings (nga multiple_laws_no_hint)
-      - dicts me law_title (nga law_hint_no_match_but_exists_elsewhere)
-    """
     alts = v.get("alternative_laws", [])
     if not alts:
         return ""
@@ -185,10 +210,11 @@ class AlbanianRAGService:
         self.db = db
         self.response_generator = ResponseGenerator()
         logger.info(
-            f"✅ [RAG] Juristi AI Natural Client Service V282.10 Initialized "
-            f"(chat model: {DEEP_ANALYSIS_MODEL}, judicial-docs whitelist: ON, "
-            f"dual-law rule: ON, query-depth: ON, pre-verify: ON, fast-path: DIRECT, "
-            f"dynamic-cleaner: ON, timing: ON, multi-law-chat: ON)."
+            f"✅ [RAG] Juristi AI Natural Client Service V282.13 Initialized "
+            f"(chat model: {FAST_SEARCH_MODEL}, "
+            f"judicial-docs whitelist: ON, dual-law rule: ON, query-depth: ON, "
+            f"pre-verify: ON, fast-path: DIRECT, dynamic-cleaner: ON, timing: ON, "
+            f"multi-law-chat: ON, global-on-demand: ON, no-fake-precedents: ON)."
         )
 
     def _optimize_query(self, query: str) -> str:
@@ -218,12 +244,7 @@ class AlbanianRAGService:
 
         return cleaned.strip()
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # V282.8/9: DYNAMIC CLEANING — pa hardkodim, mbulon çdo ligj
-    # ═══════════════════════════════════════════════════════════════════════
-
     def _unwrap_lines(self, text: str) -> str:
-        """Bashkon line-breaks wrap-around nga PDF."""
         lines = text.splitlines()
         result: List[str] = []
         for line in lines:
@@ -240,7 +261,6 @@ class AlbanianRAGService:
         return "\n".join(result)
 
     def _extract_gazette_info(self, raw: str) -> Optional[str]:
-        """Nxjerr info të Gazetës Zyrtare — dinamik."""
         m = re.search(
             r'GAZETA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS\s*/\s*Nr\.?\s*(\d+)\s*/\s*([^,\n]+)',
             raw,
@@ -251,7 +271,6 @@ class AlbanianRAGService:
         return None
 
     def _extract_law_number_from_source(self, source: str) -> str:
-        """Dinamik: nxjerr numrin XX/L-YYY nga çdo emër file-i."""
         if not source:
             return ""
         m = re.search(r'(\d{2})\s*[_ ]?\s*L\s*[-_ ]?\s*(\d{2,4})', source, re.IGNORECASE)
@@ -260,14 +279,6 @@ class AlbanianRAGService:
         return ""
 
     def _is_document_header_line(self, line: str) -> bool:
-        """
-        V282.8: Dinamik — çdo rresht që duket si header i dokumentit zyrtar.
-        Kriteret:
-          - Gjatësi > 25 karaktere
-          - ALL CAPS ratio > 70% (duke injoruar numrat/pikësimin)
-          - Ka më shumë se 3 fjalë
-          - NUK përfundon me '.' (fjali normale)
-        """
         stripped = line.strip()
         if len(stripped) < 25:
             return False
@@ -288,15 +299,7 @@ class AlbanianRAGService:
 
         return True
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # V282.9: KANDIDAT për header ligji (më liberal — heq kudo në tekst)
-    # ═══════════════════════════════════════════════════════════════════════
-
     def _is_law_header_candidate(self, line: str) -> bool:
-        """
-        V282.9: Dinamik — rresht që ka shumë gjasa të jetë header ligji/faqe.
-        Kriteret: ALL CAPS > 70% + gjatësi > 25 + (përmban 'NR.' ose ≥ 4 fjalë).
-        """
         stripped = line.strip()
         if len(stripped) < 25:
             return False
@@ -318,7 +321,6 @@ class AlbanianRAGService:
         return False
 
     def _is_header_continuation(self, line: str) -> bool:
-        """V282.8: Kontrollo nëse rreshti është vazhdim i header-it (rresht i shkurtër ALL CAPS)."""
         stripped = line.strip()
         if len(stripped) < 8:
             return False
@@ -329,7 +331,6 @@ class AlbanianRAGService:
         return upper_ratio >= 0.8
 
     def _remove_repeated_headers(self, lines: List[str]) -> List[str]:
-        """V282.8: Heq linjat që përsëriten (header-at e faqeve) — dinamik."""
         candidates: List[str] = []
         for line in lines:
             stripped = line.strip()
@@ -347,22 +348,10 @@ class AlbanianRAGService:
         return [l for l in lines if l.strip() not in repeated]
 
     def _clean_official_text(self, raw: str) -> str:
-        """
-        V282.9: Pastrim DINAMIK — heq titujt e përsëritur KUdo në tekst
-        (jo vetëm në krye). Pa hardkodim ligji.
-        Hapat:
-          1. Hiq GAZETA ZYRTARE
-          2. Hiq numra faqesh standalone
-          3. Hiq header-at e përsëritur (dinamik)
-          4. Hiq TË GJITHA rreshtat që duken si header ligji + vazhdimin e tyre
-          5. Unwrap line-breaks
-          6. Normalizo whitespace
-        """
         if not raw:
             return ""
         text = raw
 
-        # 1. Hiq GAZETA ZYRTARE
         text = re.sub(
             r'^.*GAZETA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS.*$',
             '',
@@ -370,18 +359,12 @@ class AlbanianRAGService:
             flags=re.MULTILINE | re.IGNORECASE,
         )
 
-        # 2. Hiq numra faqesh standalone
         text = re.sub(r'^\s*\d{1,3}\s*$', '', text, flags=re.MULTILINE)
 
-        # 3. Hiq header-at e përsëritur (DINAMIK — në krye të listës)
         lines = text.splitlines()
         lines = self._remove_repeated_headers(lines)
         text = "\n".join(lines)
 
-        # ═══════════════════════════════════════════════════════════════════
-        # 4. V282.9: Hiq TË GJITHA rreshtat që duken si header ligji + vazhdim
-        #    (kudo në tekst, jo vetëm në krye)
-        # ═══════════════════════════════════════════════════════════════════
         lines = text.splitlines()
         filtered: List[str] = []
         skip_next_caps = False
@@ -392,7 +375,6 @@ class AlbanianRAGService:
             if skip_next_caps:
                 skip_next_caps = False
                 if stripped and stripped.isupper() and 5 <= len(stripped) < 100 and stripped.split():
-                    # vazhdim i header-it (p.sh. "BAZA GJINORE")
                     continue
 
             if self._is_law_header_candidate(stripped):
@@ -403,10 +385,8 @@ class AlbanianRAGService:
 
         text = "\n".join(filtered)
 
-        # 5. Unwrap line-breaks
         text = self._unwrap_lines(text)
 
-        # 6. Normalizo whitespace
         text = re.sub(r'\n{3,}', '\n\n', text)
         text = re.sub(r'[ \t]+\n', '\n', text)
         text = re.sub(r'[ \t]{2,}', ' ', text)
@@ -419,7 +399,6 @@ class AlbanianRAGService:
         verified_articles: List[Tuple[Dict[str, Any], Dict[str, Any]]],
         pre_verify_disclaimer: str,
     ) -> str:
-        """V282.8: Formato përgjigje direkte me strukturë profesionale."""
         parts: List[str] = []
 
         if pre_verify_disclaimer:
@@ -560,7 +539,6 @@ class AlbanianRAGService:
                 )
                 verification_results.append((art, v))
 
-            # V282.10: Kategorizim i trefishte — verified / ambiguous / missing
             verified_articles = [(a, v) for a, v in verification_results if v["exists"]]
             ambiguous_articles = [
                 (a, v) for a, v in verification_results
@@ -571,7 +549,6 @@ class AlbanianRAGService:
                 if not v["exists"] and not v.get("alternative_laws")
             ]
 
-            # V282.10: Refuzim total vetem kur s'ka verified dhe s'ka ambiguous
             if (
                 missing_articles
                 and not verified_articles
@@ -601,7 +578,6 @@ class AlbanianRAGService:
                 _lap("refusal_total")
                 return
 
-            # V282.10: Disclaimer per ambiguous (para missing)
             if ambiguous_articles:
                 for art, v in ambiguous_articles:
                     alts = _format_alternative_laws(v)
@@ -613,7 +589,7 @@ class AlbanianRAGService:
                             f"   Për citim të saktë, specifiko ligjin (p.sh. \"Neni "
                             f"{art['number']} i [Ligjit]\").\n"
                         )
-                    else:  # law_hint_no_match_but_exists_elsewhere
+                    else:
                         pre_verify_disclaimer += (
                             f"⚠️ Neni {art['number']} nuk u gjet me hint '{art.get('law_hint', '')}', "
                             f"por ekziston në: {alts}. Kontrollo burimin e saktë.\n"
@@ -637,7 +613,6 @@ class AlbanianRAGService:
                     text_excerpt = doc.get("text_excerpt", "")
                     verified_context += f"\n**{law_title} — Neni {art['number']}**\n{text_excerpt}\n"
 
-            # V282.10: Shto kontekst per nene AMBIGUOUS
             if ambiguous_articles:
                 verified_context += "\n\n⚠️ NENE QË EKZISTOJNË NË DISA LIGJE (kërkojnë specifikim):\n"
                 for art, v in ambiguous_articles:
@@ -658,7 +633,7 @@ class AlbanianRAGService:
                         )
 
             logger.info(
-                f"🔎 [PreVerify V282.10] articles total={len(verification_results)} "
+                f"🔎 [PreVerify V282.13] articles total={len(verification_results)} "
                 f"verified={len(verified_articles)} ambiguous={len(ambiguous_articles)} "
                 f"missing={len(missing_articles)} has_general={legal_query['has_general_query']}"
             )
@@ -681,10 +656,25 @@ class AlbanianRAGService:
         should_fetch_global = QueryDepthDetector.should_fetch_global_docs(query, has_document_selection)
         query_depth = QueryDepthDetector.detect(query)
 
+        user_wants_global = _user_wants_global_search(query_lower)
+
+        if not user_wants_global:
+            if should_fetch_global:
+                logger.info(
+                    f"⏭️ [V282.13] Skip global — pyetje faktuale pa kërkesë eksplicite "
+                    f"për precedentë."
+                )
+            should_fetch_global = False
+        else:
+            logger.info(
+                f"🌐 [V282.13] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
+            )
+
         logger.info(
             f"🎯 [QueryDepth] Depth={query_depth} | "
             f"Doc selected={has_document_selection} | "
-            f"Fetch global={should_fetch_global}"
+            f"Fetch global={should_fetch_global} | "
+            f"User wants global={user_wants_global}"
         )
 
         is_case_wide_request = any(kw in query_lower for kw in [
@@ -716,7 +706,7 @@ class AlbanianRAGService:
 
         if is_factual_legal_query:
             logger.info(
-                f"⚡ [FastPath V282.10 DIRECT] Skip LLM — return verified text directly "
+                f"⚡ [FastPath V282.13 DIRECT] Skip LLM — return verified text directly "
                 f"({len(verified_articles)} verified articles)"
             )
 
@@ -845,10 +835,14 @@ class AlbanianRAGService:
             )
             _lap("vector_case")
 
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            _lap("vector_global")
+            if should_fetch_global:
+                global_docs = vector_store_service.query_global_knowledge_base(
+                    query_text=optimized_query, n_results=15
+                )
+                _lap("vector_global")
+            else:
+                global_docs = []
+                logger.info(f"⏭️ [V282.13] Skip global_docs në DRAFTING")
 
             manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
             _lap("context_builder")
@@ -885,7 +879,7 @@ class AlbanianRAGService:
                 _lap("vector_global")
             else:
                 global_docs = []
-                logger.info(f"⏭️ [QueryDepth] Skip global_docs (factual + document selected)")
+                logger.info(f"⏭️ [V282.13] Skip global_docs (chat i thjeshtë)")
 
             manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
             _lap("context_builder")
@@ -912,7 +906,7 @@ class AlbanianRAGService:
             exec_query,
             context="",
             history=history,
-            model=DEEP_ANALYSIS_MODEL,
+            model=FAST_SEARCH_MODEL,
         ):
             if not _first_token_logged:
                 _first_token_logged = True
@@ -922,24 +916,38 @@ class AlbanianRAGService:
 
         _lap("llm_stream")
 
-        try:
-            correction_section = build_correction_section(
-                output_text=full_generated_response,
-                whitelist=whitelist,
-            )
+        lower_resp = full_generated_response.lower()
+        llm_failed = any(marker in lower_resp for marker in [
+            "përkohësisht i ngarkuar",
+            "gabim teknik",
+            "error code:",
+            "upstream error",
+        ])
 
-            if correction_section:
-                logger.info(
-                    f"🔍 [Post-Processor V2.2] Korrigjim u shtua: {len(correction_section)} chars. "
-                    f"whitelist ({whitelist.get('source_filter')}): "
-                    f"{len(whitelist.get('articles', []))} nene, "
-                    f"{len(whitelist.get('laws_number', []))} ligje me numër, "
-                    f"{len(whitelist.get('laws_by_file', {}))} dokumente me ligje."
+        if llm_failed:
+            logger.warning(
+                f"⚠️ [V282.13] LLM dështoi — skip correction section. "
+                f"Output: {full_generated_response[:100]}..."
+            )
+        else:
+            try:
+                correction_section = build_correction_section(
+                    output_text=full_generated_response,
+                    whitelist=whitelist,
                 )
-                yield correction_section
-                full_generated_response += correction_section
-        except Exception as e:
-            logger.warning(f"⚠️ [Post-Processor] Dështoi: {e}")
+
+                if correction_section:
+                    logger.info(
+                        f"🔍 [Post-Processor V2.3] Korrigjim u shtua: {len(correction_section)} chars. "
+                        f"whitelist ({whitelist.get('source_filter')}): "
+                        f"{len(whitelist.get('articles', []))} nene, "
+                        f"{len(whitelist.get('laws_number', []))} ligje me numër, "
+                        f"{len(whitelist.get('laws_by_file', {}))} dokumente me ligje."
+                    )
+                    yield correction_section
+                    full_generated_response += correction_section
+            except Exception as e:
+                logger.warning(f"⚠️ [Post-Processor] Dështoi: {e}")
 
         _lap("post_processor")
 

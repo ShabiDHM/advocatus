@@ -1,5 +1,5 @@
 # ==========================================
-# PHOENIX PROTOCOL - PRODUCTION GITIGNORE
+# PHOENIX PROTOCOL - PRODUCTION GITIGNORE V2.5
 # ==========================================
 
 # Virtual Environments
@@ -63,9 +63,6 @@ celerybeat.pid
 # ==========================================
 # DEBUG/TEST SCRIPTS (one-shot, lokale)
 # ==========================================
-# Keto jane skripte ndihmese per diagnoze/testim qe nuk duhen ne production.
-# Krijohen dhe fshihen gjate sesioneve te zhvillimit.
-
 _test_*.py
 _check_*.py
 _verify_*.py
@@ -74,6 +71,7 @@ _cluster_phase*.py
 _cleanup.py
 _dbg_*.py
 _temp_*.py
+_reorganize_*.py
 
 # ==========================================
 # DEBUG/TEST OUTPUTS
@@ -85,7 +83,6 @@ _dbg_*.json
 # ==========================================
 # ML CACHE (rigjenerohen shpejt)
 # ==========================================
-# Keto file-at jane disa MB dhe mund te rigjenerohen ne 2 min.
 _cluster_embeddings_cache.npz
 _cluster_centroids.npz
 *.faiss
@@ -94,13 +91,11 @@ _cluster_centroids.npz
 # ==========================================
 # DB BACKUPS (fshij pas 3 ditesh)
 # ==========================================
-# Backup i legal_knowledge_base me timestamp. Fshije pas verifikimit.
 legal_knowledge_base_backup_*.jsonl
 
 # ==========================================
 # REFERENCE LOKALE (nuk commit-ohen)
 # ==========================================
-# Output-i i topic clustering. Rigjenerohet me scripts/precedent_ops/*.py.
 _cluster_assignments.json
 _cluster_labels.json
 
@@ -114,8 +109,24 @@ _user_service_full.txt
 # ==========================================
 # HARVEST RUNTIME (state + logs + backups)
 # ==========================================
-# Harvester Supreme Court — state lokal, logs, backups.
-# Rigjenerohen / rikrijohen gjate ekzekutimit.
 _harvest_log_*.txt
 _harvest_progress.json
 _backup_pre_caselaw_*.jsonl
+
+# ==========================================
+# BACKEND SCRIPTS RUNTIME (V2.5)
+# ==========================================
+# Runtime state në scripts/ subfolder (i njëjti pattern si root)
+backend/scripts/_backup_pre_caselaw_*.jsonl
+backend/scripts/_cluster_*.json
+backend/scripts/_cluster_*.npz
+backend/scripts/_harvest_log_*.txt
+backend/scripts/_harvest_progress.json
+backend/scripts/_check_*.py
+backend/scripts/_test_*.py
+backend/scripts/_verify_*.py
+backend/scripts/_reorganize_*.py
+
+# Backend root runtime
+backend/_reorganize_*.py
+backend/_test_*.py
