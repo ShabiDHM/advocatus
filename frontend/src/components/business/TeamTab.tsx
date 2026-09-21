@@ -1,10 +1,15 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V5.0 (ENTERPRISE GRANULAR CASE ACCESS CONTROL)
+// PHOENIX PROTOCOL - TEAM TAB V5.1 (FIX INVALID TAILWIND CLASSES)
+// V5.1: Fix klasa që nuk ekzistojnë në tailwind.config.js:
+//       - from-accent-start/to-accent-end → from-primary-start/to-primary-end
+//       - bg-status-success/text-status-success → bg-success-start/text-success-start
+//       - amber-500 → warning-start (semantik, konsistent)
+// V5.0: Enterprise granular case access control
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    UserPlus, Mail, CheckCircle, X, Loader2, 
+import {
+    UserPlus, Mail, CheckCircle, X, Loader2,
     AlertTriangle, Briefcase, Crown, MoreHorizontal, Trash2,
     Send, ShieldCheck, CheckSquare, Square
 } from 'lucide-react';
@@ -18,20 +23,20 @@ import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 export const TeamTab: React.FC = () => {
     const { t } = useTranslation();
-    const { user: currentUser } = useAuth(); 
-    
+    const { user: currentUser } = useAuth();
+
     const [members, setMembers] = useState<User[]>([]);
     const [organization, setOrganization] = useState<Organization | null>(null);
     const [firmCases, setFirmCases] = useState<Case[]>([]);
     const [loading, setLoading] = useState(true);
-    
+
     const [inviteEmail, setInviteEmail] = useState("");
     const [inviting, setInviting] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [inviteResult, setInviteResult] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [infoMsg, setInfoMsg] = useState<string | null>(null);
-    
+
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const activeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -76,7 +81,7 @@ export const TeamTab: React.FC = () => {
             let left = rect.right - menuWidth;
             if (left < 0) left = rect.left;
             if (left + menuWidth > viewportWidth) left = viewportWidth - menuWidth - 8;
-            
+
             setMenuPosition({
                 top: rect.bottom + 4,
                 left: left,
@@ -120,9 +125,9 @@ export const TeamTab: React.FC = () => {
             if (res.user && res.user.status === 'active') {
                 setInfoMsg("Përdoruesi u shtua direkt në ekip pasi ka një llogari ekzistuese.");
             }
-            
+
             setInviteResult("Ftesa u dërgua me sukses! Ju lutem njoftoni kolegun të kontrollojë edhe dosjen 'Spam'.");
-            setInviteEmail(""); 
+            setInviteEmail("");
             fetchData();
         } catch (err: any) {
             const errorDetail = err?.response?.data?.detail || err?.message || '';
@@ -202,20 +207,20 @@ export const TeamTab: React.FC = () => {
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-primary-start w-10 h-10" /></div>;
 
-    const seatLimit = organization?.user_limit || 1; 
+    const seatLimit = organization?.user_limit || 1;
     const usedSeats = members.length;
     const availableSeats = Math.max(0, seatLimit - usedSeats);
     const progressPercent = Math.min((usedSeats / seatLimit) * 100, 100);
-    
+
     const isUserAdminOrOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
     const hasAnyAdminOrOwner = members.some(m => m.role === 'ADMIN' || m.organization_role === 'OWNER');
     const isCurrentUserOwner = isUserAdminOrOwner || (!hasAnyAdminOrOwner && currentUser?.id === members[0]?.id);
-    
+
     const planName = organization?.plan_tier || 'DEFAULT';
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20 bg-canvas">
-            
+
             {/* Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden border border-main bg-surface/10">
@@ -226,7 +231,7 @@ export const TeamTab: React.FC = () => {
                             <p className="text-text-secondary text-sm max-w-lg leading-relaxed">Ftoni kolegët dhe përcaktoni saktësisht në cilat lëndë ata kanë qasje për të punuar.</p>
                         </div>
                         {isCurrentUserOwner && (
-                            <button 
+                            <button
                                 type="button"
                                 onClick={() => setShowInviteModal(true)}
                                 disabled={availableSeats <= 0}
@@ -239,7 +244,7 @@ export const TeamTab: React.FC = () => {
                 </div>
 
                 <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden border border-main bg-surface/10">
-                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
+                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex justify-between items-center mb-4 select-none">
                         <div className="flex items-center gap-2">
                             <span className="text-text-secondary font-bold text-xs uppercase tracking-wider">{t('team.plan_usage_label', 'PËRDORIMI I PLANIT')}</span>
@@ -247,7 +252,7 @@ export const TeamTab: React.FC = () => {
                                 {t(`plan.${planName.toLowerCase()}`, planName)}
                             </span>
                         </div>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-danger-start/20 text-danger-start' : 'bg-status-success/20 text-status-success'}`}>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-danger-start/20 text-danger-start' : 'bg-success-start/20 text-success-start'}`}>
                             {availableSeats > 0 ? t('team.status_active', 'Aktiv') : t('team.status_limit_reached', 'Limiti u Arrit')}
                         </span>
                     </div>
@@ -256,7 +261,7 @@ export const TeamTab: React.FC = () => {
                         <span className="text-lg text-text-muted mb-1 font-semibold">/ {seatLimit}</span>
                     </div>
                     <div className="w-full h-2 bg-surface rounded-full overflow-hidden border border-main">
-                        <div className="h-full bg-gradient-to-r from-primary-start to-accent-start transition-all duration-1000" style={{ width: `${progressPercent}%` }} />
+                        <div className="h-full bg-gradient-to-r from-primary-start to-primary-end transition-all duration-1000" style={{ width: `${progressPercent}%` }} />
                     </div>
                 </div>
             </div>
@@ -280,7 +285,7 @@ export const TeamTab: React.FC = () => {
                                 const isSelf = currentUser?.id === member.id;
                                 const isPending = member.status === 'pending_invite';
                                 const accessLvl = (member as any).org_access_level || 'FULL';
-                                
+
                                 return (
                                     <tr key={member.id} className="hover:bg-hover transition-colors group relative">
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -308,15 +313,15 @@ export const TeamTab: React.FC = () => {
                                                     <span className={isOwner ? 'text-warning-start font-bold' : 'text-text-secondary'}>{memberRole}</span>
                                                 </div>
                                                 {!isOwner && !isPending && (
-                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded w-max border ${accessLvl === 'FULL' ? 'bg-primary-start/10 text-primary-start border-primary-start/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>
+                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded w-max border ${accessLvl === 'FULL' ? 'bg-primary-start/10 text-primary-start border-primary-start/20' : 'bg-warning-start/10 text-warning-start border-warning-start/20'}`}>
                                                         {accessLvl === 'FULL' ? 'QASJE E PLOTË' : 'QASJE E KUFIZUAR'}
                                                     </span>
                                                 )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold select-none ${isPending ? 'bg-warning-start/10 text-warning-start border-warning-start/20' : 'bg-status-success/15 text-status-success border-status-success/20'}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isPending ? 'bg-warning-start' : 'bg-status-success'}`} /> 
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold select-none ${isPending ? 'bg-warning-start/10 text-warning-start border-warning-start/20' : 'bg-success-start/15 text-success-start border-success-start/20'}`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isPending ? 'bg-warning-start' : 'bg-success-start'}`} />
                                                 {isPending ? t('team.status_pending', 'Ftesë') : t('team.status_active', 'Aktiv')}
                                             </span>
                                         </td>
@@ -349,8 +354,8 @@ export const TeamTab: React.FC = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     className="fixed z-[9999] w-52 rounded-xl shadow-2xl border border-main bg-canvas overflow-hidden"
-                    style={{ 
-                        top: menuPosition.top, 
+                    style={{
+                        top: menuPosition.top,
                         left: menuPosition.left
                     }}
                 >
@@ -364,7 +369,7 @@ export const TeamTab: React.FC = () => {
 
                             if (isSelf) {
                                 return (
-                                    <button 
+                                    <button
                                         type="button"
                                         onClick={handleMyProfile}
                                         className="w-full text-left px-4 h-11 text-sm font-bold text-text-primary flex items-center gap-3 transition-colors hover:bg-hover focus:outline-none"
@@ -377,14 +382,14 @@ export const TeamTab: React.FC = () => {
                             if (isPending) {
                                 return (
                                     <>
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => handleResendInvite(member)}
                                             className="w-full text-left px-4 h-11 text-sm font-bold text-text-primary flex items-center gap-3 transition-colors hover:bg-hover focus:outline-none"
                                         >
                                             <Send size={16} className="text-primary-start" /> Ridërgo Ftesën
                                         </button>
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => handleCancelInvite(member)}
                                             className="w-full text-left px-4 h-11 text-sm font-bold text-rose-500 flex items-center gap-3 transition-colors hover:bg-rose-500/10 focus:outline-none"
@@ -398,7 +403,7 @@ export const TeamTab: React.FC = () => {
                             return (
                                 <>
                                     {!isOwner && isCurrentUserOwner && (
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => handleOpenAccessModal(member)}
                                             className="w-full text-left px-4 h-11 text-sm font-bold text-primary-start flex items-center gap-3 transition-colors hover:bg-hover border-b border-main focus:outline-none"
@@ -406,7 +411,7 @@ export const TeamTab: React.FC = () => {
                                             <ShieldCheck size={16} /> Menaxho Qasjen
                                         </button>
                                     )}
-                                    <button 
+                                    <button
                                         type="button"
                                         onClick={() => handleRemoveMember(member.id)}
                                         className="w-full text-left px-4 h-11 text-sm font-bold text-rose-500 flex items-center gap-3 transition-colors hover:bg-rose-500/10 focus:outline-none"
@@ -431,8 +436,8 @@ export const TeamTab: React.FC = () => {
                                     <h3 className="text-xl font-bold text-text-primary tracking-tight">Qasja në Lëndë</h3>
                                     <p className="text-xs text-text-secondary mt-1">Konfiguro autorizimet për: <strong className="text-text-primary">{selectedMemberForAccess.username}</strong></p>
                                 </div>
-                                <button 
-                                    onClick={() => setShowAccessModal(false)} 
+                                <button
+                                    onClick={() => setShowAccessModal(false)}
                                     className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors focus:outline-none"
                                 >
                                     <X size={20} />
@@ -442,7 +447,7 @@ export const TeamTab: React.FC = () => {
                             <div className="flex-1 overflow-y-auto pr-2 custom-finance-scroll space-y-6">
                                 {/* Type of Access */}
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div 
+                                    <div
                                         onClick={() => setMemberAccessLevel('FULL')}
                                         className={`p-4 rounded-2xl border cursor-pointer transition-all ${memberAccessLevel === 'FULL' ? 'bg-primary-start/10 border-primary-start shadow-sm' : 'bg-surface border-main hover:bg-hover'}`}
                                     >
@@ -452,12 +457,12 @@ export const TeamTab: React.FC = () => {
                                         </h4>
                                         <p className="text-xs text-text-secondary leading-snug pl-6">Anëtari ka qasje në të gjitha lëndët e zyrës, përfshirë lëndët e reja që do të krijohen.</p>
                                     </div>
-                                    <div 
+                                    <div
                                         onClick={() => setMemberAccessLevel('SELECTIVE')}
-                                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${memberAccessLevel === 'SELECTIVE' ? 'bg-amber-500/10 border-amber-500 shadow-sm' : 'bg-surface border-main hover:bg-hover'}`}
+                                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${memberAccessLevel === 'SELECTIVE' ? 'bg-warning-start/10 border-warning-start shadow-sm' : 'bg-surface border-main hover:bg-hover'}`}
                                     >
                                         <h4 className="text-sm font-bold text-text-primary flex items-center gap-2 mb-1">
-                                            {memberAccessLevel === 'SELECTIVE' ? <CheckCircle size={16} className="text-amber-500" /> : <div className="w-4 h-4 rounded-full border border-text-muted" />}
+                                            {memberAccessLevel === 'SELECTIVE' ? <CheckCircle size={16} className="text-warning-start" /> : <div className="w-4 h-4 rounded-full border border-text-muted" />}
                                             Qasje e Kufizuar
                                         </h4>
                                         <p className="text-xs text-text-secondary leading-snug pl-6">Zgjidhni manualisht vetëm ato lëndë ku ky anëtar lejohet të lexojë dhe editojë dosjen.</p>
@@ -475,8 +480,8 @@ export const TeamTab: React.FC = () => {
                                                 firmCases.map(c => {
                                                     const isChecked = assignedCaseIds.has(c.id);
                                                     return (
-                                                        <div 
-                                                            key={c.id} 
+                                                        <div
+                                                            key={c.id}
                                                             onClick={() => {
                                                                 setAssignedCaseIds(prev => {
                                                                     const nSet = new Set(prev);
@@ -505,9 +510,9 @@ export const TeamTab: React.FC = () => {
                                 <button type="button" onClick={() => setShowAccessModal(false)} className="h-11 px-6 rounded-xl font-bold text-sm bg-surface border border-main text-text-secondary hover:text-text-primary hover:bg-hover transition-all focus:outline-none">
                                     Anulo
                                 </button>
-                                <button 
-                                    type="button" 
-                                    onClick={handleSaveAccess} 
+                                <button
+                                    type="button"
+                                    onClick={handleSaveAccess}
                                     disabled={isSavingAccess}
                                     className="h-11 px-8 rounded-xl font-bold text-sm bg-primary-start hover:bg-primary-start/90 text-white shadow-lg shadow-primary-start/20 flex items-center justify-center gap-2 transition-all focus:outline-none disabled:opacity-50"
                                 >
@@ -524,15 +529,15 @@ export const TeamTab: React.FC = () => {
                 {showInviteModal && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass-panel border border-main w-full max-w-md p-6 sm:p-8 rounded-3xl shadow-2xl relative bg-canvas">
-                            <button 
+                            <button
                                 type="button"
-                                onClick={() => { setShowInviteModal(false); setInviteResult(null); setInfoMsg(null); }} 
+                                onClick={() => { setShowInviteModal(false); setInviteResult(null); setInfoMsg(null); }}
                                 className="absolute top-6 right-6 text-text-muted hover:text-text-primary transition-colors focus:outline-none"
                                 aria-label="Close"
                             >
                                 <X size={24} />
                             </button>
-                            
+
                             <div className="mb-6 select-none">
                                 <div className="w-12 h-12 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4 text-primary-start">
                                     <UserPlus size={24} />
@@ -569,7 +574,7 @@ export const TeamTab: React.FC = () => {
                                 </form>
                             ) : (
                                 <div className="space-y-6 text-center">
-                                    <div className="p-4 rounded-xl bg-status-success/15 border border-status-success/20 text-status-success flex items-center justify-center gap-3">
+                                    <div className="p-4 rounded-xl bg-success-start/15 border border-success-start/20 text-success-start flex items-center justify-center gap-3">
                                         <CheckCircle className="flex-shrink-0" size={20} />
                                         <span className="font-semibold text-sm leading-relaxed">{inviteResult}</span>
                                     </div>
