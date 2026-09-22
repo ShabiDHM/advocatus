@@ -1,5 +1,8 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V98.0 (INLINE PROGRESS PROPS)
+// PHOENIX PROTOCOL - CHAT PANEL V98.1
+// V98.1: Hequr klauzola statike e përgjegjësisë ligjore (footer).
+//        Filozofia: chat = Q&A e pastër, pa elemente statike që zënë hapësirë.
+//        Disclaimer mbetet brenda përgjigjes LLM ("Verifikoni me burimin zyrtar...").
 // V98.0: Pason 3 props të reja për inline progress në ChatHeader.
 // V97.0: Background audit props.
 
@@ -619,15 +622,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         )}
       </div>
 
-      {/* V96.0: DISCLAIMER FOOTER STATIK */}
-      {displayMessages.length > 0 && (
-        <div className="px-3 sm:px-4 py-2 bg-surface/50 border-t border-main/60 shrink-0">
-          <p className="text-[9px] sm:text-[10px] text-text-muted leading-snug text-center max-w-5xl mx-auto">
-            ⚖️ <span className="font-semibold text-text-secondary">KLAUZOLË E PËRGJEGJËSISË LIGJORE:</span>{' '}
-            Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Juristi AI për qëllime informative, kërkimore dhe mbështetjeje profesionale. Nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin pozitiv në fuqi para përdorimit zyrtar.
-          </p>
-        </div>
-      )}
+      {/* V98.1: Klauzola statike e përgjegjësisë ligjore u HOQ.
+          Disclaimer mbetet brenda përgjigjes LLM:
+          "Verifikoni me burimin zyrtar për saktësi të plotë." */}
 
       {/* INPUT AREA */}
       <div className="p-3 sm:p-4 bg-surface shrink-0 z-20">

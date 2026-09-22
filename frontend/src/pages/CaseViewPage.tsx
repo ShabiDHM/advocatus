@@ -1,15 +1,13 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V109.8
-// V109.8: FIX DEFENSIVE — strip titulli i dyfishuar nga LLM.
-//         Edhe pse prompts V1.3 i thonë LLM-së të mos shkruajë titullin,
-//         LLM-të nuk janë 100% të bindshme. Ky fix:
-//         (1) Ruan sectionTitles: Record<string, string> (titulli per key)
-//         (2) Aplikon stripDuplicateHeading() per çdo section në fund
-//         (3) Nëse titujt përputhen (case-insensitive, pa diakritikë) →
-//             heq titullin e dytë (nga LLM), ruan të parin (nga frontend)
-// V109.7: FIX PARALLEL SECTIONS — buffer per section_key.
-// V109.6: FIX KRITIK RACE CONDITION — fetchCaseData rifetchohej pas stream-it.
-// V109.5: FIX KRITIK — rikthyer handler-i section_chunk.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V109.10
+// V109.10: TYPEWRITER EFFECT — decouples network delivery from visual output.
+//          OpenRouter sends tokens in bursts; we buffer them and type at
+//          constant rate so user sees smooth character-by-character effect.
+// V109.9: Buffer + flush pattern (50ms interval) — për streaming të butë.
+// V109.8: strip titulli i dyfishuar nga LLM.
+// V109.7: buffer per section_key (paralel sections).
+// V109.6: REF GUARD — fetchCaseData vetëm 1 herë.
+// V109.5: rikthyer handler-i section_chunk.
 // V109.4: Hequr auditSubLabel + auditIsDocumentMode.
 // V109.3: Progress bar inline në ChatHeader.
 // V109.0: Background audit generation.
@@ -41,10 +39,6 @@ type MobileMainTab = 'DOCS' | 'MEDIA' | 'CHAT';
 // V109.8: HELPERS — strip titulli i dyfishuar
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * V109.8: Normalizo titullin për krahasim.
- * Heq diakritikët (ë→e, ç→c), pikësimin, bën lowercase.
- */
 const _normalizeHeading = (s: string): string =>
   s
     .toLowerCase()
@@ -54,21 +48,11 @@ const _normalizeHeading = (s: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
-/**
- * V109.8: Heq një titull të dyfishuar në fillim të section-it.
- * Ruan titullin e PARË (nga frontend), heq të DYTIN (nga LLM) nëse
- * përputhen (case-insensitive, pa diakritikë).
- *
- * Shembull:
- *   input:  "\n\n## PASQYRA EKZEKUTIVE\n\n## PASQYRËN EKZEKUTIVE\nKjo është..."
- *   output: "\n\n## PASQYRA EKZEKUTIVE\n\nKjo është..."
- */
 const _stripDuplicateHeading = (content: string, expectedTitle: string): string => {
   if (!content || !expectedTitle) return content;
 
   const normalizedExpected = _normalizeHeading(expectedTitle);
 
-  // Kërko: whitespace + heading1 + whitespace + heading2
   const m = content.match(/^(\s*#{1,4}\s+.+?\n\s*)(#{1,4}\s+(.+?))(\n|$)/);
   if (!m) return content;
 
@@ -78,7 +62,6 @@ const _stripDuplicateHeading = (content: string, expectedTitle: string): string 
 
   const normalizedSecond = _normalizeHeading(secondTitle);
 
-  // Përputhje: exact, ose njëri përmban tjetrin (LLM mund të shtojë "PASQYRA" vs "PASQYRËN")
   const matches =
     normalizedSecond === normalizedExpected ||
     normalizedSecond.includes(normalizedExpected) ||
@@ -86,7 +69,6 @@ const _stripDuplicateHeading = (content: string, expectedTitle: string): string 
 
   if (!matches) return content;
 
-  // Hiq heading-un e dytë, ruaj të parin + trailing newline
   return firstHeadingLine + trailing + content.slice(m[0].length);
 };
 
@@ -112,23 +94,18 @@ const CaseViewPage: React.FC = () => {
   const [mobileTab, setMobileTab] = useState<MobileMainTab>('DOCS');
   const [vaultSubTab, setVaultSubTab] = useState<EvidenceSubTab>('documents');
 
-  // V109.0: Background audit generation state
   const [isAuditGenerating, setIsAuditGenerating] = useState<boolean>(false);
   const [auditProgressText, setAuditProgressText] = useState<string>('');
   const [pendingAuditReport, setPendingAuditReport] = useState<string | null>(null);
   const [pendingAuditSource, setPendingAuditSource] = useState<'fresh' | 'cache' | 'saved'>('fresh');
   const [pendingAuditDocIds, setPendingAuditDocIds] = useState<string[] | null>(null);
 
-  // V109.3: Progress state — kalohet në ChatHeader
   const [auditPhaseLabel, setAuditPhaseLabel] = useState<string>('');
   const [auditProgressPercent, setAuditProgressPercent] = useState<number>(0);
   const [auditStartTime, setAuditStartTime] = useState<number | null>(null);
 
   const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // V109.6: REF GUARD — parandalon rifetchim të case-it pas stream-it
-  // ═══════════════════════════════════════════════════════════════════════
   const loadedCaseIdRef = useRef<string | null>(null);
 
   const isPro = true;
@@ -201,15 +178,12 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, t, setLiveDocuments, saveToLocalStorage]);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // V109.6: FIX — fetch VETËM 1 herë për caseId (ref-based guard)
-  // ═══════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isReadyForData || !caseId) return;
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V109.8] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V109.10] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
@@ -322,7 +296,43 @@ const CaseViewPage: React.FC = () => {
     setIsSendingMessage(true);
 
     try {
-      let acc = '';
+      // ═══════════════════════════════════════════════════════════════════════
+      // V109.10: TYPEWRITER EFFECT
+      // Decouples network delivery from visual output. OpenRouter sends tokens
+      // in bursts; we buffer them and "type" at constant rate so user sees
+      // smooth character-by-character effect regardless of delivery pattern.
+      // ═══════════════════════════════════════════════════════════════════════
+      let fullContent = '';
+      let streamDone = false;
+      let typedLength = 0;
+
+      const TYPING_INTERVAL_MS = 20;
+      const CHARS_PER_TICK = 2;
+      const FAST_FORWARD_CHARS = 400;
+      const FAST_FORWARD_TICK = 20;
+
+      const typewriter = setInterval(() => {
+        const remaining = fullContent.length - typedLength;
+        if (remaining <= 0) {
+          if (streamDone) {
+            clearInterval(typewriter);
+          }
+          return;
+        }
+
+        const step = remaining > FAST_FORWARD_CHARS ? FAST_FORWARD_TICK : CHARS_PER_TICK;
+        typedLength = Math.min(typedLength + step, fullContent.length);
+
+        const toShow = fullContent.slice(0, typedLength);
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          if (updated.length > 0) {
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: toShow };
+          }
+          return updated;
+        });
+      }, TYPING_INTERVAL_MS);
+
       const stream = apiService.sendChatMessageStream(
         caseId,
         text,
@@ -334,25 +344,41 @@ const CaseViewPage: React.FC = () => {
       );
 
       for await (const chunk of stream) {
-        acc += chunk;
-        const currentAcc = acc;
-
-        setChatMessages((prev) => {
-          const updated = [...prev];
-          if (updated.length > 0) {
-            updated[updated.length - 1] = { ...updated[updated.length - 1], content: currentAcc };
-          }
-          return updated;
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        fullContent += chunk;
       }
+
+      streamDone = true;
+
+      // Wait for typewriter to catch up
+      await new Promise<void>((resolve) => {
+        const waitInterval = setInterval(() => {
+          if (typedLength >= fullContent.length) {
+            clearInterval(waitInterval);
+            resolve();
+          }
+        }, 30);
+
+        setTimeout(() => {
+          clearInterval(waitInterval);
+          resolve();
+        }, 10_000);
+      });
+
+      const finalContent = fullContent;
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        if (updated.length > 0) {
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: finalContent };
+        }
+        return updated;
+      });
 
       setChatMessages((prev) => {
         const finalMessages = [...prev];
         persistChatHistory(finalMessages);
         return finalMessages;
       });
+
     } catch (err: any) {
       console.error("[Chat Stream Error]:", err);
       const errorDetail = err?.message || 'Nuk u arrit komunikimi me shërbimin AI.';
@@ -392,10 +418,6 @@ const CaseViewPage: React.FC = () => {
     let sectionsStarted = 0;
     let chunksReceived = 0;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // V109.7: BUFFER PER SECTION — mbrojtje kundër interleaving paralel
-    // V109.8: sectionTitles: Record<string,string> për strip titulli të dyfishuar
-    // ═══════════════════════════════════════════════════════════════════════
     const sectionsByKey: Record<string, string> = {};
     const sectionTitles: Record<string, string> = {};
     const sectionOrder: string[] = [];
@@ -460,9 +482,6 @@ const CaseViewPage: React.FC = () => {
           continue;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // V109.8: section_started — regjistro key + TITLE
-        // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'section_started') {
           const title = evt.section_title || '';
           const rawKey = evt.section_key || '';
@@ -479,9 +498,6 @@ const CaseViewPage: React.FC = () => {
           continue;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // V109.8: section_chunk — append ne buffer (pa strip, behet ne fund)
-        // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'section_chunk') {
           const chunk = evt.chunk || evt.content || evt.text || '';
           const rawKey = evt.section_key || '';
@@ -492,12 +508,10 @@ const CaseViewPage: React.FC = () => {
             if (rawKey && sectionsByKey[rawKey] !== undefined) {
               sectionsByKey[rawKey] += chunk;
             } else if (rawKey) {
-              // Fallback: section_chunk para section_started (nuk duhet te ndodhe)
               sectionOrder.push(rawKey);
               sectionTitles[rawKey] = '';
               sectionsByKey[rawKey] = chunk;
             } else {
-              // Fallback ekstrem: pa section_key
               accumulated += chunk;
             }
           }
@@ -516,9 +530,6 @@ const CaseViewPage: React.FC = () => {
           continue;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // V109.7: report_ready — perdoret vetem nese s'ka sections te grumbulluara
-        // ═══════════════════════════════════════════════════════════════════
         if (evtType === 'report_ready') {
           const content = evt.content || '';
           const fromCache = evt.from_cache === true;
@@ -538,11 +549,6 @@ const CaseViewPage: React.FC = () => {
         }
       }
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // V109.8: Bashko sections sipas rendit + STRIP TITULLI TË DYFISHUAR
-      // Aplikohet per çdo section: nese buffer ka "## X\n\n## Y\n" dhe X≈Y,
-      // hiq Y (titulli i LLM), ruan X (titulli i frontend-it).
-      // ═══════════════════════════════════════════════════════════════════════
       if (sectionOrder.length > 0) {
         const combined = sectionOrder
           .map((k) => {
@@ -558,7 +564,7 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit V109.8] Accumulated content is empty!', {
+        console.error('[Background Audit V109.10] Accumulated content is empty!', {
           isDocMode,
           docsTotal,
           sectionsStarted,
@@ -587,7 +593,7 @@ const CaseViewPage: React.FC = () => {
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error V109.8]', err);
+      console.error('[Background Audit Error V109.10]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {

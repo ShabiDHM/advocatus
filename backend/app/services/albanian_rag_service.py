@@ -1,28 +1,45 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.13
-# V282.13: Rregull i re për precedentët — NUK LEJOHET të shpikësh numra
-#          lëndësh. Përdor VETËM ata që shfaqen në "JURISPRUDENCA DHE
-#          DITURIA GLOBALE E KOSOVËS".
-# V282.12: Skip global për pyetje faktuale; global vetëm nëse përdoruesi
-#          kërkon eksplicitisht precedentë.
-# V282.11: Chat përdor FAST_SEARCH_MODEL (GPT-4o-mini).
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.19
+# V282.19: SPECIALIZIM — dy veçori të reja:
+#          1. CROSS-DOC COMPARISON: kur user kërkon "krahaso X me Y", ndërto
+#             tabelë krahasuese të neneve + ligjeve per dokument.
+#          2. TIMELINE BUILDER: kur user kërkon "kronologji"/"kur ka ndodhur",
+#             ekstrakto datat + ngjarjet nga të gjitha dokumentet.
+# V282.18: Redis caching (case_docs TTL 600s, vector_chunks TTL 300s).
+# V282.17: Stemming i thjeshtë për shqip.
+# V282.16: Riformulim i rule #8.
+# V282.15: Query-aware document selection.
+# V282.14: Chat = Q&A e pastër (pa korrigjime).
+# V282.13: Rule 14 — ndalim hallucination precedentësh.
 
 import os
 import logging
 import re
+import json
 import time
+import hashlib
 from collections import Counter
 from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
 from datetime import datetime, timezone
 from bson import ObjectId
+
+import redis.asyncio as aioredis
 
 from app.core.config import settings
 
 from app.services.rag.intent_detector import IntentDetector, QueryDepthDetector
 from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
-from app.services.rag.chat_post_processor import build_correction_section
 from app.services.rag.chat_query_extractor import extract_legal_query
+from app.services.rag.cross_doc_comparator import (
+    user_wants_comparison,
+    build_comparison_table,
+)
+from app.services.rag.timeline_builder import (
+    user_wants_timeline,
+    extract_events,
+    build_timeline,
+)
 from app.services.document_review.mongo_verifier import _verify_single_article
 from app.services.pillars.base_pillar_service import BasePillarService
 
@@ -34,6 +51,125 @@ from app.services.llm.llm_client import DEEP_ANALYSIS_MODEL, FAST_SEARCH_MODEL
 logger = logging.getLogger(__name__)
 
 CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V282.18: REDIS CACHE
+# ═══════════════════════════════════════════════════════════════════════════
+
+_redis_client: Optional[aioredis.Redis] = None
+
+CACHE_TTL_CASE_DOCS = 600       # 10 min — dokumentet e case-it
+CACHE_TTL_CASE_CHUNKS = 300     # 5 min — vector chunks per query
+
+
+async def _get_redis() -> Optional[aioredis.Redis]:
+    """V282.18: Lazy-init i Redis. Kthen None nëse dështon."""
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+
+    try:
+        redis_url = (
+            getattr(settings, "REDIS_URL", None)
+            or os.getenv("REDIS_URL", "")
+        )
+        if not redis_url:
+            logger.warning("[Cache] REDIS_URL nuk është konfiguruar — cache çaktivizuar")
+            return None
+
+        _redis_client = aioredis.from_url(
+            redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+            max_connections=20,
+            socket_timeout=2.0,
+            socket_connect_timeout=2.0,
+        )
+        await _redis_client.ping()
+        logger.info("✅ [Cache] Redis client initialized (async)")
+        return _redis_client
+    except Exception as e:
+        logger.warning(f"⚠️ [Cache] Redis init failed — cache çaktivizuar: {e}")
+        _redis_client = None
+        return None
+
+
+def _serialize_docs_for_cache(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """V282.18: Konverto ObjectId në string për JSON serializim."""
+    out: List[Dict[str, Any]] = []
+    for d in docs:
+        d2 = dict(d)
+        if "_id" in d2 and not isinstance(d2["_id"], str):
+            d2["_id"] = str(d2["_id"])
+        out.append(d2)
+    return out
+
+
+async def _get_cached_case_docs(case_id: str) -> Optional[List[Dict[str, Any]]]:
+    """V282.18: Lexon dokumentet e case-it nga cache."""
+    client = await _get_redis()
+    if not client:
+        return None
+    try:
+        cache_key = f"case_docs_v1:{case_id}"
+        cached = await client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception as e:
+        logger.warning(f"[Cache] get case_docs failed: {e}")
+    return None
+
+
+async def _set_cached_case_docs(case_id: str, docs: List[Dict[str, Any]], ttl: int = CACHE_TTL_CASE_DOCS) -> None:
+    """V282.18: Ruan dokumentet e case-it në cache."""
+    client = await _get_redis()
+    if not client:
+        return
+    try:
+        cache_key = f"case_docs_v1:{case_id}"
+        payload = json.dumps(_serialize_docs_for_cache(docs), ensure_ascii=False, default=str)
+        await client.setex(cache_key, ttl, payload)
+    except Exception as e:
+        logger.warning(f"[Cache] set case_docs failed: {e}")
+
+
+def _chunks_cache_key(
+    case_id: str,
+    user_id: str,
+    query: str,
+    document_ids: Optional[List[str]],
+) -> str:
+    """V282.18: Gjenero key të deterministik për chunks."""
+    src = f"{case_id}|{user_id}|{query.lower().strip()}|{','.join(sorted(document_ids or []))}"
+    h = hashlib.sha1(src.encode("utf-8")).hexdigest()[:16]
+    return f"case_chunks_v1:{h}"
+
+
+async def _get_cached_chunks(cache_key: str) -> Optional[List[Dict[str, Any]]]:
+    """V282.18: Lexon vector chunks nga cache."""
+    client = await _get_redis()
+    if not client:
+        return None
+    try:
+        cached = await client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception as e:
+        logger.warning(f"[Cache] get chunks failed: {e}")
+    return None
+
+
+async def _set_cached_chunks(cache_key: str, chunks: List[Dict[str, Any]], ttl: int = CACHE_TTL_CASE_CHUNKS) -> None:
+    """V282.18: Ruan vector chunks në cache."""
+    client = await _get_redis()
+    if not client:
+        return
+    try:
+        payload = json.dumps(chunks, ensure_ascii=False, default=str)
+        await client.setex(cache_key, ttl, payload)
+    except Exception as e:
+        logger.warning(f"[Cache] set chunks failed: {e}")
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V282.12: FJALË KYÇE PËR KËRKIM EKSPLICIT TË PRECEDENTËVE
@@ -63,7 +199,105 @@ def _user_wants_global_search(query_lower: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# UDHËZIMI I BASHKËPUNIMIT + ANTI-HALUDINACIONI (V282.0)
+# V282.17: STEMMING I THJESHTË PËR SHQIP
+# ═══════════════════════════════════════════════════════════════════════════
+
+_STEM_SUFFIXES = [
+    "imit", "imin", "imi", "im",
+    "jen", "jes", "jet", "je",
+    "esit", "esin", "esa", "esë", "es", "ës",
+    "ave", "ava", "eve", "eva",
+    "in", "ën", "un", "it", "ës", "së",
+    "ja", "je", "a", "i", "u", "e", "ë",
+]
+
+
+def _stem_albanian(word: str) -> str:
+    """V282.17: Stemming i thjeshtë për shqip."""
+    if not word or len(word) < 4:
+        return word.lower()
+
+    w = word.lower()
+    for suf in _STEM_SUFFIXES:
+        if w.endswith(suf) and len(w) - len(suf) >= 3:
+            return w[:-len(suf)]
+    return w
+
+
+def _words_match(w1: str, w2: str) -> bool:
+    """V282.17: Kontrollo nëse dy fjalë kanë rrënjë të përbashkët."""
+    if not w1 or not w2:
+        return False
+
+    s1 = _stem_albanian(w1)
+    s2 = _stem_albanian(w2)
+
+    if s1 == s2:
+        return True
+
+    if len(s1) >= 4 and len(s2) >= 4:
+        if s1 in s2 or s2 in s1:
+            return True
+        if s1[:4] == s2[:4]:
+            return True
+    return False
+
+
+_MATCH_STOPWORDS = {
+    "dokument", "dokumente", "dokumentet", "dokumenti", "dokumentin",
+    "lenda", "lende", "lenden", "lendja", "fashikull", "fashikulli",
+    "shkresa", "shkresat", "shkresen",
+    "trego", "thuaj", "thoni", "themi", "flas", "flitet",
+    "refuzimi", "refuzim", "ankesa", "ankes", "aktakuza", "aktakuzes",
+    "kerkesa", "kerkes", "vendimi", "vendim", "aktvendim",
+    "për", "per", "me", "nga", "në", "ne", "të", "te",
+    "eshte", "është", "jane", "janë", "ishte", "ishin",
+    "cili", "cila", "cilin", "cilat", "kush", "cfare", "çfarë",
+    "kam", "kemi", "keni", "kanë", "kane",
+    "kjo", "ky", "keta", "keto", "ato", "ata",
+    "gjith", "gjithë", "gjithe", "krejt",
+    "pse", "si", "ku", "kur",
+}
+
+
+def _extract_meaningful_words(text: str, min_len: int = 5) -> set:
+    """Nxjerr fjalë me kuptim nga një tekst (normalizuar)."""
+    raw = re.findall(r'\b\w{' + str(min_len) + r',}\b', text.lower())
+    return {w for w in raw if w not in _MATCH_STOPWORDS}
+
+
+def _detect_relevant_documents(
+    query: str,
+    documents: List[Dict[str, Any]],
+    max_match: int = 3,
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """V282.17: Zbulon dokumentet që përmenden në pyetje (me stemming)."""
+    if not documents or not query:
+        return documents, False
+
+    query_words = _extract_meaningful_words(query, min_len=5)
+    if not query_words:
+        return documents, False
+
+    matched = []
+    for doc in documents:
+        fname = (doc.get("file_name") or doc.get("title") or "").lower()
+        fname_clean = re.sub(r'[._\-]+', ' ', fname)
+        fname_words = _extract_meaningful_words(fname_clean, min_len=4)
+
+        for qw in query_words:
+            if any(_words_match(qw, fw) for fw in fname_words):
+                matched.append(doc)
+                break
+
+    if 1 <= len(matched) <= max_match:
+        return matched, True
+
+    return documents, False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# UDHËZIMI I BASHKËPUNIMIT + ANTI-HALUDINACIONI
 # ═══════════════════════════════════════════════════════════════════════════
 NATURAL_COUNSEL_INSTRUCTION = """
 UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
@@ -117,7 +351,8 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
 8. STRUKTURA E PËRGJIGJES:
    - Fillimisht identifiko çfarë pyet përdoruesi.
    - Pastaj jep përgjigjen bazuar vetëm në kontekst.
-   - Në fund: "Për verifikim final konsultoni burimin zyrtar."
+   - Në fund, shkruaj SAKTËSISHT këtë fjali (fjala për fjalë):
+     "Verifikoni me burimin zyrtar për saktësi të plotë."
 
 9. STATUSI I DOKUMENTIT:
    - NËSE dokumenti përmban "KËSHILLË JURIDIKE" ose "afat ankimi" → NUK është i plotfuqishëm.
@@ -155,9 +390,25 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
            "Nuk u identifikua precedent relevant në bazën e Gjykatës Supreme për këtë pyetje."
     - NËSE NUK ka seksion "<<< JURISPRUDENCA DHE DITURIA GLOBALE E KOSOVËS >>>" në kontekst:
        → NUK LEJOHET të përmendësh asnjë numër precedenti.
-       → Thuaj: "Për kërkim precedentësh, specifikoni eksplicitisht 'precedent' ose
+       - Thuaj: "Për kërkim precedentësh, specifikoni eksplicitisht 'precedent' ose
          'jurisprudencë' në pyetjen tuaj."
     - NUK LEJOHET të përmendësh vendime gjykate që nuk shfaqen në kontekst.
+
+15. ⚠️ KRAHASIMI MIDIS DOKUMENTEVE (KRITIKE — V282.19):
+    - KUR në kontekst shfaqet seksioni "<<< KRAHASIM MIDIS DOKUMENTEVE >>>":
+       → Bazohu EKSPLICITISHT në tabelën e dhënë.
+       → Thekso nenet e përbashkëta (shënuar me ✅ në të gjitha kolonat).
+       → Thekso nenet unike (shënuar me ✅ vetëm në një dokument).
+       → Mos shpik nene që nuk janë në tabelë.
+       → Struktura e përgjigjes: (a) nenet e përbashkëta, (b) dallimet, (c) implikimet.
+
+16. ⚠️ KRONOLOGJIA (KRITIKE — V282.19):
+    - KUR në kontekst shfaqet seksioni "<<< KRONOLOGJIA E NGJARJEVE >>>":
+       → Bazohu EKSPLICITISHT në datat e dhëna.
+       → Rendit ngjarjet sipas datës.
+       → NUK LEJOHET të shpikësh data që nuk shfaqen në listë.
+       → Përmend afatet procedurale kur dokumenti i përmend.
+       → Struktura: kronologji lineare me burime të qarta.
 """
 
 
@@ -210,11 +461,13 @@ class AlbanianRAGService:
         self.db = db
         self.response_generator = ResponseGenerator()
         logger.info(
-            f"✅ [RAG] Juristi AI Natural Client Service V282.13 Initialized "
+            f"✅ [RAG] Juristi AI Natural Client Service V282.19 Initialized "
             f"(chat model: {FAST_SEARCH_MODEL}, "
             f"judicial-docs whitelist: ON, dual-law rule: ON, query-depth: ON, "
             f"pre-verify: ON, fast-path: DIRECT, dynamic-cleaner: ON, timing: ON, "
-            f"multi-law-chat: ON, global-on-demand: ON, no-fake-precedents: ON)."
+            f"multi-law-chat: ON, global-on-demand: ON, no-fake-precedents: ON, "
+            f"pure-chat: ON, query-aware-docs: ON, stemming: ON, caching: ON, "
+            f"comparison: ON, timeline: ON)."
         )
 
     def _optimize_query(self, query: str) -> str:
@@ -443,7 +696,7 @@ class AlbanianRAGService:
             "e Republikës së Kosovës — pa përpunim nga AI.*\n\n"
             "*💬 Për interpretim, aplikim në fashikull, ose analizë të thelluar, "
             "vazhdoni me pyetjen tuaj.*\n\n"
-            "*⚖️ Për verifikim final konsultoni tekstin zyrtar në Gazetën Zyrtare.*"
+            "*⚖️ Verifikoni me burimin zyrtar për saktësi të plotë.*"
         )
 
         return "\n\n".join(parts)
@@ -633,7 +886,7 @@ class AlbanianRAGService:
                         )
 
             logger.info(
-                f"🔎 [PreVerify V282.13] articles total={len(verification_results)} "
+                f"🔎 [PreVerify V282.19] articles total={len(verification_results)} "
                 f"verified={len(verified_articles)} ambiguous={len(ambiguous_articles)} "
                 f"missing={len(missing_articles)} has_general={legal_query['has_general_query']}"
             )
@@ -661,13 +914,13 @@ class AlbanianRAGService:
         if not user_wants_global:
             if should_fetch_global:
                 logger.info(
-                    f"⏭️ [V282.13] Skip global — pyetje faktuale pa kërkesë eksplicite "
+                    f"⏭️ [V282.19] Skip global — pyetje faktuale pa kërkesë eksplicite "
                     f"për precedentë."
                 )
             should_fetch_global = False
         else:
             logger.info(
-                f"🌐 [V282.13] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
+                f"🌐 [V282.19] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
             )
 
         logger.info(
@@ -706,7 +959,7 @@ class AlbanianRAGService:
 
         if is_factual_legal_query:
             logger.info(
-                f"⚡ [FastPath V282.13 DIRECT] Skip LLM — return verified text directly "
+                f"⚡ [FastPath V282.19 DIRECT] Skip LLM — return verified text directly "
                 f"({len(verified_articles)} verified articles)"
             )
 
@@ -730,22 +983,79 @@ class AlbanianRAGService:
 
         if case_id and self.db is not None:
             try:
-                doc_filter: Dict[str, Any] = {
-                    "$or": [{"case_id": str(case_id)}, {"case_id": c_oid}],
-                    "status": {"$ne": "DELETED"}
-                }
+                cached_docs = await _get_cached_case_docs(str(case_id))
 
-                if document_ids and len(document_ids) > 0:
-                    doc_oids = [ObjectId(did) for did in document_ids if ObjectId.is_valid(did)]
-                    doc_strs = [str(did) for did in document_ids]
-                    doc_filter["_id"] = {"$in": doc_oids + doc_strs}
+                if cached_docs is not None:
+                    db_documents = cached_docs
+                    logger.info(
+                        f"⚡ [Cache HIT V282.19] case_docs: {len(db_documents)} docs "
+                        f"(saved ~2.5s)"
+                    )
+                    _lap("load_docs")
+                else:
+                    doc_filter: Dict[str, Any] = {
+                        "$or": [{"case_id": str(case_id)}, {"case_id": c_oid}],
+                        "status": {"$ne": "DELETED"}
+                    }
 
-                _q2 = time.time()
-                db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("_id", 1)]))
-                logger.warning(f"⏱️ [TIMING]   mongo_docs_query ({len(db_documents)} docs): {time.time() - _q2:.2f}s")
-                _lap("load_docs")
+                    if document_ids and len(document_ids) > 0:
+                        doc_oids = [ObjectId(did) for did in document_ids if ObjectId.is_valid(did)]
+                        doc_strs = [str(did) for did in document_ids]
+                        doc_filter["_id"] = {"$in": doc_oids + doc_strs}
+
+                    _q2 = time.time()
+                    db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("_id", 1)]))
+                    logger.warning(f"⏱️ [TIMING]   mongo_docs_query ({len(db_documents)} docs): {time.time() - _q2:.2f}s")
+                    _lap("load_docs")
+
+                    if db_documents:
+                        await _set_cached_case_docs(str(case_id), db_documents, ttl=CACHE_TTL_CASE_DOCS)
+                        logger.info(f"💾 [Cache MISS V282.19] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
             except Exception as ex:
                 logger.warning(f"Could not read client documents: {ex}")
+
+        context_documents = db_documents
+        if db_documents and len(db_documents) > 1:
+            context_documents, was_filtered = _detect_relevant_documents(query, db_documents, max_match=3)
+            if was_filtered:
+                logger.info(
+                    f"🎯 [V282.19] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
+                    f"dokumente të zgjedhura për kontekst LLM: "
+                    f"{[d.get('file_name', '?') for d in context_documents]}"
+                )
+            else:
+                logger.info(
+                    f"📚 [V282.19] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
+                    f"{len(db_documents)} dokumentet"
+                )
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # V282.19: CROSS-DOC COMPARISON + TIMELINE
+        # ═══════════════════════════════════════════════════════════════════════
+        comparison_block = ""
+        timeline_block = ""
+
+        try:
+            if user_wants_comparison(query_lower) and len(db_documents) >= 2:
+                comparison_block = build_comparison_table(context_documents)
+                if comparison_block:
+                    logger.info(
+                        f"📊 [V282.19] Tabelë krahasuese aktivizuar "
+                        f"({len(comparison_block)} chars)"
+                    )
+        except Exception as e:
+            logger.warning(f"Comparison build failed: {e}")
+
+        try:
+            if user_wants_timeline(query_lower) and db_documents:
+                events = extract_events(db_documents, max_per_doc=15)
+                timeline_block = build_timeline(events)
+                if timeline_block:
+                    logger.info(
+                        f"📅 [V282.19] Timeline aktivizuar ({len(events)} ngjarje)"
+                    )
+        except Exception as e:
+            logger.warning(f"Timeline build failed: {e}")
 
         single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
 
@@ -765,16 +1075,34 @@ class AlbanianRAGService:
         system_prompt = ""
         whitelist: Dict[str, Any] = {"articles": [], "articles_display": [], "laws_abbrev": [], "laws_number": [], "pairs": [], "laws_by_file": {}, "source_filter": "unknown"}
 
-        if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
+        case_docs_cache_key = _chunks_cache_key(
+            str(case_id or ""),
+            str(user_id or ""),
+            optimized_query,
+            document_ids,
+        )
+        case_docs = await _get_cached_chunks(case_docs_cache_key)
+
+        if case_docs is not None:
+            logger.info(
+                f"⚡ [Cache HIT V282.19] vector_case: {len(case_docs)} chunks "
+                f"(saved ~4s)"
+            )
+            _lap("vector_case")
+        else:
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id,
                 query_text=optimized_query,
                 case_context_id=case_id,
                 document_ids=document_ids,
-                n_results=35
+                n_results=25
             )
             _lap("vector_case")
+            if case_docs:
+                await _set_cached_chunks(case_docs_cache_key, case_docs, ttl=CACHE_TTL_CASE_CHUNKS)
+                logger.info(f"💾 [Cache MISS V282.19] vector_case cached (TTL={CACHE_TTL_CASE_CHUNKS}s)")
 
+        if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             if should_fetch_global:
                 global_docs = vector_store_service.query_global_knowledge_base(
                     query_text=optimized_query, n_results=15
@@ -784,7 +1112,9 @@ class AlbanianRAGService:
                 global_docs = []
                 logger.info(f"⏭️ [QueryDepth] Skip global_docs (factual + document selected)")
 
-            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
+            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
+                case_docs, global_docs, db_documents, context_documents
+            )
             _lap("context_builder")
 
             system_prompt = f"""
@@ -793,14 +1123,17 @@ class AlbanianRAGService:
 
             {NATURAL_COUNSEL_INSTRUCTION}
 
-            SHKRESAT E LËNDËS ({len(db_documents)} DOKUMENTE NË FASHIKULL):
+            {comparison_block}
+            {timeline_block}
+
+            SHKRESAT E LËNDËS ({len(context_documents)} DOKUMENTE NË FASHIKULL):
             {manifest_str}
             {context_str}
             """
 
         elif user_intent == "STATUTORY_VERIFICATION":
             dossier_blocks = []
-            for idx, doc in enumerate(db_documents, 1):
+            for idx, doc in enumerate(context_documents, 1):
                 doc_title = doc.get("file_name") or f"Dokumenti #{idx}"
                 raw_text = (doc.get("content") or doc.get("extracted_text") or "").strip()
                 p_count = doc.get("page_count", "1")
@@ -826,15 +1159,6 @@ class AlbanianRAGService:
             system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
 
         elif user_intent == "DRAFTING":
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id,
-                query_text=optimized_query,
-                case_context_id=case_id,
-                document_ids=document_ids,
-                n_results=25
-            )
-            _lap("vector_case")
-
             if should_fetch_global:
                 global_docs = vector_store_service.query_global_knowledge_base(
                     query_text=optimized_query, n_results=15
@@ -842,9 +1166,11 @@ class AlbanianRAGService:
                 _lap("vector_global")
             else:
                 global_docs = []
-                logger.info(f"⏭️ [V282.13] Skip global_docs në DRAFTING")
+                logger.info(f"⏭️ [V282.19] Skip global_docs në DRAFTING")
 
-            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
+            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
+                case_docs, global_docs, db_documents, context_documents
+            )
             _lap("context_builder")
 
             base_prompt = LegalDraftingService.build_prompt(
@@ -863,15 +1189,6 @@ class AlbanianRAGService:
             system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id,
-                query_text=optimized_query,
-                case_context_id=case_id,
-                document_ids=document_ids,
-                n_results=25
-            )
-            _lap("vector_case")
-
             if should_fetch_global:
                 global_docs = vector_store_service.query_global_knowledge_base(
                     query_text=optimized_query, n_results=15
@@ -879,9 +1196,11 @@ class AlbanianRAGService:
                 _lap("vector_global")
             else:
                 global_docs = []
-                logger.info(f"⏭️ [V282.13] Skip global_docs (chat i thjeshtë)")
+                logger.info(f"⏭️ [V282.19] Skip global_docs (chat i thjeshtë)")
 
-            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(case_docs, global_docs, db_documents)
+            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
+                case_docs, global_docs, db_documents, context_documents
+            )
             _lap("context_builder")
 
             system_prompt = f"""
@@ -892,7 +1211,10 @@ class AlbanianRAGService:
 
             {pre_verify_disclaimer}{verified_context}
 
-            SHKRESAT E LËNDËS ({len(db_documents)} DOKUMENTE NË FASHIKULL):
+            {comparison_block}
+            {timeline_block}
+
+            SHKRESAT E LËNDËS ({len(context_documents)} DOKUMENTE NË FASHIKULL):
             {manifest_str}
             {context_str}
             """
@@ -926,30 +1248,11 @@ class AlbanianRAGService:
 
         if llm_failed:
             logger.warning(
-                f"⚠️ [V282.13] LLM dështoi — skip correction section. "
+                f"⚠️ [V282.19] LLM dështoi — nuk ruaj në history. "
                 f"Output: {full_generated_response[:100]}..."
             )
-        else:
-            try:
-                correction_section = build_correction_section(
-                    output_text=full_generated_response,
-                    whitelist=whitelist,
-                )
-
-                if correction_section:
-                    logger.info(
-                        f"🔍 [Post-Processor V2.3] Korrigjim u shtua: {len(correction_section)} chars. "
-                        f"whitelist ({whitelist.get('source_filter')}): "
-                        f"{len(whitelist.get('articles', []))} nene, "
-                        f"{len(whitelist.get('laws_number', []))} ligje me numër, "
-                        f"{len(whitelist.get('laws_by_file', {}))} dokumente me ligje."
-                    )
-                    yield correction_section
-                    full_generated_response += correction_section
-            except Exception as e:
-                logger.warning(f"⚠️ [Post-Processor] Dështoi: {e}")
-
-        _lap("post_processor")
+            _lap("total")
+            return
 
         if self.db is not None and case_id and user_id and full_generated_response.strip():
             try:

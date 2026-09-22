@@ -1,20 +1,16 @@
 # FILE: backend/app/services/rag/context_builder.py
-# PHOENIX PROTOCOL - CONTEXT BUILDER V6.8 (JUDICIAL-DOCS WHITELIST)
-# V6.8: Limit tekstin e shkresave në kontekstin për LLM (MAX_DOC_CHARS_IN_CONTEXT).
-#       Whitelist mbetet e ekstraktuar nga tekst i plotë.
-#       Impakti: prompt 94K → ~50K chars, llm_first_token 9s → ~5s.
-# V6.7: Konsistencë terminologjike — "ligjore" → "gjyqësore".
-# V6.6: Ndryshuar log line — "dok ligjore" → "dok gjyqësore".
-# V6.5: Zgjeruar whitelist-i për të përfshirë dokumente PROCEDURALE GJYQËSORE.
-# V6.4: Whitelist VETËM nga dokumentet gjyqësore.
-# V6.3: Whitelist vetëm nga db_documents.
-# V6.2: Whitelist nga case_docs + global_docs.
-# V6.1: Regex për ligjet me numër (03/L-182).
+# PHOENIX PROTOCOL - CONTEXT BUILDER V6.9 (JUDICIAL-DOCS WHITELIST)
+# V6.9: (1) MAX_DOC_CHARS_IN_CONTEXT 10K → 6K (shpejtësi LLM).
+#       (2) build() dhe build_with_whitelist() pranojnë parametër opsional
+#           context_documents — për të filtruar vetëm tekstin e kontekstit,
+#           ndërsa whitelist-i vazhdon të ekstraktohet nga TË GJITHA dokumentet.
+# V6.8: Limit i tekstin në kontekst (10K chars/dok).
+# V6.7: Konsistencë terminologjike "gjyqësore".
 
 import re
 import logging
 from collections import Counter
-from typing import List, Dict, Any, Tuple, Set
+from typing import List, Dict, Any, Tuple, Set, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,30 +19,20 @@ RESERVED_FOR_WHITELIST = 25_000
 MAX_DISPLAY_ARTICLES = 5
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V6.8: LIMIT PËR TEKSTIN E DOKUMENTEVE NË KONTEKST
+# V6.9: LIMIT PËR TEKSTIN E DOKUMENTEVE NË KONTEKST
 # ═══════════════════════════════════════════════════════════════════════════
-# Për shpejtësi LLM, limito tekstin e secilës shkresë në kontekst.
-# Whitelist-i ekstraktohet nga tekst i plotë (pa limit) — vetëm context-i
-# për LLM kufizohet.
-MAX_DOC_CHARS_IN_CONTEXT = 10_000
+MAX_DOC_CHARS_IN_CONTEXT = 6_000
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V6.5: Fjalët kyçe për dokumentet GJYQËSORE
 # ═══════════════════════════════════════════════════════════════════════════
-# Përfshin:
-#   - Vendimet gjyqësore: vendim, aktvendim, aktgjykim, urdhër
-#   - Dokumentet procedurale gjyqësore: aktakuzë, kërkesë, padi, kallëzim,
-#     refuzim, apel
-# Të gjitha këto janë dokumente zyrtare që citojnë nene ligjesh.
 
 LEGAL_DOC_KEYWORDS = [
-    # Vendime gjyqësore (origjinale)
     "vendim",
     "aktvendim",
     "aktgjykim",
     "urdhër",
     "urdher",
-    # V6.5: Dokumente procedurale gjyqësore
     "aktakuz",
     "akuz",
     "kallëzim",
@@ -102,14 +88,11 @@ _ARTICLE_LAWNUM_RE = re.compile(
 
 class ContextBuilder:
     """
-    Ndërtuesi Qendror i Kontekstit Juridik (V6.8):
-    - V6.8: Limit tekstin e shkresave në kontekst (10K chars/dok).
+    Ndërtuesi Qendror i Kontekstit Juridik (V6.9):
+    - V6.9: Context_documents opsional (whitelist nga të gjitha, konteksti nga subset).
+    - V6.8: Limit tekstin e shkresave në kontekst (6K chars/dok).
     - V6.7: Konsistencë terminologjike "gjyqësore".
-    - V6.6: Log line "dok gjyqësore".
-    - V6.5: Whitelist nga TË GJITHA dokumentet gjyqësore (vendime + procedurale).
-    - V6.4: Whitelist vetëm nga dokumentet gjyqësore.
-    - V6.3: Whitelist vetëm nga db_documents.
-    - V6.0-6.2: Whitelist automatik + ligjet me numër.
+    - V6.5: Whitelist nga TË GJITHA dokumentet gjyqësore.
     """
 
     @staticmethod
@@ -160,10 +143,6 @@ class ContextBuilder:
 
         return sorted(documents, key=get_priority, reverse=True)
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # V6.5: LEGAL DOC FILTER
-    # ═══════════════════════════════════════════════════════════════════════
-
     @staticmethod
     def _is_judicial_document(doc: Dict[str, Any]) -> bool:
         """
@@ -173,10 +152,6 @@ class ContextBuilder:
         """
         name = (doc.get("file_name") or doc.get("title") or "").lower()
         return any(kw in name for kw in LEGAL_DOC_KEYWORDS)
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # WHITELIST EXTRACTION
-    # ═══════════════════════════════════════════════════════════════════════
 
     @staticmethod
     def _normalize_law_number(raw: str) -> str:
@@ -220,7 +195,6 @@ class ContextBuilder:
         """
         V6.5: Ekstrakton whitelist nga dokumentet GJYQËSORE (vendime +
         procedurale). Fallback: nëse nuk ka dokumente gjyqësore → të gjitha.
-        Gjithashtu gjurmon cilat ligje citon secili dokument (laws_by_file).
         """
         legal_docs = [d for d in (db_documents or []) if ContextBuilder._is_judicial_document(d)]
 
@@ -330,21 +304,25 @@ class ContextBuilder:
 
         return "\n".join(lines)
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # BUILD
-    # ═══════════════════════════════════════════════════════════════════════
-
     @staticmethod
     def build(
         case_docs: List[Dict],
         global_docs: List[Dict],
-        db_documents: List[Dict]
+        db_documents: List[Dict],
+        context_documents: Optional[List[Dict]] = None,
     ) -> Tuple[str, str]:
+        """
+        V6.9: context_documents opsional — për tekstin e kontekstit.
+        Whitelist gjithmonë nga db_documents (i plotë).
+        """
+        if context_documents is None:
+            context_documents = db_documents
+
         manifest_lines = ["\n<<< REGJISTRI DOKTRINAR I SHKRESAVE TË FASHIKULLIT >>>\n"]
         context_blocks: List[str] = []
         seen_texts: Set[str] = set()
 
-        prioritized_docs = ContextBuilder._prioritize_documents(db_documents)
+        prioritized_docs = ContextBuilder._prioritize_documents(context_documents)
 
         if prioritized_docs:
             for idx, doc in enumerate(prioritized_docs, 1):
@@ -362,8 +340,6 @@ class ContextBuilder:
                 manifest_lines.append(f"{idx}. {doc_clickable_link}: {dense_passport[:250]}...")
 
                 if raw_t:
-                    # V6.8: Limit tekstin e dokumentit për kontekstin e LLM
-                    # (whitelist ekstraktohet veçmas nga tekst i plotë)
                     display_t = raw_t
                     if len(raw_t) > MAX_DOC_CHARS_IN_CONTEXT:
                         display_t = raw_t[:MAX_DOC_CHARS_IN_CONTEXT] + "\n\n[... shkresa u shkurtua për shpejtësi ...]"
@@ -403,6 +379,7 @@ class ContextBuilder:
         if len(full_context) > truncate_limit:
             full_context = full_context[:truncate_limit] + "\n\n[...Konteksti u optimizua...]"
 
+        # V6.9: Whitelist gjithmonë nga db_documents i plotë
         whitelist = ContextBuilder._extract_whitelist_from_case_files(db_documents)
         whitelist_section = ContextBuilder._format_whitelist(whitelist)
 
@@ -411,14 +388,17 @@ class ContextBuilder:
         if len(final_context) > MAX_CONTEXT_CHARS:
             final_context = final_context[:MAX_CONTEXT_CHARS] + "\n\n[...u optimizua...]"
 
+        context_docs_count = len(context_documents)
+        total_docs_count = len(db_documents or [])
+
         logger.info(
-            f"📊 [ContextBuilder V6.8] Kontekst: {len(final_context)} chars | "
+            f"📊 [ContextBuilder V6.9] Kontekst: {len(final_context)} chars | "
             f"whitelist ({whitelist.get('source_filter')}): "
             f"{len(whitelist['articles'])} nene ({len(whitelist['articles_display'])} display), "
             f"{len(whitelist['laws_abbrev'])} akronime, "
             f"{len(whitelist['laws_number'])} ligje me numër, "
             f"{len(whitelist.get('laws_by_file', {}))} dokumente me ligje | "
-            f"{whitelist.get('judicial_docs_count', 0)}/{whitelist.get('total_docs_count', 0)} dok gjyqësore."
+            f"konteksti: {context_docs_count}/{total_docs_count} dok gjyqësore."
         )
         return "\n".join(manifest_lines), final_context
 
@@ -426,12 +406,14 @@ class ContextBuilder:
     def build_with_whitelist(
         case_docs: List[Dict],
         global_docs: List[Dict],
-        db_documents: List[Dict]
+        db_documents: List[Dict],
+        context_documents: Optional[List[Dict]] = None,
     ) -> Tuple[str, str, Dict[str, Any]]:
         """
-        V6.8: Kthen (manifest, context, whitelist).
-        Whitelist nga dokumentet gjyqësore (vendime + procedurale).
+        V6.9: context_documents opsional — filtro vetëm tekstin, jo whitelist-in.
         """
-        manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+        manifest_str, context_str = ContextBuilder.build(
+            case_docs, global_docs, db_documents, context_documents
+        )
         whitelist = ContextBuilder._extract_whitelist_from_case_files(db_documents)
         return manifest_str, context_str, whitelist
