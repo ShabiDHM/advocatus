@@ -1,6 +1,7 @@
 # FILE: backend/app/models/admin.py
-# PHOENIX PROTOCOL - ADMIN MODELS V2.3 (STATUS SYNCHRONIZATION)
-# 1. FIX: Added 'status' field to UserAdminView and UserUpdateRequest to synchronize and persist account activation states across Admin and Team tabs.
+# PHOENIX PROTOCOL - ADMIN MODELS V2.4 (ORG-ID REFACTOR)
+# V2.4: REFACTOR — `org_id` → `organization_id` (heq legacy).
+# V2.3: Added 'status' field to UserAdminView and UserUpdateRequest.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional
@@ -16,26 +17,26 @@ class UserAdminView(BaseModel):
     username: str
     email: EmailStr
     role: str
-    
+
     # Status
-    status: Optional[str] = "active" # PHOENIX FIX: Exposes database account activation status ('active'/'pending_invite')
+    status: Optional[str] = "active"
     subscription_status: Optional[str] = "TRIAL"
-    is_active: bool = True 
-    
+    is_active: bool = True
+
     # Expose correct SaaS Matrix directly from DB
     account_type: Optional[AccountType] = AccountType.SOLO
     subscription_tier: Optional[SubscriptionTier] = SubscriptionTier.BASIC
     product_plan: Optional[ProductPlan] = ProductPlan.SOLO_PLAN
     subscription_expiry: Optional[datetime] = None
-    
+
     # Metadata
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
-    
-    # Organization Info
-    org_id: Optional[PyObjectId] = None
+
+    # V2.4: Organization Info (vetëm `organization_id`)
+    organization_id: Optional[PyObjectId] = None
     organization_name: Optional[str] = None
-    
+
     model_config = ConfigDict(
         populate_by_name=True,
         from_attributes=True,
@@ -47,18 +48,20 @@ class UserUpdateRequest(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
     role: Optional[str] = None
-    
+
     # SaaS Updates
-    status: Optional[str] = None # PHOENIX FIX: Allows admin to explicitly update account activation status
+    status: Optional[str] = None
     subscription_status: Optional[str] = None
     account_type: Optional[AccountType] = None
     subscription_tier: Optional[SubscriptionTier] = None
     product_plan: Optional[ProductPlan] = None
     subscription_expiry: Optional[datetime] = None
-    
+
     password: Optional[str] = None
-    org_id: Optional[PyObjectId] = None
-    
+
+    # V2.4: Organization Info (vetëm `organization_id`)
+    organization_id: Optional[PyObjectId] = None
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True
     )

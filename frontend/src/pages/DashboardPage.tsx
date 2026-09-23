@@ -1,20 +1,20 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V14.0 (ZERO HARDCODED COLORS)
+// PHOENIX PROTOCOL - DASHBOARD V14.1 (ZERO HARDCODED COLORS + MIC REMOVED)
 // V14.0: Të gjitha ngjyrat kaluar në semantike — role-*, status-info, danger-start, etj.
+// V14.1: Hequr butoni "Regjistro" (mikrofon). Krijimi i ngjarjeve me zë ekziston
+//        vetëm në CalendarPage — Single Source of Truth (SSOT).
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
   PartyPopper, Coffee, Timer, Trash2, Calendar, Search, X,
-  Shield, Swords, Scale, Mic
+  Shield, Swords, Scale
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
-import { CreateEventModal, EventInitialValues } from '../components/calendar/CreateEventModal';
-import { VoiceEventRecorder, ParsedVoiceEvent } from '../components/calendar/VoiceEventRecorder';
 import { isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentBriefingHoliday } from '../utils/kosovoHolidays';
@@ -47,11 +47,6 @@ const DashboardPage: React.FC = () => {
   const [isDeletingCase, setIsDeletingCase] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
-
-  // VOICE — state
-  const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
-  const [isVoiceEventCreateOpen, setIsVoiceEventCreateOpen] = useState(false);
-  const [voiceInitialValues, setVoiceInitialValues] = useState<EventInitialValues | undefined>(undefined);
 
   const holidayBriefing = useMemo(() => {
     const today = new Date();
@@ -170,26 +165,6 @@ const DashboardPage: React.FC = () => {
     window.addEventListener('calendar:event-changed', handler);
     return () => window.removeEventListener('calendar:event-changed', handler);
   }, []);
-
-  const handleVoiceParsed = (parsed: ParsedVoiceEvent, _transcription: string) => {
-    const initial: EventInitialValues = {
-      title: parsed.title,
-      description: parsed.description,
-      event_type: parsed.event_type,
-      priority: parsed.priority,
-      location: parsed.location,
-      category: parsed.category,
-      start_date: parsed.start_date,
-    };
-    setVoiceInitialValues(initial);
-    setIsVoiceRecorderOpen(false);
-    setIsVoiceEventCreateOpen(true);
-  };
-
-  const handleCloseVoiceEventCreate = () => {
-    setIsVoiceEventCreateOpen(false);
-    setVoiceInitialValues(undefined);
-  };
 
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,16 +420,6 @@ const DashboardPage: React.FC = () => {
           />
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsVoiceRecorderOpen(true)}
-          className="h-11 px-4 sm:px-5 rounded-xl border border-main bg-surface hover:bg-hover text-primary-start font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer"
-          title="Regjistro me zë"
-        >
-          <Mic size={16} strokeWidth={2.5} />
-          <span className="hidden sm:inline">Regjistro</span>
-        </button>
-
         <button 
             type="button"
             onClick={() => setShowCreateModal(true)} 
@@ -663,23 +628,6 @@ const DashboardPage: React.FC = () => {
       </AnimatePresence>
 
       <DayEventsModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} date={new Date()} events={todaysEvents} t={t} onAddEvent={() => { setIsBriefingOpen(false); window.location.href = '/calendar'; }} />
-
-      <VoiceEventRecorder
-        isOpen={isVoiceRecorderOpen}
-        onClose={() => setIsVoiceRecorderOpen(false)}
-        onParsed={handleVoiceParsed}
-      />
-
-      {isVoiceEventCreateOpen && (
-        <CreateEventModal
-          cases={cases}
-          existingEvents={todaysEvents}
-          onClose={handleCloseVoiceEventCreate}
-          onCreate={() => loadData(false)}
-          initialValues={voiceInitialValues}
-          prefillSource="voice"
-        />
-      )}
     </div>
   );
 };

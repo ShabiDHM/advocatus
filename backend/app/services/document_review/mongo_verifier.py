@@ -1,19 +1,12 @@
 # FILE: backend/app/services/document_review/mongo_verifier.py
-# PHOENIX PROTOCOL - MONGO VERIFIER V2.0 (MULTI-LAW VERIFICATION)
-# V2.0: VERIFIKIM MULTI-LIGJ — nëse neni nuk gjendet me law_hint:
-#       1. Provo ligjin pasardhës (LAW_SUCCESSOR_MAP)
-#       2. Raporto "found_in_successor_law" me sugjerim zëvendësimi
-#       3. Raporto "not_found_but_exists_in" me listë ligjesh alternative
-# V1.9: FIX KRITIK — WORD BOUNDARY në abbrev_match dhe full_name_match.
-# V1.8: full_name_match me word boundary.
-# V1.7: TOC FILTER + sort sekondar text_len DESC.
-# V1.6: FULL_NAME_MATCH + prag dinamik overlap.
-# V1.5: text_excerpt 3000 chars.
-# V1.4: KNOWN_ABBREV_KEYWORDS.
-# V1.3: FIX "LMD" ⊂ "LMDHF" + short-circuit + limit 20.
-# V1.2: "Ligji"/"Kodi" NUK filtrohen.
-# V1.1: Prioritet match.
-# V1.0: Ekstraktim deterministik.
+# PHOENIX PROTOCOL - MONGO VERIFIER V2.1 (ABBREV ALIASES)
+# V2.1: FIX akronime te gabuara — KPPRK/KPPK te trajtohen si KPK.
+#       - LAW_ABBREV_ALIASES: KPPRK → KPK, KPPK → KPK
+#       - KNOWN_ABBREV_KEYWORDS me ROOTS (procedur, jo procedurës)
+#         per shmangur humbjen e match-it ne normalizim ë→e.
+#       - _title_matches_citation provo aliasin perpara hint-it origjinal.
+# V2.0: VERIFIKIM MULTI-LIGJ.
+# V1.9: WORD BOUNDARY në abbrev_match dhe full_name_match.
 
 import re
 import logging
@@ -52,35 +45,50 @@ ABBREV_SKIP_WORDS = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.4: KNOWN_ABBREV_KEYWORDS — akronime zyrtare kosovare
+# V2.1: LAW_ABBREV_ALIASES — akronime me variante
 # ═══════════════════════════════════════════════════════════════════════════
 
-KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
-    "LMDHF": ["ligji", "mbrojtj", "dhuna", "familje"],
-    "LMD":   ["ligji", "marrëdhëniet", "detyrimeve"],
-    "LPK":   ["ligji", "procedurën", "kontestimore"],
-    "KPRK":  ["kodi", "penal"],
-    "KPK":   ["kodi", "procedurës", "penale"],
-    "KPPRK": ["kodi", "procedurës", "penale"],
-    "LFK":   ["ligji", "familjen"],
-    "LSHT":  ["ligji", "shoqëritë", "tregtare"],
-    "KRK":   ["kushtetuta"],
+LAW_ABBREV_ALIASES: Dict[str, str] = {
+    # Kodi i Procedurës Penale (08/L-032) — të njëjtin ligj, akronime të ndryshme
+    "KPPRK": "KPK",   # Kodi i Procedurës Penale i Republikës së Kosovës
+    "KPPK":  "KPK",   # variant typo
+    "KPK":   "KPK",
+    # Kodi Penal (06/L-074) — nuk ka alias
+    "KPRK":  "KPRK",
+    "KPRKS": "KPRK",  # variant
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.0: LAW SUCCESSOR MAP — ligje të vjetra → ligje të reja
-# Format: {law_number_old: {"successor": law_number_new, "name": "...", "note": "..."}}
+# V1.4 / V2.1: KNOWN_ABBREV_KEYWORDS — ROOTS (jo mbaresa)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# V2.1: Ndryshuar nga "procedurës" → "procedur" (root), "mbrojtj" (root).
+# Kjo shmang humbjen e match-it kur normalize_albanian nuk konverton ë→e.
+
+KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
+    "LMDHF": ["ligj", "mbrojtj", "dhun", "familj"],
+    "LMD":   ["ligj", "marrëdhënie", "detyrim"],  # ose marrdhenie
+    "LPK":   ["ligj", "procedur", "kontestim"],
+    "KPRK":  ["kodi", "penal"],
+    "KPK":   ["kodi", "procedur", "penal"],
+    "KPPRK": ["kodi", "procedur", "penal"],  # same as KPK
+    "LFK":   ["ligj", "familj"],
+    "LSHT":  ["ligj", "shoqëri", "tregtar"],  # ose shoqeri
+    "KRK":   ["kushtetut"],
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.0: LAW SUCCESSOR MAP
 # ═══════════════════════════════════════════════════════════════════════════
 
 LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
-    # Ligji për Mbrojtjen nga Dhuna në Familje — zëvendësuar me 08/L-185 (2023)
     "03/L-182": {
         "successor": "08/L-185",
         "name": "Ligji për Parandalimin dhe Mbrojtjen nga Dhuna në Familje, Dhuna Ndaj Grave dhe Dhuna në Bazë Gjinore",
         "note": "LMDHF u zëvendësua në vitin 2023 me versionin e ri 08/L-185",
     },
-    # Ligji për Familjen — version i konsoliduar
     "2004/32": {
         "successor": "2004/32",
         "name": "Ligji për Familjen i Kosovës",
@@ -90,21 +98,47 @@ LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# V2.1: HELPERS — ALIAS NORMALIZER
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _normalize_law_hint_alias(hint: str) -> str:
+    """
+    V2.1: Normalizo aliaset e njohura te akronimeve.
+    KPPRK → KPK, KPPK → KPK.
+    """
+    if not hint:
+        return hint
+    h = hint.strip().upper()
+    return LAW_ABBREV_ALIASES.get(h, hint)
+
+
+def _variant_hints(hint: str) -> List[str]:
+    """
+    V2.1: Kthen te gjitha variantet e nje hint (origjinal + alias).
+    """
+    if not hint:
+        return []
+    variants: Set[str] = set()
+    variants.add(hint)
+    h_upper = hint.strip().upper()
+    if h_upper in LAW_ABBREV_ALIASES:
+        variants.add(LAW_ABBREV_ALIASES[h_upper])
+    return list(variants)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # HELPERS — NORMALIZIM
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_law_number_from_text(text: str) -> Optional[str]:
-    """Nxjerr numrin e ligjit nga një tekst (XX/L-YYY ose YYYY/NN)."""
     if not text:
         return None
-    # Format XX/L-YYY
     m = re.search(
         r'(\d{2})\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*(\d{2,4})',
         text, re.IGNORECASE,
     )
     if m:
         return f"{m.group(1)}/L-{m.group(2)}"
-    # Format YYYY/NN (si 2004/32)
     m = re.search(r'\b(\d{4})\s*[\/\-]\s*(\d{1,3})\b', text)
     if m:
         return f"{m.group(1)}/{m.group(2)}"
@@ -112,7 +146,6 @@ def _extract_law_number_from_text(text: str) -> Optional[str]:
 
 
 def _extract_keywords(text: str, min_length: int = 4) -> Set[str]:
-    """Nxjerr fjalë kyçe nga një emër ligji (pa stopwords)."""
     if not text:
         return set()
     normalized = normalize_albanian(text)
@@ -125,28 +158,22 @@ def _extract_keywords(text: str, min_length: int = 4) -> Set[str]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _looks_like_toc(text: str) -> bool:
-    """Kontrollo nëse teksti është tabelë përmbajtjeje."""
     if not text:
         return False
-
     stripped = text.strip()
     if len(stripped) < 20:
         return False
-
     dotted_matches = re.findall(r'\.{5,}', stripped)
     if len(dotted_matches) >= 1 and len(stripped) < 400:
         return True
-
     toc_lines = re.findall(r'\.{3,}\s*\d+\s*$', stripped, re.MULTILINE)
     if len(toc_lines) >= 2:
         return True
-
     lines = [l for l in stripped.split("\n") if l.strip()]
     if len(lines) >= 3:
         dotted_ending = sum(1 for l in lines if re.search(r'\.{3,}\s*\d+\s*$', l))
         if dotted_ending / len(lines) > 0.4:
             return True
-
     return False
 
 
@@ -155,36 +182,44 @@ def _looks_like_toc(text: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _generate_abbreviation_from_title(title: str) -> str:
-    """Gjeneron akronim nga titulli i ligjit."""
     if not title:
         return ""
-
     title_clean = re.sub(
         r'\b(?:Nr\.?|nr\.?)\s*\d+\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*\d+',
         '', title, flags=re.IGNORECASE,
     )
-
     normalized = normalize_albanian(title_clean)
     words = re.findall(r'\b[a-zëç]+\b', normalized)
-
-    significant = [
-        w for w in words
-        if w not in ABBREV_SKIP_WORDS and len(w) >= 1
-    ]
-
+    significant = [w for w in words if w not in ABBREV_SKIP_WORDS and len(w) >= 1]
     if len(significant) < 2:
         return ""
-
     return "".join(w[0].upper() for w in significant[:6])
 
 
 def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
-    """Kontrollo akronimin kundrejt mapping-ut zyrtar."""
-    keywords = KNOWN_ABBREV_KEYWORDS.get(cit_upper)
-    if not keywords:
-        return False
-    title_norm = normalize_albanian(db_title)
-    return all(kw in title_norm for kw in keywords)
+    """
+    V2.1: Kontrollo akronimin kundrejt mapping-ut zyrtar.
+    Tani ben fallback me alias nese originali nuk matchon.
+    """
+    # Provo me aliasin e normalizuar
+    normalized_cit = _normalize_law_hint_alias(cit_upper)
+
+    for candidate in (cit_upper, normalized_cit):
+        keywords = KNOWN_ABBREV_KEYWORDS.get(candidate)
+        if not keywords:
+            continue
+        title_norm = normalize_albanian(db_title)
+        # V2.1: Shmang problemet me ë/ç — provo të dyja variantet
+        title_alt = title_norm.replace("ë", "e").replace("ç", "c")
+        for kw in keywords:
+            kw_alt = kw.replace("ë", "e").replace("ç", "c")
+            if not (kw in title_norm or kw_alt in title_norm
+                    or kw in title_alt or kw_alt in title_alt):
+                break
+        else:
+            # All keywords matched
+            return True
+    return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -192,13 +227,14 @@ def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _reason_priority(reason: str) -> int:
-    """Prioritet i arsyes së match-it."""
     if reason.startswith("number_match"):
         return 100
     if reason.startswith("full_name_match"):
         return 96
     if reason.startswith("abbrev_known"):
         return 95
+    if reason.startswith("abbrev_alias"):
+        return 94
     if reason.startswith("abbrev_generated_exact"):
         return 90
     if reason.startswith("abbrev_generated_prefix"):
@@ -213,7 +249,7 @@ def _reason_priority(reason: str) -> int:
 
 
 def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool, str]:
-    """Kontrollo nëse law_title përputhet me law_hint."""
+    """V2.1: Kontrollo nëse law_title përputhet me law_hint (me aliases)."""
     if not db_title or not citation_law_hint:
         return False, "empty"
 
@@ -226,9 +262,13 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
     cit_upper = citation_law_hint.upper().strip()
     is_abbrev_hint = bool(re.match(r'^[A-ZËÇ]{2,6}$', cit_upper))
 
-    # 2. Mapping akronimesh zyrtare
-    if is_abbrev_hint and _known_abbrev_matches(cit_upper, db_title):
-        return True, f"abbrev_known:{cit_upper}"
+    # V2.1: Provo me aliases — KPPRK → KPK
+    if is_abbrev_hint:
+        for variant in _variant_hints(cit_upper):
+            # 2. Mapping akronimesh zyrtare
+            if _known_abbrev_matches(variant, db_title):
+                tag = "abbrev_known" if variant == cit_upper else f"abbrev_alias:{cit_upper}→{variant}"
+                return True, f"{tag}:{variant}"
 
     # 3. Gjenerim dinamik akronimi
     if is_abbrev_hint:
@@ -240,21 +280,23 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
                 if abs(len(cit_upper) - len(generated)) <= 1 and generated.startswith(cit_upper):
                     return True, f"abbrev_generated_prefix:{cit_upper}~{generated}"
 
-    # 4. Akronim direkt në titull (word boundary)
+    # 4. Akronim direkt në titull
     if is_abbrev_hint:
         db_upper = db_title.upper()
-        pattern = r'\b' + re.escape(cit_upper) + r'\b'
-        if re.search(pattern, db_upper):
-            return True, f"abbrev_match:{cit_upper}"
+        for variant in _variant_hints(cit_upper):
+            pattern = r'\b' + re.escape(variant) + r'\b'
+            if re.search(pattern, db_upper):
+                tag = "abbrev_match" if variant == cit_upper else f"abbrev_match_alias:{cit_upper}→{variant}"
+                return True, f"{tag}:{variant}"
 
-    # 5. FULL_NAME_MATCH (word boundary)
+    # 5. FULL_NAME_MATCH
     if not is_abbrev_hint and len(cit_upper) >= 5:
         db_upper = db_title.upper()
         pattern = r'\b' + re.escape(cit_upper) + r'\b'
         if re.search(pattern, db_upper):
             return True, f"full_name_match:{cit_upper}"
 
-    # 6. Fjalë kyçe — prag DINAMIK
+    # 6. Fjalë kyçe
     db_kw = _extract_keywords(db_title)
     cit_kw = _extract_keywords(citation_law_hint)
     overlap = db_kw & cit_kw
@@ -270,16 +312,12 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _get_successor_law(law_hint: str) -> Optional[Dict[str, str]]:
-    """V2.0: Kthen info për ligjin pasardhës nëse ekziston."""
     if not law_hint:
         return None
-
     law_num = _extract_law_number_from_text(law_hint)
     if not law_num:
         return None
-
-    successor_info = LAW_SUCCESSOR_MAP.get(law_num)
-    return successor_info
+    return LAW_SUCCESSOR_MAP.get(law_num)
 
 
 def _try_successor_law(
@@ -289,36 +327,27 @@ def _try_successor_law(
     original_hint: str,
     successor_info: Dict[str, str],
 ) -> Optional[Dict[str, Any]]:
-    """
-    V2.0: Provo ligjin pasardhës. Kthen result të plotë me sugjerim
-    nëse neni ekziston në ligjin e ri.
-    """
     successor_num = successor_info.get("successor", "")
     if not successor_num:
         return None
-
     try:
         collection = db[LEGAL_KB_COLLECTION]
-
         article_variants = [article_number, f"{article_number}."]
         try:
             article_variants.append(int(article_number))
         except (ValueError, TypeError):
             pass
 
-        # Kërko në ligjin pasardhës duke përdorur numrin e ligjit
         query = {
             "is_article": True,
             "article_number": {"$in": article_variants},
             "law_title": {"$regex": re.escape(successor_num).replace("/", r"\s*[\/\-_\s]?\s*"), "$options": "i"},
         }
-
         candidates = list(collection.find(query, {
             "law_title": 1, "article_number": 1, "source": 1,
             "text": 1, "chunk_index": 1, "page": 1,
         }).limit(10))
 
-        # Nëse regex nuk matchon (format tjetër), provo me keyword
         if not candidates:
             successor_keywords = ["parandalimin", "mbrojtjen", "dhuna", "familje"]
             alt_query = {
@@ -339,12 +368,11 @@ def _try_successor_law(
         if not candidates:
             return None
 
-        # Zgjedh tekstin më të gjatë (jo TOC)
         non_toc = [c for c in candidates if not _looks_like_toc(c.get("text", ""))]
         pool = non_toc if non_toc else candidates
         best_doc = max(pool, key=lambda c: len(c.get("text", "")))
 
-        result = {
+        return {
             "article_number": article_number,
             "paragraph": paragraph,
             "law_hint": original_hint,
@@ -360,43 +388,24 @@ def _try_successor_law(
                 "note": successor_info.get("note", ""),
             },
         }
-        return result
-
     except Exception as e:
         logger.warning(f"⚠️ [_try_successor_law] Error: {e}")
         return None
 
 
-def _check_exists_in_other_laws(
-    db,
-    article_number: str,
-) -> List[Dict[str, Any]]:
-    """
-    V2.0: Kontrollo nëse neni ekziston në ligje të tjera (për raportim).
-    Kthen listë me (law_title, source, page) — pa konfirmim.
-    """
+def _check_exists_in_other_laws(db, article_number: str) -> List[Dict[str, Any]]:
     try:
         collection = db[LEGAL_KB_COLLECTION]
-
         article_variants = [article_number, f"{article_number}."]
         try:
             article_variants.append(int(article_number))
         except (ValueError, TypeError):
             pass
-
-        query = {
-            "is_article": True,
-            "article_number": {"$in": article_variants},
-        }
-
+        query = {"is_article": True, "article_number": {"$in": article_variants}}
         candidates = list(collection.find(query, {
             "law_title": 1, "source": 1, "text": 1, "page": 1,
         }).limit(50))
-
-        # Filtro TOC
         non_toc = [c for c in candidates if not _looks_like_toc(c.get("text", ""))]
-
-        # Grup sipas law_title
         seen_titles: Set[str] = set()
         results: List[Dict[str, Any]] = []
         for c in non_toc:
@@ -409,16 +418,14 @@ def _check_exists_in_other_laws(
                 "source": c.get("source", ""),
                 "page": c.get("page"),
             })
-
         return results
-
     except Exception as e:
         logger.warning(f"⚠️ [_check_exists_in_other_laws] Error: {e}")
         return []
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY SINGLE ARTICLE — V2.0
+# VERIFY SINGLE ARTICLE — V2.1
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _verify_single_article(
@@ -427,7 +434,6 @@ def _verify_single_article(
     paragraph: Optional[str],
     law_hint: str,
 ) -> Dict[str, Any]:
-    """Verifikon një nen të vetëm kundrejt DB."""
     result = {
         "article_number": article_number,
         "paragraph": paragraph,
@@ -438,14 +444,12 @@ def _verify_single_article(
         "candidates_checked": 0,
         "toc_filtered": 0,
     }
-
     if db is None:
         result["match_reason"] = "no_db"
         return result
 
     try:
         collection = db[LEGAL_KB_COLLECTION]
-
         article_variants = [article_number, f"{article_number}."]
         try:
             article_variants.append(int(article_number))
@@ -457,28 +461,23 @@ def _verify_single_article(
             "article_number": {"$in": article_variants},
         }
 
-        # Short-circuit
         if collection.count_documents(query, limit=1) == 0:
             result["match_reason"] = "article_not_in_db"
-            # V2.0: Edhe nëse nuk gjendet fare, kontribuon asgjë
             return result
 
         candidates = list(collection.find(query, {
             "law_title": 1, "article_number": 1, "source": 1,
             "text": 1, "chunk_index": 1, "page": 1,
         }).limit(20))
-
         result["candidates_checked"] = len(candidates)
 
         if not candidates:
             result["match_reason"] = "article_not_in_db"
             return result
 
-        # TOC FILTER
         non_toc = [c for c in candidates if not _looks_like_toc(c.get("text", ""))]
         toc_count = len(candidates) - len(non_toc)
         result["toc_filtered"] = toc_count
-
         if non_toc:
             candidates = non_toc
             if toc_count > 0:
@@ -501,13 +500,10 @@ def _verify_single_article(
                 result["match_reason"] = "single_law_in_db"
             else:
                 result["match_reason"] = f"multiple_laws_no_hint:{len(law_titles)}"
-                # V2.0: Raporto ligjet alternative
                 result["alternative_laws"] = sorted(law_titles)
             return result
 
-        # Standard matching
         matches: List[Tuple[int, Dict[str, Any], str]] = []
-
         for candidate in candidates:
             db_title = candidate.get("law_title", "") or ""
             is_match, reason = _title_matches_citation(db_title, law_hint)
@@ -523,44 +519,29 @@ def _verify_single_article(
             result["match_reason"] = best_reason
             return result
 
-        # ═══════════════════════════════════════════════════════════════
-        # V2.0: NUK U GJET — Provo strategji alternative
-        # ═══════════════════════════════════════════════════════════════
+        # Nuk u gjet — strategji alternative
         logger.info(
-            f"🔎 [MULTI-LAW V2.0] Neni {article_number} me hint='{law_hint}' "
+            f"🔎 [MULTI-LAW V2.1] Neni {article_number} me hint='{law_hint}' "
             f"nuk u gjet direkt — provo strategji alternative..."
         )
 
         # Strategjia 1: Ligji pasardhës
         successor_info = _get_successor_law(law_hint)
         if successor_info:
-            logger.info(
-                f"➡️ [MULTI-LAW V2.0] Hint '{law_hint}' → successor "
-                f"'{successor_info.get('successor')}'"
-            )
             successor_result = _try_successor_law(
                 db, article_number, paragraph, law_hint, successor_info
             )
             if successor_result and successor_result.get("exists"):
-                logger.info(
-                    f"✅ [MULTI-LAW V2.0] U gjet në ligjin pasardhës: "
-                    f"{successor_result['match_reason']}"
-                )
                 return successor_result
 
         # Strategjia 2: Raporto ku tjetër ekziston
         other_laws = _check_exists_in_other_laws(db, article_number)
         if other_laws:
-            logger.info(
-                f"⚠️ [MULTI-LAW V2.0] Neni {article_number} ekziston në "
-                f"{len(other_laws)} ligje të tjera, por jo me hint '{law_hint}'"
-            )
             result["match_reason"] = "law_hint_no_match_but_exists_elsewhere"
             result["exists"] = False
             result["alternative_laws"] = other_laws
             return result
 
-        # Nuk u gjet fare
         result["match_reason"] = "law_hint_no_match"
         return result
 
@@ -578,7 +559,6 @@ MAX_TEXT_EXCERPT_CHARS = 3000
 
 
 def _serialize_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Serializon dokumentin MongoDB."""
     if not doc:
         return {}
     full_text = doc.get("text") or ""
@@ -598,10 +578,8 @@ def _serialize_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Verifikon të gjitha nenet."""
     if not articles:
         return []
-
     results = []
     for article in articles:
         verification = _verify_single_article(
@@ -613,10 +591,13 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         results.append(verification)
 
     verified = sum(1 for r in results if r["exists"])
-    # V2.0: Numëro edhe ata që u gjetën në ligje pasardhëse
     successor_matches = sum(
         1 for r in results
         if r.get("match_reason", "").startswith("found_in_successor_law")
+    )
+    alias_matches = sum(
+        1 for r in results
+        if "abbrev_alias" in r.get("match_reason", "") or "abbrev_match_alias" in r.get("match_reason", "")
     )
     alternative_found = sum(
         1 for r in results
@@ -624,8 +605,9 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.0] Articles: {len(results)} total, "
-        f"{verified} verified (including {successor_matches} in successor laws), "
+        f"📚 [MONGO_VERIFIER V2.1] Articles: {len(results)} total, "
+        f"{verified} verified (including {successor_matches} in successor laws, "
+        f"{alias_matches} via alias), "
         f"{alternative_found} exist elsewhere (wrong hint), "
         f"{len(results) - verified - alternative_found} not found"
     )
@@ -636,13 +618,9 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # VERIFY LAW NUMBERS
 # ═══════════════════════════════════════════════════════════════════════════
 
-def verify_law_numbers(
-    db, laws_by_number: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    """Verifikon numrat e ligjeve."""
+def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not laws_by_number:
         return []
-
     if db is None:
         return [
             {**law, "exists": False, "matched_doc": None, "match_reason": "no_db"}
@@ -665,13 +643,10 @@ def verify_law_numbers(
         try:
             m = re.match(r'(\d{2})/L-(\d+)', law_number)
             if not m:
-                # V2.0: Format YYYY/NN
                 m2 = re.match(r'(\d{4})/(\d+)', law_number)
                 if m2:
                     part1, part2 = m2.group(1), m2.group(2)
-                    title_patterns = [
-                        rf"\b{part1}\s*[\/\-_\s]?\s*{part2}\b",
-                    ]
+                    title_patterns = [rf"\b{part1}\s*[\/\-_\s]?\s*{part2}\b"]
                 else:
                     result["match_reason"] = "invalid_number_format"
                     results.append(result)
@@ -698,7 +673,6 @@ def verify_law_numbers(
                     break
 
             if not result["exists"]:
-                # V2.0: Kontrollo successor
                 successor_info = _get_successor_law(law_number)
                 if successor_info and successor_info.get("successor") != law_number:
                     result["match_reason"] = f"law_replaced_by:{successor_info['successor']}"
@@ -724,7 +698,7 @@ def verify_law_numbers(
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.0] Laws by number: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.1] Laws by number: {len(results)} total, "
         f"{verified} verified, {replaced} replaced"
     )
     return results
@@ -734,15 +708,10 @@ def verify_law_numbers(
 # VERIFY CASE NUMBERS
 # ═══════════════════════════════════════════════════════════════════════════
 
-def verify_case_numbers(
-    db, case_numbers: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    """Verifikon numrat e lëndëve."""
+def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not case_numbers:
         return []
-
     results = []
-
     case_law_available = False
     if db is not None:
         try:
@@ -761,22 +730,18 @@ def verify_case_numbers(
             "matched_doc": None,
             "match_reason": "",
         }
-
         if case.get("is_likely_own"):
             result["match_reason"] = "own_case_number"
             results.append(result)
             continue
-
         if db is None:
             result["match_reason"] = "no_db"
             results.append(result)
             continue
-
         if not case_law_available:
             result["match_reason"] = "case_law_collection_not_available"
             results.append(result)
             continue
-
         try:
             collection = db[CASE_LAW_COLLECTION]
             clean_number = case_number.replace(" ", "").upper()
@@ -785,7 +750,6 @@ def verify_case_numbers(
                 clean_number.replace(".", ""),
                 clean_number.replace(".nr.", "/"),
             ]
-
             doc = None
             for variant in variants:
                 doc = collection.find_one(
@@ -794,7 +758,6 @@ def verify_case_numbers(
                 )
                 if doc:
                     break
-
             if doc:
                 result["is_precedent"] = True
                 result["matched_doc"] = {
@@ -804,11 +767,9 @@ def verify_case_numbers(
                 result["match_reason"] = "found_in_case_law"
             else:
                 result["match_reason"] = "not_in_case_law"
-
         except Exception as e:
             logger.warning(f"⚠️ [verify_case_numbers] Error for {case_number}: {e}")
             result["match_reason"] = f"error:{type(e).__name__}"
-
         results.append(result)
 
     precedents = sum(1 for r in results if r["is_precedent"])
@@ -821,13 +782,10 @@ def verify_case_numbers(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY ALL — V2.0
+# VERIFY ALL
 # ═══════════════════════════════════════════════════════════════════════════
 
-def verify_all(
-    db, citation_profile: Dict[str, Any],
-) -> Dict[str, Any]:
-    """Verifikon të gjitha citimet."""
+def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
     if not citation_profile:
         return {
             "articles": [], "laws_by_number": [],
@@ -842,10 +800,14 @@ def verify_all(
         "articles_total": len(articles),
         "articles_verified": sum(1 for a in articles if a["exists"]),
         "articles_not_found": sum(1 for a in articles if not a["exists"]),
-        # V2.0
         "articles_in_successor_laws": sum(
             1 for a in articles
             if a.get("match_reason", "").startswith("found_in_successor_law")
+        ),
+        "articles_via_alias": sum(
+            1 for a in articles
+            if "abbrev_alias" in a.get("match_reason", "")
+            or "abbrev_match_alias" in a.get("match_reason", "")
         ),
         "articles_exist_elsewhere": sum(
             1 for a in articles
@@ -863,9 +825,10 @@ def verify_all(
     }
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.0] Complete: "
+        f"📚 [MONGO_VERIFIER V2.1] Complete: "
         f"articles {stats['articles_verified']}/{stats['articles_total']} "
-        f"(+{stats['articles_in_successor_laws']} in successor laws), "
+        f"(+{stats['articles_in_successor_laws']} in successor laws, "
+        f"{stats['articles_via_alias']} via alias), "
         f"laws {stats['laws_verified']}/{stats['laws_total']} "
         f"({stats['laws_replaced']} replaced), "
         f"precedents {stats['precedents_verified']}/{stats['case_numbers_cited']}"

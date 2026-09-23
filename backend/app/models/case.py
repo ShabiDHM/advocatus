@@ -1,7 +1,8 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V17.0
+# PHOENIX PROTOCOL - CASE MODEL V18.0
+# V18.0: REFACTOR — `org_id` → `organization_id` (heq legacy). Canonical: organization_id.
 # V17.0: Hequr latest_forensic_audit (fushë e vdekur).
-# V16.0: DOSSIER-LEVEL AUDIT PERSISTENCE
+# V16.0: DOSSIER-LEVEL AUDIT PERSISTENCE.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Union
@@ -16,21 +17,22 @@ class ClientData(BaseModel):
 
 # Modeli i Mesazhit në Chat
 class ChatMessage(BaseModel):
-    role: str 
+    role: str
     content: str
     timestamp: Optional[Union[datetime, str]] = Field(default_factory=datetime.utcnow)
 
 # Modeli Bazë i Lëndës
 class CaseBase(BaseModel):
-    case_number: Optional[str] = None 
+    case_number: Optional[str] = None
     title: str
     description: Optional[str] = None
     status: str = "OPEN"
-    client_id: Optional[PyObjectId] = None 
-    org_id: Optional[PyObjectId] = None 
+    client_id: Optional[PyObjectId] = None
+    # V18.0: Vetëm `organization_id` — canonical
+    organization_id: Optional[PyObjectId] = None
     owner_id: Optional[Union[PyObjectId, str]] = None
     client_position: Optional[str] = "DEFENDANT"
-    
+
     # Emrat e Palëve dhe Financat
     client_name: Optional[str] = None
     opposing_party: Optional[Union[str, Dict[str, Any]]] = None
@@ -66,18 +68,19 @@ class CaseUpdate(BaseModel):
     opponent_name: Optional[str] = None
     disputed_amount: Optional[float] = None
     client: Optional[ClientData] = None
-    org_id: Optional[PyObjectId] = None
+    # V18.0: Vetëm `organization_id` — canonical
+    organization_id: Optional[PyObjectId] = None
     analysis_dirty: Optional[bool] = None
 
 # Modeli i Databazës (MongoDB)
 class CaseInDB(CaseBase):
     id: PyObjectId = Field(alias="_id", default=None)
-    user_id: PyObjectId 
+    user_id: PyObjectId
     client: Optional[ClientData] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
-    
+
     # PHOENIX PERSISTENCE: Shtjellat dhe Pasqyra e Shpejtë e Klientit
     standard_summary: Optional[Union[str, Dict[str, Any]]] = None
     pillars: Optional[Dict[str, Any]] = None
@@ -85,11 +88,11 @@ class CaseInDB(CaseBase):
     latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
-    
+
     # PHOENIX DOSSIER: Doktrina e Fashikullit të Plotë
     latest_dossier_analysis: Optional[str] = None
     last_dossier_audited_at: Optional[Union[datetime, str]] = None
-    
+
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: List[str] = []
 
@@ -104,10 +107,10 @@ class CaseOut(CaseBase):
     user_id: PyObjectId
     created_at: datetime
     updated_at: datetime
-    
+
     client: Optional[ClientData] = None
     chat_history: Optional[List[ChatMessage]] = []
-    
+
     # PHOENIX SYNC: Lejon daljen e të gjitha analizave te Frontendi
     standard_summary: Optional[Union[str, Dict[str, Any]]] = None
     pillars: Optional[Dict[str, Any]] = None
@@ -115,11 +118,11 @@ class CaseOut(CaseBase):
     latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
-    
+
     # PHOENIX DOSSIER: Doktrina e Fashikullit të Plotë
     latest_dossier_analysis: Optional[str] = None
     last_dossier_audited_at: Optional[Union[datetime, str]] = None
-    
+
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: Optional[List[str]] = []
 

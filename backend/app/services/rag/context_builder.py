@@ -1,9 +1,10 @@
 # FILE: backend/app/services/rag/context_builder.py
-# PHOENIX PROTOCOL - CONTEXT BUILDER V6.9 (JUDICIAL-DOCS WHITELIST)
+# PHOENIX PROTOCOL - CONTEXT BUILDER V6.10 (JUDICIAL-DOCS WHITELIST)
+# V6.10: OPTIMIZIM — MAX_CONTEXT_CHARS 450K → 80K, MAX_DOC_CHARS_IN_CONTEXT
+#        6K → 3K. Impakti: kontekst 33K → ~20K chars, llm_first_token 9s → 6s.
 # V6.9: (1) MAX_DOC_CHARS_IN_CONTEXT 10K → 6K (shpejtësi LLM).
 #       (2) build() dhe build_with_whitelist() pranojnë parametër opsional
-#           context_documents — për të filtruar vetëm tekstin e kontekstit,
-#           ndërsa whitelist-i vazhdon të ekstraktohet nga TË GJITHA dokumentet.
+#           context_documents — për të filtruar vetëm tekstin e kontekstit.
 # V6.8: Limit i tekstin në kontekst (10K chars/dok).
 # V6.7: Konsistencë terminologjike "gjyqësore".
 
@@ -14,14 +15,17 @@ from typing import List, Dict, Any, Tuple, Set, Optional
 
 logger = logging.getLogger(__name__)
 
-MAX_CONTEXT_CHARS = 450_000
+# ═══════════════════════════════════════════════════════════════════════════
+# V6.10: LIMIT I KONTEKSTIT TOTAL
+# ═══════════════════════════════════════════════════════════════════════════
+MAX_CONTEXT_CHARS = 80_000
 RESERVED_FOR_WHITELIST = 25_000
 MAX_DISPLAY_ARTICLES = 5
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V6.9: LIMIT PËR TEKSTIN E DOKUMENTEVE NË KONTEKST
+# V6.10: LIMIT PËR TEKSTIN E SECILËS SHKRESË
 # ═══════════════════════════════════════════════════════════════════════════
-MAX_DOC_CHARS_IN_CONTEXT = 6_000
+MAX_DOC_CHARS_IN_CONTEXT = 3_000
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V6.5: Fjalët kyçe për dokumentet GJYQËSORE
@@ -88,9 +92,10 @@ _ARTICLE_LAWNUM_RE = re.compile(
 
 class ContextBuilder:
     """
-    Ndërtuesi Qendror i Kontekstit Juridik (V6.9):
+    Ndërtuesi Qendror i Kontekstit Juridik (V6.10):
+    - V6.10: MAX_CONTEXT_CHARS 450K → 80K; MAX_DOC_CHARS_IN_CONTEXT 6K → 3K.
     - V6.9: Context_documents opsional (whitelist nga të gjitha, konteksti nga subset).
-    - V6.8: Limit tekstin e shkresave në kontekst (6K chars/dok).
+    - V6.8: Limit tekstin e shkresave në kontekst (10K chars/dok).
     - V6.7: Konsistencë terminologjike "gjyqësore".
     - V6.5: Whitelist nga TË GJITHA dokumentet gjyqësore.
     """
@@ -312,7 +317,7 @@ class ContextBuilder:
         context_documents: Optional[List[Dict]] = None,
     ) -> Tuple[str, str]:
         """
-        V6.9: context_documents opsional — për tekstin e kontekstit.
+        V6.10: context_documents opsional — për tekstin e kontekstit.
         Whitelist gjithmonë nga db_documents (i plotë).
         """
         if context_documents is None:
@@ -379,7 +384,7 @@ class ContextBuilder:
         if len(full_context) > truncate_limit:
             full_context = full_context[:truncate_limit] + "\n\n[...Konteksti u optimizua...]"
 
-        # V6.9: Whitelist gjithmonë nga db_documents i plotë
+        # V6.10: Whitelist gjithmonë nga db_documents i plotë
         whitelist = ContextBuilder._extract_whitelist_from_case_files(db_documents)
         whitelist_section = ContextBuilder._format_whitelist(whitelist)
 
@@ -392,7 +397,7 @@ class ContextBuilder:
         total_docs_count = len(db_documents or [])
 
         logger.info(
-            f"📊 [ContextBuilder V6.9] Kontekst: {len(final_context)} chars | "
+            f"📊 [ContextBuilder V6.10] Kontekst: {len(final_context)} chars | "
             f"whitelist ({whitelist.get('source_filter')}): "
             f"{len(whitelist['articles'])} nene ({len(whitelist['articles_display'])} display), "
             f"{len(whitelist['laws_abbrev'])} akronime, "
@@ -410,7 +415,7 @@ class ContextBuilder:
         context_documents: Optional[List[Dict]] = None,
     ) -> Tuple[str, str, Dict[str, Any]]:
         """
-        V6.9: context_documents opsional — filtro vetëm tekstin, jo whitelist-in.
+        V6.10: context_documents opsional — filtro vetëm tekstin, jo whitelist-in.
         """
         manifest_str, context_str = ContextBuilder.build(
             case_docs, global_docs, db_documents, context_documents

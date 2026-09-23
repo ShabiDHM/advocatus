@@ -1,8 +1,10 @@
 # FILE: backend/app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V20.0 (CASCADE WIPEOUT)
-# V20.0: /clear-audit bën cascade wipeout — fshin edhe case_synthesis,
-#        case_extractions, case_cross_references.
-# V19.0: DOSSIER-LEVEL AUDIT PERSISTENCE
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V21.1
+# V21.1: SECURITY FIX — update_case_client_position tani verifikon aksesin
+#        përmes case_service.get_case_by_id (org-aware). Pa këtë, çdo user
+#        i loguar mund të ndryshonte pozicionin e çdo case duke ditur ID-në.
+# V21.0: DOSSIER READ-ENDPOINT + SCOPE PERSISTENCE.
+# V20.0: /clear-audit cascade wipeout.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -25,7 +27,11 @@ logger = logging.getLogger(__name__)
 
 
 class CaseDossierAuditPayload(BaseModel):
-    content: str = Field(..., description="Përmbajtja e plotë e doktrinës forenzike të fashikullit")
+    content: str = Field(..., description="Përmbajtja e plotë e doktrinës forenzike")
+    document_ids: Optional[List[str]] = Field(
+        None,
+        description="Nëse jepet → scope='document'. Nëse null → scope='case'."
+    )
 
 
 # =========================================================================
@@ -170,10 +176,23 @@ async def update_case_client_position(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
+    """
+    V21.1: SECURITY — verifiko aksesin para se të ndryshosh pozicionin.
+    """
     case_oid = validate_object_id(case_id)
     pos = body.client_position.upper()
     if pos not in ["DEFENDANT", "PLAINTIFF", "NEUTRAL"]:
         raise HTTPException(status_code=400, detail="Position must be DEFENDANT, PLAINTIFF, or NEUTRAL")
+
+    # V21.1: Kontroll aksesi (org-aware)
+    case = await asyncio.to_thread(
+        case_service.get_case_by_id,
+        db=db,
+        case_id=case_oid,
+        owner=current_user
+    )
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found or access denied.")
 
     await asyncio.to_thread(
         db.cases.update_one,
@@ -216,8 +235,57 @@ async def update_case_chat_history(
 
 
 # =========================================================================
-# 📜 2.1. DOKTRINA FORENZIKE E FASHIKULLIT — PERSISTENCE (MULTI-DEVICE SYNC)
+# 📜 2.1. DOKTRINA FORENZIKE E FASHIKULLIT — PERSISTENCE + READ (V21.0)
 # =========================================================================
+
+@router.get("/{case_id}/audit", status_code=status.HTTP_200_OK)
+async def get_case_dossier_audit(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """V21.0: Lexon doktrinën forenzike të ruajtur për këtë lëndë."""
+    case_oid = validate_object_id(case_id)
+
+    case = await asyncio.to_thread(
+        case_service.get_case_by_id,
+        db=db,
+        case_id=case_oid,
+        owner=current_user
+    )
+    if not case:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
+
+    doc = await asyncio.to_thread(
+        db.cases.find_one,
+        {"_id": case_oid},
+        {
+            "latest_dossier_analysis": 1,
+            "last_dossier_audited_at": 1,
+            "latest_dossier_scope": 1,
+            "latest_dossier_document_ids": 1,
+        }
+    )
+
+    if not doc:
+        return {"has_audit": False, "content": None, "audited_at": None, "scope": None, "document_ids": None}
+
+    content = doc.get("latest_dossier_analysis")
+    if not content or not str(content).strip():
+        return {"has_audit": False, "content": None, "audited_at": None, "scope": None, "document_ids": None}
+
+    audited_at = doc.get("last_dossier_audited_at")
+    audited_at_str = audited_at.isoformat() if isinstance(audited_at, datetime) else (str(audited_at) if audited_at else None)
+
+    return {
+        "has_audit": True,
+        "content": content,
+        "audited_at": audited_at_str,
+        "scope": doc.get("latest_dossier_scope") or "case",
+        "document_ids": doc.get("latest_dossier_document_ids") or None,
+        "length": len(str(content)),
+    }
+
 
 @router.post("/{case_id}/audit", status_code=status.HTTP_200_OK)
 async def save_case_dossier_audit(
@@ -226,9 +294,7 @@ async def save_case_dossier_audit(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Ruan doktrinën forenzike të fashikullit në MongoDB (koleksioni `cases`).
-    """
+    """V21.0: Ruan doktrinën forenzike të fashikullit në MongoDB."""
     case_oid = validate_object_id(case_id)
     content = (payload.content or "").strip()
     if not content:
@@ -243,6 +309,9 @@ async def save_case_dossier_audit(
     if not case:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
 
+    doc_ids = [str(d).strip() for d in (payload.document_ids or []) if str(d).strip()]
+    scope = "document" if doc_ids else "case"
+
     now = datetime.now(timezone.utc)
     await asyncio.to_thread(
         db.cases.update_one,
@@ -250,15 +319,22 @@ async def save_case_dossier_audit(
         {"$set": {
             "latest_dossier_analysis": content,
             "last_dossier_audited_at": now,
+            "latest_dossier_scope": scope,
+            "latest_dossier_document_ids": doc_ids if doc_ids else None,
             "updated_at": now
         }}
     )
 
-    logger.info(f"🧠 [CASE DOSSIER AUDIT SAVED] Lënda {case_id} — {len(content)} karaktere")
+    logger.info(
+        f"🧠 [CASE DOSSIER AUDIT SAVED] Lënda {case_id} — "
+        f"{len(content)} karaktere, scope={scope}, docs={doc_ids or 'ALL'}"
+    )
 
     return {
         "status": "success",
         "case_id": case_id,
+        "scope": scope,
+        "document_ids": doc_ids if doc_ids else None,
         "saved_at": now.isoformat(),
         "length": len(content)
     }
@@ -270,27 +346,15 @@ async def clear_case_dossier_audit(
     case_id: str,
     document_ids: Optional[List[str]] = Query(
         None,
-        description="Nëse jepet, fshin vetëm cache-in për këto dokumente. "
-                    "Nëse null, fshin të gjitha cache-t e lëndës."
+        description="Nëse jepet, fshin vetëm cache-in për këto dokumente. Nëse null, fshin të gjitha."
     ),
     current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db),
 ):
-    """
-    CASCADE WIPEOUT — Fshin të gjitha cache-t e analizës për këtë lëndë:
-
-    - cases.latest_dossier_analysis (fushat e vjetra)
-    - case_synthesis (scope=case dhe scope=document)
-    - case_extractions (ekstraktimet NER)
-    - case_cross_references (lidhjet midis dokumenteve)
-    - findings (nëse ka)
-
-    Kjo garanton që "Analizo" pas fshirjes fillon NGA ZERO — zero cache hit.
-    """
+    """CASCADE WIPEOUT — Fshin të gjitha cache-t e analizës për këtë lëndë."""
     case_oid = validate_object_id(case_id)
     case_id_str = str(case_id)
 
-    # Verifiko pronësinë
     case = await asyncio.to_thread(
         case_service.get_case_by_id,
         db=db,
@@ -300,14 +364,12 @@ async def clear_case_dossier_audit(
     if not case:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
 
-    # ═══ Build filter — mbështet String + ObjectId për case_id ═══
     case_id_variants = [case_id_str]
     if ObjectId.is_valid(case_id_str):
         case_id_variants.append(ObjectId(case_id_str))
 
     base_filter = {"case_id": {"$in": case_id_variants}}
 
-    # Nëse document_ids specifike → scope vetëm ato dokumente
     if document_ids:
         synthesis_filter = {
             "$and": [
@@ -334,21 +396,18 @@ async def clear_case_dossier_audit(
         "latest_dossier_analysis_removed": False,
     }
 
-    # ═══ 1. Fshij case_synthesis (cascade) ═══
     try:
         r = await asyncio.to_thread(db.case_synthesis.delete_many, synthesis_filter)
         deleted["case_synthesis"] = r.deleted_count
     except Exception as e:
         logger.warning(f"⚠️ [CLEAR-AUDIT] case_synthesis delete failed: {e}")
 
-    # ═══ 2. Fshij case_extractions ═══
     try:
         r = await asyncio.to_thread(db.case_extractions.delete_many, extractions_filter)
         deleted["case_extractions"] = r.deleted_count
     except Exception as e:
         logger.warning(f"⚠️ [CLEAR-AUDIT] case_extractions delete failed: {e}")
 
-    # ═══ 3. Fshij case_cross_references (vetëm për case scope) ═══
     if not document_ids:
         try:
             r = await asyncio.to_thread(db.case_cross_references.delete_many, base_filter)
@@ -356,21 +415,20 @@ async def clear_case_dossier_audit(
         except Exception as e:
             logger.warning(f"⚠️ [CLEAR-AUDIT] case_cross_references delete failed: {e}")
 
-    # ═══ 4. Fshij findings (vetëm për case scope) ═══
-    if not document_ids:
         try:
             r = await asyncio.to_thread(db.findings.delete_many, base_filter)
             deleted["findings"] = r.deleted_count
         except Exception as e:
             logger.warning(f"⚠️ [CLEAR-AUDIT] findings delete failed: {e}")
 
-    # ═══ 5. Unset fusha në cases ═══
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": case_oid},
         {"$unset": {
             "latest_dossier_analysis": "",
-            "last_dossier_audited_at": ""
+            "last_dossier_audited_at": "",
+            "latest_dossier_scope": "",
+            "latest_dossier_document_ids": ""
         }}
     )
     deleted["latest_dossier_analysis_removed"] = True
@@ -386,7 +444,7 @@ async def clear_case_dossier_audit(
 
     return {
         "status": "success",
-        "message": "Cascade wipeout u ekzekutua me sukses. Cache-i i analizës u fshi plotësisht.",
+        "message": "Cascade wipeout u ekzekutua me sukses.",
         "case_id": case_id,
         "document_ids": document_ids,
         "deleted": deleted,

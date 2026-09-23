@@ -1,13 +1,14 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V56.0 (DUAL-TIER LIFECYCLE + FULL CASCADE CLEANUP)
-# V56.0: CASCADE CLEANUP FIX
-#        - delete_case_by_id: media evidence embeddings + findings (të mbetura)
-#        - purge_expired_cases_data: media evidence embeddings
-#        - Kalon case_id te delete_document_embeddings V67.0 për audit
-# V55.0: DUAL-TIER LIFECYCLE (7-DAY CITIZEN & 7-DAY GRACE)
+# PHOENIX PROTOCOL - CASE SERVICE V58.0 (ORG-ID REFACTOR)
+# V58.0: REFACTOR — heq `org_id` (legacy). Canonical: `organization_id`.
+#        _get_user_org_id / _get_case_org_id / _build_case_access_query / create_case
+#        / _map_case_document — të gjitha përdorin vetëm `organization_id`.
+# V57.1: FIX Pydantic validation.
+# V57.0: ORG-AWARE ACCESS.
+# V56.0: CASCADE CLEANUP FIX.
 
 import re
-import urllib.parse 
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List, cast
 from bson import ObjectId
@@ -31,12 +32,34 @@ def _safe_str(oid: Any) -> Optional[str]:
     return str(oid)
 
 
+def _get_user_org_id(user: UserInDB) -> Optional[str]:
+    """
+    V58.0: Lexon vetëm `organization_id` (canonical).
+    """
+    val = getattr(user, "organization_id", None)
+    if val:
+        return str(val)
+    return None
+
+
+def _get_case_org_id(case_doc: Dict[str, Any]) -> Optional[str]:
+    """V58.0: Lexon vetëm `organization_id` nga case."""
+    val = case_doc.get("organization_id")
+    if val:
+        return str(val)
+    return None
+
+
 def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
-    access_level = getattr(user, 'org_access_level', 'FULL')
-    org_id = getattr(user, 'org_id', None)
+    """
+    V58.0: Ndërton query MongoDB për aksesin e user-it në case.
+    Përdor vetëm `organization_id` për org clauses.
+    """
+    access_level = getattr(user, 'org_access_level', 'FULL') or 'FULL'
+    organization_id = _get_user_org_id(user)
     user_id_obj = user.id
     user_id_str = str(user.id)
-    
+
     personal_clauses: List[Dict[str, Any]] = [
         {"owner_id": user_id_obj},
         {"owner_id": user_id_str},
@@ -62,18 +85,13 @@ def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None)
         query = {"$or": selective_clauses}
 
     else:
-        if org_id:
-            org_clauses = [
-                {"org_id": org_id},
-                {"org_id": str(org_id)},
-                {"organization_id": org_id},
-                {"organization_id": str(org_id)}
+        if organization_id:
+            # V58.0: Vetëm `organization_id` (str + ObjectId)
+            org_clauses: List[Dict[str, Any]] = [
+                {"organization_id": organization_id},
             ]
-            if ObjectId.is_valid(str(org_id)):
-                org_clauses.extend([
-                    {"org_id": ObjectId(str(org_id))},
-                    {"organization_id": ObjectId(str(org_id))}
-                ])
+            if ObjectId.is_valid(organization_id):
+                org_clauses.append({"organization_id": ObjectId(organization_id)})
             query = {"$or": personal_clauses + org_clauses}
         else:
             query = {"$or": personal_clauses}
@@ -90,21 +108,27 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         case_id_str = str(case_id_obj)
         title = case_doc.get("title") or case_doc.get("case_name") or "Lëndë pa Titull"
         case_number = case_doc.get("case_number") or f"REF-{case_id_str[-6:]}"
-        
+
         created_at = case_doc.get("created_at")
         if not isinstance(created_at, datetime):
             created_at = datetime.now(timezone.utc)
-        
+
         updated_at = case_doc.get("updated_at")
         if not isinstance(updated_at, datetime):
             updated_at = created_at
-        
+
         user_id = case_doc.get("user_id") or case_doc.get("owner_id")
-        org_id = case_doc.get("org_id")
+
+        # V58.0: Vetëm `organization_id`
+        organization_id_raw = case_doc.get("organization_id")
+        if organization_id_raw and ObjectId.is_valid(str(organization_id_raw)):
+            organization_id = ObjectId(str(organization_id_raw))
+        else:
+            organization_id = organization_id_raw
 
         client_obj = case_doc.get("client") if isinstance(case_doc.get("client"), dict) else {}
         client_name = case_doc.get("client_name") or client_obj.get("name") or "Klient"
-        
+
         opposing_obj = case_doc.get("opposing_party")
         opposing_name = (
             opposing_obj.get("name") if isinstance(opposing_obj, dict) else opposing_obj
@@ -115,14 +139,14 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         court_name = case_doc.get("court") or case_doc.get("court_name") or "Gjykata Themelore"
 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
-        
+
         if db is not None:
             event_filter = {"$or": [{"case_id": case_id_str}, {"case_id": case_id_obj}, {"caseId": case_id_str}]}
             counts["event_count"] = db.calendar_events.count_documents(event_filter)
-            
+
             doc_filter = {"$or": [{"case_id": case_id_str}, {"case_id": case_id_obj}], "status": {"$ne": "DELETED"}}
             counts["document_count"] = db.documents.count_documents(doc_filter)
-            
+
             now_utc = datetime.now(timezone.utc)
             active_events_filter = {
                 "$and": [
@@ -143,17 +167,17 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
                 dedicated_alerts = db.alerts.count_documents(da_filter)
                 alert_count += dedicated_alerts
             except Exception:
-                pass 
-            
+                pass
+
             counts["alert_count"] = alert_count
 
         return {
-            "id": case_id_obj, 
-            "user_id": user_id, 
-            "org_id": org_id,
-            "case_number": case_number, 
+            "id": case_id_obj,
+            "user_id": user_id,
+            "organization_id": organization_id,  # V58.0: key i ri
+            "case_number": case_number,
             "title": title,
-            "description": case_doc.get("description"), 
+            "description": case_doc.get("description"),
             "status": case_doc.get("status", "OPEN"),
             "is_unlocked": case_doc.get("is_unlocked", False),
             "unlocked_at": case_doc.get("unlocked_at"),
@@ -168,11 +192,11 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "court": court_name,
             "court_name": court_name,
             "assigned_user_ids": case_doc.get("assigned_user_ids", []),
-            "created_at": created_at, 
-            "updated_at": updated_at, 
-            "chat_history": case_doc.get("chat_history", []), 
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "chat_history": case_doc.get("chat_history", []),
             "latest_comprehensive_analysis": case_doc.get("latest_comprehensive_analysis"),
-            "latest_analysis": case_doc.get("latest_analysis"), 
+            "latest_analysis": case_doc.get("latest_analysis"),
             "latest_deep_analysis": case_doc.get("latest_deep_analysis"),
             "analyzed_doc_fingerprints": case_doc.get("analyzed_doc_fingerprints"),
             **counts
@@ -186,7 +210,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
 
 def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
     case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone", "opposingParty"})
-    
+
     if case_in.clientName:
         clean_name = case_in.clientName.strip().title()
         case_dict["client"] = {"name": clean_name, "email": case_in.clientEmail, "phone": case_in.clientPhone}
@@ -197,26 +221,32 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         clean_opposing = str(opposing_input).strip()
         case_dict["opposing_party"] = clean_opposing
         case_dict["opponent_name"] = clean_opposing
-    
-    org_id = getattr(owner, "org_id", None)
+
+    # V58.0: Vetëm `organization_id`
+    organization_id = _get_user_org_id(owner)
     has_active_sub = getattr(owner, "has_active_subscription", False) or (getattr(owner, "subscription_status", "") == "ACTIVE")
-    
+
+    if organization_id and ObjectId.is_valid(organization_id):
+        org_oid = ObjectId(organization_id)
+    else:
+        org_oid = None
+
     case_dict.update({
-        "owner_id": owner.id, 
+        "owner_id": owner.id,
         "user_id": owner.id,
-        "org_id": org_id,
+        "organization_id": org_oid,  # V58.0
         "assigned_user_ids": [str(owner.id)],
         "is_unlocked": bool(has_active_sub),
         "unlocked_at": datetime.now(timezone.utc) if has_active_sub else None,
         "is_purged": False,
-        "created_at": datetime.now(timezone.utc), 
+        "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
         "case_number": case_dict.get("case_number") or f"R-{int(datetime.now(timezone.utc).timestamp()) % 1000000:06d}"
     })
 
     result = db.cases.insert_one(case_dict)
     new_case = db.cases.find_one({"_id": result.inserted_id})
-    if not new_case: 
+    if not new_case:
         raise HTTPException(status_code=500, detail="Dështoi krijimi i rastit.")
     return _map_case_document(cast(Dict[str, Any], new_case), db)
 
@@ -224,7 +254,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
     query_filter = _build_case_access_query(owner)
-    
+
     cursor = db.cases.find(query_filter).sort("updated_at", -1)
     for case_doc in cursor:
         mapped_case = _map_case_document(case_doc, db)
@@ -236,9 +266,15 @@ def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional[Dict[str, Any]]:
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
-    if not case: 
+    if not case:
         return None
     return _map_case_document(case, db)
+
+
+def get_case_for_user(db: Database, case_id: ObjectId, user: UserInDB) -> Optional[Dict[str, Any]]:
+    """V58.0: Helper publik — kontrollon aksesin dhe kthen case_doc (raw)."""
+    query_filter = _build_case_access_query(user, case_id=case_id)
+    return db.cases.find_one(query_filter)
 
 
 def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> Dict[str, Any]:
@@ -246,14 +282,14 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
     case = db.cases.find_one(query_filter)
     if not case:
         raise HTTPException(status_code=404, detail="Rasti nuk u gjet ose nuk keni qasje.")
-    
+
     case_id_str = str(case_id)
     doc_filter = {
         "$or": [{"case_id": case_id}, {"case_id": case_id_str}],
         "status": {"$ne": "DELETED"}
     }
     documents = list(db.documents.find(doc_filter))
-    
+
     trilingual_doc_summaries = []
     for doc in documents:
         file_name = doc.get("file_name") or doc.get("title") or "Dokument i Lëndës"
@@ -274,39 +310,33 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
             "summary": text_preview,
             "language": doc.get("detected_language", "auto")
         })
-    
+
     mapped_case = _map_case_document(case, db) or {}
     mapped_case["document_summaries"] = trilingual_doc_summaries
     return mapped_case
 
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    """
-    V56.0: CASCADE CLEANUP I PLOTË
-    Fshin: documents + storage + embeddings, media + storage + embeddings,
-           archives + storage, findings, calendar events, alerts.
-    """
+    """V56.0: CASCADE CLEANUP I PLOTË."""
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
-    if not case: 
+    if not case:
         raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
-    
+
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
     caller_id_str = str(owner.id)
-    
-    # 1. DOCUMENTS — storage + embeddings
+
     documents = list(db.documents.find(any_id_query))
     for doc in documents:
         doc_id_str = str(doc["_id"])
         keys_to_delete = [doc.get("storage_key"), doc.get("processed_text_storage_key"), doc.get("preview_storage_key")]
         for key in filter(None, keys_to_delete):
-            try: 
+            try:
                 storage_service.delete_file(key)
-            except Exception: 
+            except Exception:
                 pass
-        try: 
-            # V67.0: kalojmë case_id për audit; funksioni tani është org-agnostic
+        try:
             vector_store_service.delete_document_embeddings(
                 user_id=caller_id_str,
                 document_id=doc_id_str,
@@ -315,17 +345,15 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         except Exception as e:
             logger.warning(f"⚠️ Doc embeddings cleanup failed për {doc_id_str}: {e}")
 
-    # 2. MEDIA EVIDENCE — storage + embeddings (V56.0 FIX)
     media_items = list(db.media_evidence.find(any_id_query))
     for media in media_items:
         media_id_str = str(media["_id"])
         storage_key = media.get("storage_key")
         if storage_key:
-            try: 
+            try:
                 storage_service.delete_file(storage_key)
-            except Exception: 
+            except Exception:
                 pass
-        # V56.0: media gjithashtu ka embeddings në user_vectors
         try:
             vector_store_service.delete_document_embeddings(
                 user_id=caller_id_str,
@@ -336,18 +364,16 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
             logger.warning(f"⚠️ Media embeddings cleanup failed për {media_id_str}: {e}")
     db.media_evidence.delete_many(any_id_query)
 
-    # 3. ARCHIVES — storage
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
-            try: 
+            try:
                 storage_service.delete_file(item["storage_key"])
-            except Exception: 
+            except Exception:
                 pass
-    
+
     db.archives.delete_many(any_id_query)
 
-    # 4. FINDINGS — V56.0 FIX: fshihen edhe findings (mungonte fare)
     try:
         findings_deleted = db.findings.delete_many(any_id_query)
         if findings_deleted.deleted_count > 0:
@@ -355,38 +381,23 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     except Exception as e:
         logger.warning(f"⚠️ Findings cleanup failed për {case_id_str}: {e}")
 
-    # 5. Fshirje përfundimtare e case-it + dokumenteve + eventeve
     db.cases.delete_one({"_id": case_id})
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
-    try: 
+    try:
         db.alerts.delete_many(any_id_query)
-    except Exception: 
+    except Exception:
         pass
 
     logger.info(f"🧹 [Case Delete] Lënda {case_id_str} u fshi me sukses me të gjitha burimet.")
 
 
-# =========================================================================
-# 🧹 PASTRIMI AUTOMATIK ME DY STANDARDE (ONE-TIME CITIZEN & GRACE PERIOD)
-# =========================================================================
-
 def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, Any]:
-    """
-    RREGULLI I DYFISHTË I PASTRIMIT:
-    1. QYTETARËT (One-Time Pass): Fshihen pas 7 ditëve nga zhbllokimi i lëndës.
-    2. AVOKATËT (Abonim Mujor): Dokumentet RUHEN PËRGJITHMONË për sa kohë që abonimi është aktiv.
-       Nëse abonimi skadon dhe NUK rinovohet brenda 7 ditëve (Grace Period), atëherë fshihen skedarët e rëndë.
-
-    V56.0: media evidence embeddings tani pastrohen gjithashtu.
-    Shënim: findings/events/alerts NUK fshihen — case mbahet si PURGED për historik.
-    """
+    """RREGULLI I DYFISHTË I PASTRIMIT."""
     now = datetime.now(timezone.utc)
     cutoff_date = now - timedelta(days=expiry_days)
-    
-    all_unpurged_cases = list(db.cases.find({
-        "is_purged": {"$ne": True}
-    }))
+
+    all_unpurged_cases = list(db.cases.find({"is_purged": {"$ne": True}}))
 
     purged_cases_count = 0
     deleted_docs_count = 0
@@ -395,8 +406,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
         case_id = case["_id"]
         case_id_str = str(case_id)
         owner_id = str(case.get("owner_id", ""))
-        
-        # Lexo pronarin e lëndës nga databaza
+
         owner_doc = db.users.find_one({"_id": ObjectId(owner_id) if ObjectId.is_valid(owner_id) else owner_id})
         if not owner_doc:
             continue
@@ -407,7 +417,6 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
 
         should_purge = False
 
-        # RASTI 1: QYTETAR (One-Time Pass) ➔ Skadon pas 7 ditëve nga zhbllokimi
         if not is_lawyer:
             unlocked_time = case.get("unlocked_at") or case.get("created_at")
             if unlocked_time:
@@ -416,14 +425,10 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                     except: unlocked_time = now
                 if unlocked_time <= cutoff_date:
                     should_purge = True
-
-        # RASTI 2: AVOKAT (Abonim Mujor) ➔ Pastrohet VETËM nëse kanë kaluar 7 ditë nga skadimi i abonimit pa u paguar
         else:
             if has_active_sub:
-                # Abonim aktiv ➔ NUK FSHIHET KURRË!
                 should_purge = False
             else:
-                # Abonimi ka skaduar ➔ Kontrollo periudhën e tolerimit (7-Day Grace Period)
                 if sub_expiry:
                     if not isinstance(sub_expiry, datetime):
                         try: sub_expiry = datetime.fromisoformat(str(sub_expiry).replace('Z', '+00:00'))
@@ -431,14 +436,11 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                     if sub_expiry <= cutoff_date:
                         should_purge = True
                 else:
-                    # Pa datë skadimi por jo aktiv
                     should_purge = True
 
-        # NËSE ËSHTË PËR T'U PASTRUAR:
         if should_purge:
             any_id_query = {"case_id": {"$in": [case_id, case_id_str]}}
 
-            # 1. Fshi skedarët origjinalë nga Backblaze B2 + embeddings
             documents = list(db.documents.find(any_id_query))
             for doc in documents:
                 doc_id_str = str(doc["_id"])
@@ -448,8 +450,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                         storage_service.delete_file(key)
                     except Exception:
                         pass
-                
-                # 2. Fshi vektorët nga MongoDB
+
                 try:
                     vector_store_service.delete_document_embeddings(
                         user_id=owner_id,
@@ -458,10 +459,9 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                     )
                 except Exception:
                     pass
-                
+
                 deleted_docs_count += 1
 
-            # 3. Fshi audiot/videot nga Backblaze + embeddings (V56.0 FIX)
             media_items = list(db.media_evidence.find(any_id_query))
             for media in media_items:
                 media_id_str = str(media["_id"])
@@ -471,7 +471,6 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                         storage_service.delete_file(s_key)
                     except Exception:
                         pass
-                # V56.0: media gjithashtu ka embeddings
                 try:
                     vector_store_service.delete_document_embeddings(
                         user_id=owner_id,
@@ -482,7 +481,6 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                     pass
             db.media_evidence.delete_many(any_id_query)
 
-            # 4. Përditëso dokumentet në status "PURGED"
             db.documents.update_many(
                 any_id_query,
                 {"$set": {
@@ -493,7 +491,6 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                 }}
             )
 
-            # 5. Shëno lëndën si të pastruar (Raporti i Analizës mbetet i ruajtur!)
             db.cases.update_one(
                 {"_id": case_id},
                 {"$set": {
@@ -504,7 +501,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                 }}
             )
             purged_cases_count += 1
-            logger.info(f"🧹 [Auto-Purge] Lënda {case_id_str} u pastrua (Pronari: {'Avokat i Skaduar' if is_lawyer else 'Qytetar'}).")
+            logger.info(f"🧹 [Auto-Purge] Lënda {case_id_str} u pastrua.")
 
     return {
         "status": "success",
@@ -518,9 +515,9 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
     try:
         case_oid = ObjectId(case_id)
         case = db.cases.find_one({"_id": case_oid})
-        if not case: 
+        if not case:
             return None
-        
+
         events_cursor = db.calendar_events.find({
             "$and": [
                 {"$or": [{"case_id": case_id}, {"case_id": case_oid}]},
@@ -531,12 +528,12 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 ]}
             ]
         }).sort("start_date", 1)
-        
+
         events = []
         for ev in events_cursor:
             description = ev.get("description", "") or ev.get("notes", "") or ""
             clean_desc = description.replace("[CLIENT_VISIBLE]", "").replace("[client_visible]", "").strip()
-            
+
             ev_date = ev.get("start_date")
             date_str = ev_date.isoformat() if isinstance(ev_date, datetime) else ev_date
 
@@ -546,13 +543,13 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "type": ev.get("event_type", "EVENT"),
                 "description": clean_desc
             })
-        
+
         docs_cursor = db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "is_shared": True,
             "status": {"$nin": ["DELETED", "ARCHIVED", "ERROR", "PURGED"]}
         }).sort("created_at", -1)
-        
+
         shared_docs = []
         for d in docs_cursor:
             d_date = d.get("created_at")
@@ -566,9 +563,9 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             })
 
         return {
-            "case_number": case.get("case_number"), 
-            "title": case.get("title") or case.get("case_name"), 
-            "status": case.get("status", "OPEN"), 
+            "case_number": case.get("case_number"),
+            "title": case.get("title") or case.get("case_name"),
+            "status": case.get("status", "OPEN"),
             "timeline": events,
             "documents": shared_docs
         }

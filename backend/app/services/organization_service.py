@@ -1,5 +1,8 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.5 (DYNAMIC REAL-TIME USER COUNT SYNC)
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.6 (ORG-ID REFACTOR)
+# V3.6: REFACTOR — `org_id` → `organization_id` (heq legacy).
+#       Të gjitha query/write në db.users përdorin vetëm `organization_id`.
+# V3.5: DYNAMIC REAL-TIME USER COUNT SYNC.
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -28,22 +31,22 @@ class OrganizationService:
         """Dynamically syncs organization metrics and calculates real-time user counts."""
         org_doc = db.organizations.find_one({"_id": owner_id})
         owner = db.users.find_one({"_id": owner_id}) or {}
-        
+
         is_team = owner.get("product_plan") == ProductPlan.TEAM_PLAN
         intended_tier = "GROWTH" if is_team else "DEFAULT"
         intended_limit = TIER_LIMITS.get(intended_tier, 1)
 
-        # Calculate actual live user count (Owner + Members)
+        # V3.6: Count users by `organization_id` (jo `org_id`)
         actual_count = db.users.count_documents({
             "$or": [
                 {"_id": owner_id},
-                {"org_id": owner_id}
+                {"organization_id": owner_id}
             ]
         })
 
         if not org_doc:
             profile = db.business_profiles.find_one({"user_id": owner_id}) or {}
-            
+
             new_org = OrganizationInDB(
                 name=profile.get("firm_name") or owner.get("username", "Organization"),
                 owner_email=owner.get("email"),
@@ -52,17 +55,17 @@ class OrganizationService:
                 current_active_users=actual_count,
                 status=owner.get("subscription_status", "TRIAL")
             )
-            
+
             org_data = new_org.model_dump(by_alias=True)
-            org_data["_id"] = owner_id 
+            org_data["_id"] = owner_id
             db.organizations.update_one({"_id": owner_id}, {"$set": org_data}, upsert=True)
             return org_data
-        
+
         # Always update and return the accurate live user count
         db.organizations.update_one(
             {"_id": owner_id},
             {"$set": {
-                "plan_tier": intended_tier, 
+                "plan_tier": intended_tier,
                 "user_limit": intended_limit,
                 "current_active_users": actual_count,
                 "updated_at": datetime.now(timezone.utc)
@@ -71,14 +74,15 @@ class OrganizationService:
         org_doc["plan_tier"] = intended_tier
         org_doc["user_limit"] = intended_limit
         org_doc["current_active_users"] = actual_count
-            
+
         return org_doc
 
     def get_organization_for_user(self, db: Database, user: UserInDB) -> Optional[Dict]:
-        org_id_str = getattr(user, 'org_id', None)
-        target_oid = user.id if not org_id_str else ObjectId(org_id_str)
+        # V3.6: Vetëm `organization_id`
+        organization_id_str = getattr(user, 'organization_id', None)
+        target_oid = user.id if not organization_id_str else ObjectId(organization_id_str)
         org_doc = self._ensure_organization_sync(db, target_oid)
-        
+
         return {
             "id": str(target_oid),
             "name": org_doc.get("name"),
@@ -103,51 +107,58 @@ class OrganizationService:
         db.organizations.update_one({"_id": org_id, "current_active_users": {"$gt": 0}}, {"$inc": {"current_active_users": -1}})
 
     def get_members(self, db: Database, current_user: UserInDB) -> List[Dict]:
-        org_id = getattr(current_user, 'org_id', None) or current_user.id
-        users_cursor = db.users.find({"$or": [{"org_id": ObjectId(org_id)}, {"_id": ObjectId(org_id)}]})
+        # V3.6: Vetëm `organization_id`
+        organization_id = getattr(current_user, 'organization_id', None) or current_user.id
+        users_cursor = db.users.find({
+            "$or": [
+                {"organization_id": ObjectId(organization_id)},
+                {"_id": ObjectId(organization_id)}
+            ]
+        })
         return [UserOut.model_validate(u).model_dump() for u in users_cursor]
 
     def invite_member(self, db: Database, owner: UserInDB, invitee_email: str):
-        org_id = getattr(owner, 'org_id', None) or owner.id
-        org_doc = self._ensure_organization_sync(db, ObjectId(org_id))
+        # V3.6: Vetëm `organization_id`
+        organization_id = getattr(owner, 'organization_id', None) or owner.id
+        org_doc = self._ensure_organization_sync(db, ObjectId(organization_id))
         if org_doc.get("current_active_users", 0) >= org_doc.get("user_limit", 1):
             raise HTTPException(status_code=403, detail="Limit Reached")
-        
+
         existing_user = db.users.find_one({"email": invitee_email})
         if existing_user:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Ky email është i regjistruar tashmë në sistem si anëtar apo ftesë aktive."
             )
-            
+
         invitation_token = str(uuid.uuid4())
         db.users.insert_one({
             "email": invitee_email,
             "username": invitee_email.split('@')[0],
             "role": "STANDARD",
-            "org_id": ObjectId(org_id),
+            "organization_id": ObjectId(organization_id),  # V3.6
             "status": "pending_invite",
             "subscription_status": "ACTIVE",
             "invitation_token": invitation_token,
             "created_at": datetime.now(timezone.utc)
         })
-        self.increment_active_users(db, ObjectId(org_id))
-        
+        self.increment_active_users(db, ObjectId(organization_id))
+
         try:
             email_service.send_invitation_email(invitee_email, invitation_token)
         except Exception as e:
-            db.users.delete_one({"email": invitee_email, "org_id": ObjectId(org_id)})
-            self.decrement_active_users(db, ObjectId(org_id))
+            db.users.delete_one({"email": invitee_email, "organization_id": ObjectId(organization_id)})
+            self.decrement_active_users(db, ObjectId(organization_id))
             raise HTTPException(status_code=500, detail="Failed to send invitation email. Please try again.")
-        
+
         return {"message": "Invitation sent successfully"}
 
     def accept_invitation(self, db: Database, token: str, password: str, username: str) -> Dict:
-        """Activate a pending user, update full name/username, set ACTIVE subscription status, and send welcome emails."""
+        """Activate a pending user, update full name/username, set ACTIVE subscription status."""
         user = db.users.find_one({"invitation_token": token, "status": "pending_invite"})
         if not user:
             raise HTTPException(status_code=400, detail="Token i pavlefshëm ose ftesa ka skaduar.")
-        
+
         hashed_password = get_password_hash(password)
         db.users.update_one(
             {"_id": user["_id"]},
@@ -161,17 +172,16 @@ class OrganizationService:
                 "$unset": {"invitation_token": ""}
             }
         )
-        
-        # Send welcome email to the new user
+
         try:
             email_service.send_welcome_email(user["email"], username)
         except Exception as e:
             logger.error(f"Failed to send welcome email: {e}")
-        
-        # Send notification to the organization owner
-        org_id = user.get("org_id")
-        if org_id:
-            owner = db.users.find_one({"_id": org_id})
+
+        # V3.6: Lexo `organization_id` nga user
+        organization_id = user.get("organization_id")
+        if organization_id:
+            owner = db.users.find_one({"_id": organization_id})
             if owner and owner.get("email"):
                 try:
                     email_service.send_team_invite_accepted_email(
@@ -181,14 +191,15 @@ class OrganizationService:
                     )
                 except Exception as e:
                     logger.error(f"Failed to send owner notification: {e}")
-        
+
         return {"message": "Llogaria u aktivizua me sukses. Tani mund të hyni në sistem."}
 
     def remove_member(self, db: Database, owner: UserInDB, member_id: str):
         m_oid = ObjectId(member_id)
-        org_id = getattr(owner, 'org_id', None) or owner.id
-        db.users.delete_one({"_id": m_oid, "org_id": ObjectId(org_id)})
-        self.decrement_active_users(db, ObjectId(org_id))
+        # V3.6: Vetëm `organization_id`
+        organization_id = getattr(owner, 'organization_id', None) or owner.id
+        db.users.delete_one({"_id": m_oid, "organization_id": ObjectId(organization_id)})
+        self.decrement_active_users(db, ObjectId(organization_id))
         return {"message": "Removed"}
 
 organization_service = OrganizationService()

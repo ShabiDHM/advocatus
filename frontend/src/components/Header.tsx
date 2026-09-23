@@ -1,6 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – HEADER V22.0 (ZERO HARDCODED COLORS)
-// V22.0: Hequr style={{}} me hex. Zëvendësuar me semantike classes (bg-canvas, bg-surface, bg-card, danger-start).
+// PHOENIX PROTOCOL – HEADER V22.1 (ADMIN ONLY)
+// V22.1: Konsistenca — hequr check per SUPERADMIN (nuk ekziston).
+//        Vetem ADMIN mbetet si rol i vecuar.
+// V22.0: Hequr style={{}} me hex. Zëvendësuar me semantike classes.
 // V21.0: FORENSIC DESK REMOVED
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -28,7 +30,8 @@ const Header: React.FC = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user?.role === 'ADMIN' || (user as any)?.role === 'SUPERADMIN';
+  // V22.1: Vetem ADMIN (nuk ka SUPERADMIN ne sistem)
+  const isAdmin = user?.role === 'ADMIN';
 
   // 1. LISTA BAZË E NAVIGIMIT PËR TË GJITHË PËRDORUESIT
   const navItems = [
@@ -37,7 +40,7 @@ const Header: React.FC = () => {
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  // 2. VETËM PËR ADMIN / SUPER ADMIN SHTOHET LINQJA EKSLUZIVE E PANELIT
+  // 2. VETËM PËR ADMIN SHTOHET LINQJA EKSLUZIVE E PANELIT
   if (isAdmin) {
     navItems.splice(1, 0, {
       icon: Shield,

@@ -1,5 +1,7 @@
 # FILE: backend/app/api/endpoints/organizations.py
-# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V4.1 (ROBUST GRANULAR RBAC PERSISTENCE)
+# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V4.2 (ORG-ID REFACTOR)
+# V4.2: `org_id` → `organization_id` në update_member_access.
+# V4.1: ROBUST GRANULAR RBAC PERSISTENCE.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated, Optional, List, Dict, Any
@@ -48,34 +50,34 @@ async def update_member_access(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Pronari ose Admini i zyrës përditëson autorizimet e qasjes për anëtarin.
-    """
+    """Pronari ose Admini i zyrës përditëson autorizimet e qasjes për anëtarin."""
     is_owner = (
-        current_user.org_role == "OWNER" or 
+        current_user.org_role == "OWNER" or
         current_user.role in ["ADMIN", "SUPER_ADMIN"]
     )
     if not is_owner:
         raise HTTPException(status_code=403, detail="Vetëm Pronari ose Admini mund të ndryshojë qasjen.")
-    
+
     try:
         member_oid = ObjectId(member_id) if ObjectId.is_valid(member_id) else member_id
-        
-        # Pastrimi i ID-ve të lëndëve
+
         clean_case_ids = [str(cid).strip() for cid in data.assigned_case_ids if str(cid).strip()]
 
-        org_id = getattr(current_user, "org_id", None)
+        # V4.2: Vetëm `organization_id`
+        organization_id = getattr(current_user, "organization_id", None)
         org_filter_conditions = []
-        if org_id:
-            org_filter_conditions.extend([{"org_id": org_id}, {"org_id": str(org_id)}])
-            if ObjectId.is_valid(str(org_id)):
-                org_filter_conditions.append({"org_id": ObjectId(str(org_id))})
+        if organization_id:
+            org_filter_conditions.extend([
+                {"organization_id": organization_id},
+                {"organization_id": str(organization_id)}
+            ])
+            if ObjectId.is_valid(str(organization_id)):
+                org_filter_conditions.append({"organization_id": ObjectId(str(organization_id))})
 
         query = {"_id": member_oid}
         if org_filter_conditions:
             query["$or"] = org_filter_conditions
 
-        # Përditësojmë MongoDB-në direkt
         db.users.update_one(
             query,
             {"$set": {

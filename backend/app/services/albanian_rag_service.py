@@ -345,8 +345,19 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
    - Cito afatin VETËM me burim: "Sipas [dokumenti/neni], afati është X".
    - NËSE nuk gjendet afat → shkruaj "Afati: kontrollo manualisht".
 
-7. ⚠️ KONTRADIKTAT E BRENDSHME:
-   - NËSE dokumenti ka kontradikta (p.sh. "6 muaj" vs "12 muaj") → LISTOJI TË DYJA me "⚠️ KONTRADIKTË".
+7. ⚠️ KONTRADIKTAT E BRENDSHME (PËRKUFIZIM I NGUSHTË):
+   - KONTRADIKTË = mosputhje FAKTIKE brenda TË NJËJTIT dokument:
+       * Dy data të ndryshme për të njëjtin fakt (p.sh. "29.04.2024" vs "21.04.2024")
+       * Dy kohëzgjatje të ndryshme (p.sh. "6 muaj" vs "12 muaj")
+       * Dy distanca të ndryshme (p.sh. "100 metra" vs "50 metra")
+       * Dy shuma të ndryshme (p.sh. "5,000€" vs "10,000€")
+   - NUK JANË KONTRADIKTA:
+       * Mospajtimi midis palëve (mbrojtësi pretendon X, gjykata vendos Y) — KJO është procedurë normale
+       * Argumentet e kundërta të palëve
+       * Vendimi i gjykatës kundër pretendimit të njërës palë
+   - NËSE gjen kontradiktë faktike → cito TË DYJA vlerat + thuaj ku shfaqen.
+   - NËSE nuk ka kontradiktë faktike → thuaj SAKTËSISHT:
+       "Nuk u identifikuan kontradikta faktike brenda dokumenteve."
 
 8. STRUKTURA E PËRGJIGJES:
    - Fillimisht identifiko çfarë pyet përdoruesi.

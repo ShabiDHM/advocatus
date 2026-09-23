@@ -1,7 +1,9 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V9.0 (ORG-AWARE VOICE PARSE)
-# V9.0: ORG-AWARE — kërkimi i titujve të lëndëve për voice-parse përdor _build_case_access_query.
-# V8.0: VOICE ERROR GUARD
+# PHOENIX PROTOCOL - CALENDAR API V9.1 (CASE-SCOPED ORG-AWARE)
+# V9.1: Kalon `current_user` (objekt) te calendar_service — në vend të user.id.
+#        Kjo lejon case-scoped access për event-et e case-ve të përbashkëta.
+# V9.0: ORG-AWARE VOICE PARSE.
+
 from fastapi import APIRouter, Depends, status, HTTPException, Response, Body, UploadFile, File, Form
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
@@ -45,7 +47,6 @@ class VoiceParseRequest(BaseModel):
     text: str
 
 
-# Prefiksat e njohura të error-it nga transcription_service
 TRANSCRIPTION_ERROR_PREFIXES = (
     "[Gabim gjatë transkriptimit:",
     "[Nuk u detektua",
@@ -54,7 +55,6 @@ TRANSCRIPTION_ERROR_PREFIXES = (
 
 
 def _is_transcription_error(text: str) -> bool:
-    """Kontrollon nëse teksti i transkriptimit është error, jo tekst i vlefshëm."""
     if not text or not text.strip():
         return True
     cleaned = text.strip()
@@ -69,16 +69,16 @@ async def get_alerts_briefing(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """Returns the Guardian briefing. Fixes root-level 'count' requirement."""
+    """V9.1: Guardian briefing — përfshin event-et e case-ve të përbashkëta."""
     display_name = current_user.full_name or current_user.username
-    
+
     briefing_data = await asyncio.to_thread(
         calendar_service.generate_briefing,
         db=db,
-        user_id=current_user.id,
+        user=current_user,  # V9.1: objekt, jo .id
         user_name=display_name
     )
-    
+
     return BriefingResponse(**briefing_data)
 
 
@@ -87,7 +87,12 @@ async def get_all_user_events(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    return await asyncio.to_thread(calendar_service.get_events_for_user, db=db, user_id=current_user.id)
+    """V9.1: Kthen events të vetat + events e case-ve me akses."""
+    return await asyncio.to_thread(
+        calendar_service.get_events_for_user,
+        db=db,
+        user=current_user  # V9.1: objekt
+    )
 
 
 @router.post("/events", response_model=CalendarEventOut, status_code=status.HTTP_201_CREATED)
@@ -96,7 +101,12 @@ async def create_new_event(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    return await asyncio.to_thread(calendar_service.create_event, db=db, event_data=event_data, user_id=current_user.id)
+    return await asyncio.to_thread(
+        calendar_service.create_event,
+        db=db,
+        event_data=event_data,
+        user_id=current_user.id  # create mbetet me user_id (owner_id)
+    )
 
 
 @router.patch("/events/{event_id}", response_model=CalendarEventOut)
@@ -115,7 +125,7 @@ async def update_user_event(
         calendar_service.update_event,
         db=db,
         event_id=object_id,
-        user_id=current_user.id,
+        user=current_user,  # V9.1: objekt
         updates=payload
     )
 
@@ -130,7 +140,12 @@ async def delete_user_event(
         object_id = ObjectId(event_id)
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid event ID")
-    await asyncio.to_thread(calendar_service.delete_event, db=db, event_id=object_id, user_id=current_user.id)
+    await asyncio.to_thread(
+        calendar_service.delete_event,
+        db=db,
+        event_id=object_id,
+        user=current_user  # V9.1: objekt
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -144,25 +159,20 @@ async def parse_voice_text(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """
-    Analizon tekstin e transkriptuar dhe kthen detajet e strukturuara të një event-i.
-    Përdoret nga frontend kur audio është transkriptuar tashmë.
-    """
     text = (payload.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Teksti është i zbrazët.")
-    
+
     if len(text) > 5000:
         raise HTTPException(status_code=400, detail="Teksti është shumë i gjatë (max 5000 karaktere).")
-    
+
     if _is_transcription_error(text):
         raise HTTPException(
             status_code=422,
             detail="Teksti i dhënë nuk përmban përmbajtje të vlefshme për analizë."
         )
-    
+
     try:
-        # V9.0: ORG-AWARE — mbledh titujt nga të gjitha lëndët e org-ut
         user_cases = list(db.cases.find(
             _build_case_access_query(current_user),
             {"title": 1, "case_number": 1}
@@ -171,19 +181,19 @@ async def parse_voice_text(
     except Exception as e:
         logger.warning(f"Could not load case titles for voice parse: {e}")
         case_titles = []
-    
+
     result = await asyncio.to_thread(
         calendar_service.parse_voice_text_to_event,
         text=text,
         case_titles=case_titles
     )
-    
+
     if not result:
         raise HTTPException(
             status_code=422,
             detail="Nuk mund të nxirreshin detajet e event-it nga teksti. Provoni të ripërcaktoni me fjalë të qarta."
         )
-    
+
     return {"success": True, "parsed": result}
 
 
@@ -193,21 +203,18 @@ async def transcribe_voice_and_parse(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """
-    Merr një audio file, e transkripton me AssemblyAI, dhe e parse-on në një event të strukturuar.
-    """
     raw_bytes = await file.read()
     if not raw_bytes:
         raise HTTPException(status_code=400, detail="Skedari audio është i zbrazët.")
-    
+
     if len(raw_bytes) > 20 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Skedari audio është mbi 20 MB.")
-    
+
     original_filename = file.filename or "voice.webm"
     ext = os.path.splitext(original_filename)[1].lower() or ".webm"
     if ext not in [".webm", ".mp3", ".wav", ".m4a", ".ogg", ".aac", ".opus", ".flac"]:
         ext = ".webm"
-    
+
     temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
     os.close(temp_fd)
     try:
@@ -218,7 +225,7 @@ async def transcribe_voice_and_parse(
             try: os.remove(temp_path)
             except Exception: pass
         raise HTTPException(status_code=500, detail=f"Dështoi ruajtja e skedarit: {e}")
-    
+
     transcription_text = ""
     try:
         transcription_text = await asyncio.to_thread(
@@ -232,14 +239,13 @@ async def transcribe_voice_and_parse(
         if os.path.exists(temp_path):
             try: os.remove(temp_path)
             except Exception: pass
-    
-    # FIX: Kontroll i plotë për error strings
+
     if not transcription_text or not transcription_text.strip():
         raise HTTPException(
             status_code=422,
             detail="Transkriptimi dështoi ose nuk u detektua zë i kuptueshëm."
         )
-    
+
     if _is_transcription_error(transcription_text):
         clean_error = transcription_text.strip().strip("[]").strip()
         logger.error(f"❌ Voice transcription returned error: {clean_error}")
@@ -247,9 +253,8 @@ async def transcribe_voice_and_parse(
             status_code=422,
             detail=f"Transkriptimi dështoi. {clean_error}"
         )
-    
+
     try:
-        # V9.0: ORG-AWARE — mbledh titujt nga të gjitha lëndët e org-ut
         user_cases = list(db.cases.find(
             _build_case_access_query(current_user),
             {"title": 1, "case_number": 1}
@@ -257,13 +262,13 @@ async def transcribe_voice_and_parse(
         case_titles = [c.get("title") or c.get("case_number") or "" for c in user_cases if c.get("title") or c.get("case_number")]
     except Exception:
         case_titles = []
-    
+
     parsed = await asyncio.to_thread(
         calendar_service.parse_voice_text_to_event,
         text=transcription_text,
         case_titles=case_titles
     )
-    
+
     return {
         "success": True,
         "transcription": transcription_text,

@@ -1,10 +1,10 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V19.0 (ORG-AWARE ACCESS CONTROL)
-# V19.0: ORG-AWARE — user me org mund të ngarkojë/shikojë/fshijë media në case të përbashkët.
-#        Përdor _build_case_access_query nga case_service për konsistencë.
-# V18.0: Ruajtja e segmenteve të diarizimit (folës + sekonda) në MongoDB.
-#        Përditësuar komentet "Whisper" → "AssemblyAI".
-# V17.0: AUDIO/VIDEO DETECTION + CLEAN MIME STREAMING
+# PHOENIX PROTOCOL - MEDIA ROUTER V19.1 (ORG-ID REFACTOR)
+# V19.1: `SimpleNamespace(org_id=...)` → `SimpleNamespace(organization_id=...)`.
+#        Përputhet me `_build_case_access_query` V58 që lexon vetëm `organization_id`.
+# V19.0: ORG-AWARE ACCESS CONTROL.
+# V18.0: Diarizim + segments.
+# V17.0: AUDIO/VIDEO DETECTION.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -76,28 +76,23 @@ def orchestrate_media_analysis(
     is_video: bool,
     case_domain: Optional[str] = None
 ):
-    """
-    Ekzekuton transkriptimin me AssemblyAI (me diarizim) dhe e indekson në RAG.
-    Ruan transcript + segments (folës + sekonda) në MongoDB.
-    """
+    """Ekzekuton transkriptimin me AssemblyAI + indekson në RAG."""
     media_oid = ObjectId(media_id_str)
     try:
         logger.info(f"🎙️ [Media Transcription] Duke përpunuar: {file_name}")
         role = RoleGuardService.get_role_from_case(case_id_str, db_client)
-        
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
-        # video_service: nxjerr zërin + transkripton me AssemblyAI
+
         transcript_result = loop.run_until_complete(
             video_service.analyze_video_evidence_async(file_path, file_name)
         )
         loop.close()
 
         transcript = transcript_result.get("transcription", "[Nuk u detektua zë i kuptueshëm]")
-        segments = transcript_result.get("segments", []) or []  # ← V18.0
+        segments = transcript_result.get("segments", []) or []
 
-        # Ruaj transkriptin + segments
         db_client.media_evidence.update_one(
             {"_id": media_oid},
             {"$set": {
@@ -114,7 +109,6 @@ def orchestrate_media_analysis(
             f"transcript={len(transcript)} chars, segments={len(segments)}"
         )
 
-        # Indeksim në RAG
         media_type_label = "VIDEO" if is_video else "AUDIO"
         combined_rag_text = (
             f"PROVË MATERIALE ({media_type_label}): {file_name}\n"
@@ -156,22 +150,19 @@ async def get_case_media(
     db: Database = Depends(get_db)
 ):
     case_oid = validate_object_id(case_id)
-    
-    # V19.0: ORG-AWARE — të njëjtin kontroll aksesi si case_service
+
     case = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
-    
+
     role = RoleGuardService.get_role_from_case(case_id, db)
-    
-    # V19.0: heq owner_id — aksesi verifikohet përmes case-it më lart
+
     cursor = db.media_evidence.find({"case_id": case_oid}).sort("created_at", -1)
     items = []
     for item in cursor:
         serialized = serialize_media_doc(item)
         if not serialized.get("role"):
             serialized["role"] = role
-        # V18.0: sigurohu që segments ekziston gjithmonë (backward compat)
         if "segments" not in serialized:
             serialized["segments"] = []
         items.append(serialized)
@@ -188,26 +179,22 @@ async def upload_case_media(
 ):
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
-    
-    # V19.0: ORG-AWARE — user me org mund të ngarkojë në case të përbashkët
+
     case = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
-    
+
     role = RoleGuardService.get_role_from_case(case_id, db)
     case_domain = case.get("case_domain") or case.get("domain") or None
 
     filename = file.filename or "media.mp4"
     ext = os.path.splitext(filename)[1].lower()
 
-    # ==========================================================
-    # FIX 1: DETEKTIMI I SAKTË AUDIO vs VIDEO
-    # ==========================================================
     VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
     AUDIO_EXTENSIONS = {'.mp3', '.wav', '.m4a', '.ogg', '.aac', '.opus', '.flac', '.webm'}
 
     raw_ct = (file.content_type or '').lower().strip()
-    
+
     if raw_ct.startswith('video/'):
         is_video = True
         content_type = file.content_type
@@ -226,7 +213,6 @@ async def upload_case_media(
 
     logger.info(f"📥 [Media Upload] file='{filename}' ext='{ext}' content_type='{raw_ct or 'none'}' → is_video={is_video} (stored_mime='{content_type}')")
 
-    # Ruajtja e përkohshme
     temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
     os.close(temp_fd)
 
@@ -247,7 +233,6 @@ async def upload_case_media(
 
     final_upload_path = temp_path
 
-    # --- KOMPRESIMI PËR VIDEOT (Mbrojtja e B2 Storage) ---
     if is_video:
         compressed_path = temp_path.replace(ext, f"_compressed{ext}")
         logger.info(f"🎞️ Duke kompresuar videon '{filename}' për klientin...")
@@ -257,7 +242,6 @@ async def upload_case_media(
             try: os.remove(temp_path)
             except Exception: pass
 
-    # Ngarkimi në Backblaze B2 Storage
     try:
         storage_key = await asyncio.to_thread(
             storage_service.upload_file_from_path,
@@ -284,7 +268,7 @@ async def upload_case_media(
         "mime_type": content_type,
         "status": "PROCESSING",
         "transcript": "",
-        "segments": [],           # ← V18.0: fusha e re për diarizim
+        "segments": [],
         "visual_analysis": {},
         "role": role,
         "case_domain": case_domain or "UNKNOWN",
@@ -295,7 +279,6 @@ async def upload_case_media(
     result = db.media_evidence.insert_one(media_doc)
     media_id_str = str(result.inserted_id)
 
-    # Dërgo në prapavijë për transkriptim me AssemblyAI
     background_tasks.add_task(
         orchestrate_media_analysis,
         db,
@@ -321,22 +304,22 @@ async def stream_case_media(
 ):
     user_id_str = None
     user_oid = None
-    
+
     if token:
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            
+
             exp = payload.get("exp")
             if exp:
                 from datetime import datetime as dt
                 exp_dt = dt.fromtimestamp(exp, tz=timezone.utc)
                 if dt.now(timezone.utc) > exp_dt:
                     raise HTTPException(status_code=401, detail="Token i skaduar.")
-            
+
             user_id_str = payload.get("sub") or payload.get("id")
             if not user_id_str:
                 raise HTTPException(status_code=401, detail="Token i pavlefshëm.")
-            
+
             user_oid = ObjectId(user_id_str) if ObjectId.is_valid(user_id_str) else None
         except Exception:
             raise HTTPException(status_code=401, detail="I paautorizuar.")
@@ -345,24 +328,22 @@ async def stream_case_media(
 
     case_oid = validate_object_id(case_id)
     media_oid = validate_object_id(media_id)
-    
-    # V19.0: ORG-AWARE — lexo user nga DB dhe apliko të njëjtin kontroll si case_service
-    # (ky endpoint përdor JWT token nga query param, jo Depends(get_current_user))
+
+    # V19.1: SimpleNamespace me `organization_id` (canonical)
     user_doc = db.users.find_one({"_id": user_oid}) if user_oid else None
     if not user_doc:
         raise HTTPException(status_code=401, detail="I paautorizuar.")
-    
+
     stream_user = SimpleNamespace(
         id=user_doc["_id"],
-        org_id=user_doc.get("org_id"),
+        organization_id=user_doc.get("organization_id"),  # V19.1
         org_access_level=user_doc.get("org_access_level", "FULL")
     )
-    
+
     case = db.cases.find_one(_build_case_access_query(stream_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
-    
-    # V19.0: heq owner_id — aksesi u verifikua përmes case-it më lart
+
     media_item = db.media_evidence.find_one({
         "_id": media_oid,
         "case_id": case_oid
@@ -381,9 +362,6 @@ async def stream_case_media(
     filename = media_item.get("file_name", "media.mp4")
     raw_mime = media_item.get("mime_type", "video/mp4") or "video/mp4"
 
-    # ==========================================================
-    # FIX 2: Heq parametrat e codec-it nga Content-Type HTTP.
-    # ==========================================================
     clean_mime = raw_mime.split(';')[0].strip().lower() if ';' in raw_mime else raw_mime.strip().lower()
 
     if not clean_mime or '/' not in clean_mime:
@@ -414,12 +392,10 @@ async def delete_case_media(
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
 
-    # V19.0: ORG-AWARE — user me org mund të fshijë media e org-ut
     case = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
 
-    # V19.0: heq owner_id — aksesi u verifikua përmes case-it më lart
     media_item = db.media_evidence.find_one({
         "_id": media_oid,
         "case_id": case_oid
@@ -436,7 +412,6 @@ async def delete_case_media(
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
-    # V19.0: fshirje e vektorëve — owner-agnostic, mbulon të gjitha rastet
     try:
         db.user_vectors.delete_many({
             "$or": [

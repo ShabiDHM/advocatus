@@ -1,12 +1,13 @@
 # FILE: backend/app/services/extraction_pipeline.py
-# PHOENIX PROTOCOL - EXTRACTION PIPELINE V1.3
+# PHOENIX PROTOCOL - EXTRACTION PIPELINE V1.4
+# V1.4: ORG-AWARE FETCH — hequr filtri owner_id nga _fetch_documents().
+#       Aksesi verifikohet nga case_analysis_router._check_case_access()
+#       (case_service.get_case_for_user → org + assigned_user_ids).
+#       Kjo rregullon bug-un: dokument i ngarkuar nga nje anetar i org-ut
+#       nuk bllokohet me per case owner-in.
 # V1.3: PARALLEL DOCUMENTS — MAX_CONCURRENT_DOCS (env override, default 3).
-#       Asyncio Semaphore + task queue per te procesuar dokumentet njekohesisht.
-#       Events stream sipas rendit te perfundimit (jo me sekuencial).
-#       Nuk prek logjiken e cache/Hash — vetem shpejtesine.
-# V1.2: (1) NER + Metadata ekzekutohen PARALEL (jo sekuencial). -14s/doc.
-#       (2) Text-hash validation në cache skip (mbron nga stale cache).
-# V1.1: Integron CATEGORIZATION → kalon document_type hint në NER (V33.2).
+# V1.2: (1) NER + Metadata PARALEL. (2) Text-hash validation në cache skip.
+# V1.1: Integron CATEGORIZATION → document_type hint në NER (V33.2).
 
 import asyncio
 import hashlib
@@ -55,8 +56,9 @@ class ExtractionPipeline:
     """
     Tubi i ekstraktimit për një fashikull të plotë.
 
-    Rrjedha (V1.3):
-    1. Tërheq dokumentet nga MongoDB.
+    Rrjedha (V1.4):
+    1. Tërheq dokumentet nga MongoDB (case_id + status != DELETED).
+       Aksesi i user-it verifikohet ne router para thirrjes se pipeline.
     2. Përpunon dokumentet PARALEL me max_concurrent_docs (Semaphore).
        Për çdo dokument:
        a. Kategorizo (CATEGORIZATION_SERVICE) → document_type
@@ -82,7 +84,7 @@ class ExtractionPipeline:
         document_ids: Optional[List[str]] = None,
         force_reprocess: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Async generator që yield events progresi (V1.3: paralel)."""
+        """Async generator që yield events progresi (V1.4: paralel + org-aware)."""
         start_time = time.time()
 
         # 1. Tërheq dokumentet
@@ -134,8 +136,8 @@ class ExtractionPipeline:
         ]
 
         logger.info(
-            f"🚀 [EXTRACT V1.3] Nisur {total} dokumente me "
-            f"max_concurrent={MAX_CONCURRENT_DOCS}"
+            f"🚀 [EXTRACT V1.4] Nisur {total} dokumente me "
+            f"max_concurrent={MAX_CONCURRENT_DOCS} (user={user_id})"
         )
 
         # Stream events while tasks run
@@ -174,7 +176,7 @@ class ExtractionPipeline:
             try:
                 res = t.result()
             except (asyncio.CancelledError, Exception) as e:
-                logger.error(f"❌ [EXTRACT V1.3] Worker task error: {e}")
+                logger.error(f"❌ [EXTRACT V1.4] Worker task error: {e}")
                 failed += 1
                 continue
 
@@ -206,7 +208,7 @@ class ExtractionPipeline:
             "max_concurrent_docs": MAX_CONCURRENT_DOCS,
         }
 
-        logger.info(f"✅ [EXTRACT V1.3] Pipeline complete: {summary}")
+        logger.info(f"✅ [EXTRACT V1.4] Pipeline complete: {summary}")
         yield {"event": "complete", "summary": summary}
 
     # ────────────────────────────────────────────────────────────────────
@@ -219,17 +221,24 @@ class ExtractionPipeline:
         case_id: str,
         document_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Tërheq dokumentet e lëndës nga MongoDB."""
+        """
+        V1.4: Tërheq dokumentet e lëndës nga MongoDB.
+
+        NUK filtrohet me owner_id — aksesi është verifikuar tashmë nga
+        case_analysis_router._check_case_access() → case_service.get_case_for_user(),
+        i cili njeh owner + org member + assigned_user_ids.
+        Filtri i vetëm: case_id + status != DELETED.
+        """
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
         filter_q: Dict[str, Any] = {
-            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "$or": [
+                {"case_id": case_id},
+                {"case_id": case_oid},
+                {"case_id": str(case_oid)},
+            ],
             "status": {"$ne": "DELETED"},
         }
-
-        if user_id:
-            user_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
-            filter_q["owner_id"] = {"$in": [user_id, user_oid]}
 
         if document_ids:
             doc_oids = [ObjectId(d) for d in document_ids if ObjectId.is_valid(d)]
@@ -294,7 +303,7 @@ class ExtractionPipeline:
 
             if cached_hash and cached_hash != current_hash:
                 logger.info(
-                    f"🔄 [EXTRACT V1.3] Doc {doc_id}: text changed "
+                    f"🔄 [EXTRACT V1.4] Doc {doc_id}: text changed "
                     f"(hash {cached_hash[:8]}... → {current_hash[:8]}...) "
                     f"→ re-extracting"
                 )
@@ -335,7 +344,7 @@ class ExtractionPipeline:
 
         except asyncio.TimeoutError:
             logger.warning(
-                f"⚠️ [EXTRACT V1.3] Document {doc_id} timed out after "
+                f"⚠️ [EXTRACT V1.4] Document {doc_id} timed out after "
                 f"{DOCUMENT_TIMEOUT_SEC}s"
             )
             await event_queue.put({
@@ -347,7 +356,7 @@ class ExtractionPipeline:
             return {"status": "failed", "error": "timeout"}
 
         except Exception as e:
-            logger.exception(f"❌ [EXTRACT V1.3] Document {doc_id} failed")
+            logger.exception(f"❌ [EXTRACT V1.4] Document {doc_id} failed")
             await event_queue.put({
                 "event": "document_failed",
                 "document_id": doc_id,
@@ -421,7 +430,7 @@ class ExtractionPipeline:
         )
         document_type = categorization.get("primary_category")
         logger.info(
-            f"📋 [EXTRACT V1.3] doc={doc_id}: categorized as "
+            f"📋 [EXTRACT V1.4] doc={doc_id}: categorized as "
             f"'{document_type}' (conf={categorization.get('confidence')})"
         )
 
@@ -449,7 +458,7 @@ class ExtractionPipeline:
 
         parallel_duration = round(time.time() - t_parallel, 2)
         logger.info(
-            f"⚡ [EXTRACT V1.3] doc={doc_id}: NER + Metadata paralel përfunduan "
+            f"⚡ [EXTRACT V1.4] doc={doc_id}: NER + Metadata paralel përfunduan "
             f"në {parallel_duration}s"
         )
 

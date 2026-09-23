@@ -1,15 +1,14 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.6
-# V1.6: FIX — _build_law_position_index perfshin LAW_NAME_PATTERN. Tani ligjet e
-#       cituara pa numer e pa akronim (p.sh. "Ligji për Mbrojtjen nga Dhuna në
-#       Familje") kapen ne indeks → neni pranë tyre merr law_hint te sakte.
-#       Zgjidh false-negative "Neni 1 par. 2 NUK U GJET" ne audit.
-# V1.5: FIX — extract_case_numbers rstrip(".,;:") mbi num_part.
-# V1.4: FIX — "Neni 1.2" normalizehet ne article_num="1", paragraph="2".
-# V1.3: FIX KRITIK — ligji caktohet duke gjetur ligjin MË TË AFËRT (para OSE pas).
-# V1.2: FIX për is_likely_own + law position-aware (vetëm përpara — i gabuar).
-# V1.1: FIX për is_likely_own.
-# V1.0: Ekstraktim deterministik.
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.8
+# V1.8: DEDUP NENESH — nese i njejti numer neni shfaqet dy here (me paragraph
+#       dhe pa paragraph), mbaj VETEM versionin me informacion te plote:
+#       (1) me paragraph > pa paragraph
+#       (2) me law_hint > pa law_hint
+#       (3) context me i gjate > me i shkurter
+#       Impakti: eliminohen dyfishimet "Neni 384 par.1 (NUK U GJET)" +
+#       "Neni 384 (EKZISTON)" ne raport.
+# V1.7: Skip case_numbers qe permbajne "/L-" (kode ligjesh).
+# V1.6: _build_law_position_index perfshin LAW_NAME_PATTERN.
 
 import re
 import logging
@@ -39,28 +38,16 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V1.3: LAW POSITION INDEX — gjej ligjin më të afërt (para OSE pas)
-# ═══════════════════════════════════════════════════════════════════════════
+MAX_LAW_DISTANCE = 200
 
-MAX_LAW_DISTANCE = 200  # Sa karaktere larg mund të jetë ligji nga neni
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.3: LAW POSITION INDEX
+# ═══════════════════════════════════════════════════════════════════════════
 
 def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
-    """
-    V1.6: Krijon listë me (position, law_name) për të gjitha ligjet në tekst.
-    Renditur sipas pozicionit.
-
-    Prioritet:
-    1. Ligje me numër + emër ("Ligjit Nr. 03/L-182 Për X Y Z") → preferohen
-    2. Vetëm numrat e ligjeve ("03/L-182") → shtohen vetëm nëse nuk ka me-emër afër
-    3. Akronimet ("LPK", "LMDHF") → shtohen gjithmonë
-    4. V1.6: Emrat e ligjeve pa numer ("Ligji për Mbrojtjen nga Dhuna") → shtohen
-       vetëm nëse nuk mbivendosen me 1-3
-    """
     laws: List[Tuple[int, str]] = []
 
-    # 1. Ligje me numër + emër
     for match in LAW_NUMBER_WITH_NAME_PATTERN.finditer(text):
         num = normalize_law_number(match.group(1))
         if not num:
@@ -69,7 +56,6 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
         law_str = f"{num} {name}".strip() if name else num
         laws.append((match.start(), law_str))
 
-    # 2. Vetëm numrat (skip nëse ka me-emër brenda 30 char)
     for match in LAW_NUMBER_PATTERN.finditer(text):
         num = normalize_law_number(match.group(0))
         if not num:
@@ -79,18 +65,12 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
             continue
         laws.append((match.start(), num))
 
-    # 3. Akronimet
     for match in ABBREV_PATTERN.finditer(text):
         abbr = match.group(1)
         if not is_valid_law_abbrev(abbr):
             continue
         laws.append((match.start(), abbr.upper()))
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # 4. V1.6: Emrat e ligjeve pa numer (p.sh. "Ligji për Mbrojtjen nga Dhuna")
-    #    Skip nese ka nje ligj tjeter (me numer ose akronim) brenda 30 chars,
-    #    per te shmangur dublikatat ne indeks.
-    # ═══════════════════════════════════════════════════════════════════════
     for match in LAW_NAME_PATTERN.finditer(text):
         full_match = match.group(0).strip()
         if len(full_match) < 15:
@@ -109,82 +89,107 @@ def _find_nearest_law(
     position: int,
     max_distance: int = MAX_LAW_DISTANCE,
 ) -> str:
-    """
-    V1.3: Gjej ligjin më të afërt (para OSE pas) një pozicioni.
-    Preferon distancën më të vogël absolute.
-    """
     if not law_index:
         return ""
-
     best_law = ""
     best_dist = float('inf')
-
     for law_pos, law_name in law_index:
         dist = abs(law_pos - position)
         if dist < best_dist and dist <= max_distance:
             best_dist = dist
             best_law = law_name
-
     return best_law
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.4: ARTICLE NUMBER NORMALIZER — "1.2" → ("1", "2")
+# V1.4: ARTICLE NUMBER NORMALIZER
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_article_number(
     article_num: str,
     paragraph: Optional[str],
 ) -> Tuple[str, Optional[str]]:
-    """
-    V1.4: Normalizon numrin e nenit.
-    "Neni 1.2" -> ("1", "2") kur paragraph mungon.
-    """
     if paragraph is not None:
         return article_num, paragraph
-
     if "." not in article_num:
         return article_num, paragraph
-
     parts = article_num.split(".")
     if len(parts) != 2:
         return article_num, paragraph
-
     if not (parts[0].isdigit() and parts[1].isdigit()):
         return article_num, paragraph
-
     if not parts[0] or not parts[1]:
         return article_num, paragraph
-
-    normalized_article = parts[0]
-    normalized_paragraph = parts[1]
-
-    logger.debug(
-        f"[V1.6] Normalized 'Neni {article_num}' -> "
-        f"Neni {normalized_article}, par.{normalized_paragraph}"
-    )
-
-    return normalized_article, normalized_paragraph
+    return parts[0], parts[1]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT ARTICLES (sentence-aware + nearest-law + V1.4 normalizer)
+# V1.8: DEDUPE BY ARTICLE NUMBER
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _score_article_citation(c: Dict[str, Any]) -> Tuple[int, int, int]:
+    """
+    V1.8: Score për te zgjedhur versionin me informacion te plote.
+    """
+    return (
+        1 if c.get("paragraph") else 0,
+        1 if c.get("law_hint") and c["law_hint"].strip() else 0,
+        len(c.get("context", "") or ""),
+    )
+
+
+def _dedupe_articles_by_number(
+    citations: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    V1.8: Dedupliko nenet e njejte (384 par.1 vs 384) → mban vetem nje version.
+    Ruan rendin e pare te shfaqjes.
+    """
+    if not citations:
+        return citations
+
+    by_number: Dict[str, Dict[str, Any]] = {}
+    order: List[str] = []
+
+    for c in citations:
+        num = c.get("number", "")
+        if not num:
+            continue
+
+        if num not in by_number:
+            by_number[num] = c
+            order.append(num)
+            continue
+
+        # Zgjedh me score me te larte
+        if _score_article_citation(c) > _score_article_citation(by_number[num]):
+            by_number[num] = c
+
+    deduped = [by_number[n] for n in order]
+    removed = len(citations) - len(deduped)
+    if removed > 0:
+        logger.info(
+            f"🧹 [V1.8 Dedup] Hequr {removed} nene te dyfishuara "
+            f"({len(citations)} → {len(deduped)})"
+        )
+    return deduped
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXTRACT ARTICLES
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
     """
-    V1.6: Nxjerr nenet me ligjin më të afërt (para ose pas).
-    Normalizon "Neni 1.2" → article="1", paragraph="2".
+    V1.8: Nxjerr nenet me ligjin më të afërt + dedup pas ekstraktimit.
     """
     if not text:
         return []
 
     law_index = _build_law_position_index(text)
-
     sentences = split_into_sentences(text)
     citations: List[Dict[str, Any]] = []
     seen: Set[Tuple[str, Optional[str], str]] = set()
-
     current_pos = 0
 
     for sentence in sentences:
@@ -197,7 +202,6 @@ def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
             article_num_raw = match.group(1)
             paragraph_raw = match.group(2)
 
-            # V1.4: Normalizo "1.2" -> ("1", "2") kur paragraph mungon
             article_num, paragraph = _normalize_article_number(
                 article_num_raw, paragraph_raw
             )
@@ -221,9 +225,10 @@ def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
             })
 
             if len(citations) >= MAX_ARTICLE_CITATIONS:
-                return citations
+                return _dedupe_articles_by_number(citations)
 
-    return citations
+    # V1.8: Dedup perpara kthimit
+    return _dedupe_articles_by_number(citations)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -231,10 +236,8 @@ def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr numrat e ligjeve."""
     if not text:
         return []
-
     results: List[Dict[str, Any]] = []
     seen: Set[str] = set()
 
@@ -260,7 +263,6 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
             "name": "",
             "context": extract_context(text, match.start(), window=80),
         })
-
     return results
 
 
@@ -269,13 +271,10 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_law_names(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr emrat e ligjeve (pa numër)."""
     if not text:
         return []
-
     results: List[Dict[str, Any]] = []
     seen: Set[str] = set()
-
     for match in LAW_NAME_PATTERN.finditer(text):
         name = match.group(1).strip()
         if len(name) < 5:
@@ -288,7 +287,6 @@ def extract_law_names(text: str) -> List[Dict[str, Any]]:
             "name": name,
             "context": extract_context(text, match.start(), window=80),
         })
-
     return results
 
 
@@ -297,27 +295,22 @@ def extract_law_names(text: str) -> List[Dict[str, Any]]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_abbreviations(text: str) -> List[str]:
-    """Nxjerr akronimet e vlefshme të ligjeve."""
     if not text:
         return []
-
     abbrevs: Set[str] = set()
     for match in ABBREV_PATTERN.finditer(text):
         abbr = match.group(1)
         if is_valid_law_abbrev(abbr):
             abbrevs.add(abbr.upper())
-
     return sorted(abbrevs)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT CASE NUMBERS
+# EXTRACT CASE NUMBERS (V1.7: skip law codes)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _is_likely_own_case(text: str, position: int, context: str) -> bool:
-    """Kontrollo nëse numri i lëndës është i këtij dokumenti."""
     context_lower = context.lower()
-
     cited_markers = [
         "mëparshëm", "meparshem", "mëparshme", "meparshme",
         "referuar", "cituar", "shih", "referohet",
@@ -326,23 +319,22 @@ def _is_likely_own_case(text: str, position: int, context: str) -> bool:
     ]
     if any(marker in context_lower for marker in cited_markers):
         return False
-
     if position < 500 or position > len(text) - 500:
         return True
+    return False
 
+
+def _looks_like_law_code(case_number: str, context: str) -> bool:
+    if "/L-" in case_number or "/l-" in case_number.lower():
+        return True
+    if re.search(r'\d{2}/L-\d+', case_number, re.IGNORECASE):
+        return True
     return False
 
 
 def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
-    """
-    Nxjerr numrat e lëndëve me klasifikim OWN/CITED.
-
-    V1.5: rstrip(".,;:") per te hequr piken e fjalisë qe CASE_NUMBER_PATTERN
-    e gelltit per shkak te '.' brenda karaktereve te lejuara.
-    """
     if not text:
         return []
-
     results: List[Dict[str, Any]] = []
     seen: Set[str] = set()
 
@@ -353,15 +345,19 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
             continue
         raw = f"{prefix}.nr.{num_part}"
         normalized = normalize_case_number(raw)
-
         if normalized in seen:
             continue
-        seen.add(normalized)
-
         position = match.start()
         context = extract_context(text, position, window=100)
-        is_own = _is_likely_own_case(text, position, context)
 
+        if _looks_like_law_code(normalized, context):
+            logger.debug(
+                f"[V1.8] Skip case_number '{normalized}' — ne fakt kod ligji"
+            )
+            continue
+
+        seen.add(normalized)
+        is_own = _is_likely_own_case(text, position, context)
         results.append({
             "case_number": normalized,
             "prefix": prefix,
@@ -372,7 +368,6 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
 
         if len(results) >= MAX_CASE_NUMBERS:
             break
-
     return results
 
 
@@ -381,17 +376,11 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_citation_profile(text: str) -> Dict[str, Any]:
-    """Ndërton profilin e plotë të citimeve."""
     if not text:
         return {
-            "articles": [],
-            "laws_by_number": [],
-            "laws_by_name": [],
-            "abbreviations": [],
-            "case_numbers": [],
-            "own_case_numbers": [],
-            "cited_case_numbers": [],
-            "stats": {},
+            "articles": [], "laws_by_number": [], "laws_by_name": [],
+            "abbreviations": [], "case_numbers": [],
+            "own_case_numbers": [], "cited_case_numbers": [], "stats": {},
         }
 
     articles = extract_articles_with_context(text)
@@ -418,7 +407,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR V1.6] Profile built: "
+        f"🔬 [EXTRACTOR V1.8] Profile built: "
         f"articles={stats['total_articles']} "
         f"(with_law_hint={stats['articles_with_law_hint']}, "
         f"with_paragraph={stats['articles_with_paragraph']}), "

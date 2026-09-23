@@ -1,13 +1,16 @@
 # FILE: backend/app/services/document_review/patterns.py
-# PHOENIX PROTOCOL - REGEX PATTERNS V2.3
-# V2.3: FIX DEADLINE + PERIOD për shumësin shqip (ditësh, muajsh, javësh).
+# PHOENIX PROTOCOL - REGEX PATTERNS V2.4
+# V2.4: FIX KRITIK — hequr KPK|KPRK nga CASE_NUMBER_PATTERN. Ata jane
+#       akronime LIGJESH, jo prefikse lendesh. Kjo parandalon qe
+#       "KPRK.nr.06/L-074" (kod ligji) te klasifikohet si numer lende.
+# V2.3: FIX DEADLINE + PERIOD për shumësin shqip.
 # V2.2: Shtuar pattern-e për dispozitiv, mjekësi, dënime, kontradikta.
 
 import re
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ARTICLES — Nenet
+# ARTICLES
 # ═══════════════════════════════════════════════════════════════════════════
 
 ARTICLE_PATTERN = re.compile(
@@ -56,14 +59,13 @@ ABBREV_PATTERN = re.compile(r'\b([A-ZËÇ]{2,6})\b')
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CASE NUMBERS
+# CASE NUMBERS — V2.4: pa KPK / KPRK (ata jane kode ligjesh)
 # ═══════════════════════════════════════════════════════════════════════════
 
 CASE_NUMBER_PATTERN = re.compile(
     r'\b('
     r'PML|Rev|REV|KMLP|ANR|A\.NR|PZR|'
-    r'PA1|PKR|P|C|CA|KE|PN|KP|PP\.II|'
-    r'KPK|KPRK'
+    r'PA1|PKR|P|C|CA|KE|PN|KP|PP\.II'
     r')'
     r'\.?\s*[Nn]r\.?\s*'
     r'(\d+[\w\/\.\-]*)',
@@ -91,7 +93,7 @@ DATE_ALBANIAN_PATTERN = re.compile(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# DEADLINES — V2.3: shumësi shqip (ditësh, muajsh, javësh)
+# DEADLINES
 # ═══════════════════════════════════════════════════════════════════════════
 
 DEADLINE_PATTERN = re.compile(
@@ -211,7 +213,7 @@ APPEAL_DEADLINE_PATTERN = re.compile(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CONTRADICTIONS — V2.3: shumësi shqip
+# CONTRADICTIONS
 # ═══════════════════════════════════════════════════════════════════════════
 
 PERIOD_PATTERN = re.compile(

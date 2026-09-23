@@ -1,14 +1,17 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V4.0.1
-// V4.0.1: Hequr useCallback (unused), isSaving state (unused).
-// V4.0.0: Modal bëhet VETËM viewer — raporti vjen i paragjeneruar nga parent.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V5.0
+// V5.0: SERVER FETCH — kur hapet pa `preGeneratedReport`, lexon raportin e ruajtur
+//       nga GET /cases/{id}/audit. Loading + error handling. "Analizo" buton në
+//       empty state. Banner "saved" me timestamp.
+// V4.0.1: Hequr useCallback, isSaving state.
+// V4.0.0: Modal bëhet VETËM viewer.
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, CheckCircle2,
   Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown, Lock, Scale, Folder,
-  ShieldCheck, RotateCcw, Calendar
+  ShieldCheck, RotateCcw, Calendar, Sparkles
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,9 +20,6 @@ import { apiService } from '../../services/api';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// WORD EXPORT COLORS
-// ═══════════════════════════════════════════════════════════════════════════
 const WORD_CODE_BG = '#f1f5f9';
 const WORD_BLOCKQUOTE_BORDER = '#2563eb';
 const WORD_BLOCKQUOTE_BG = '#f8fafc';
@@ -203,10 +203,15 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
 
+  // V5.0: Server fetch state
+  const [isLoadingFromServer, setIsLoadingFromServer] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [lastAuditedAt, setLastAuditedAt] = useState<string | null>(null);
   const [reportSource, setReportSource] = useState<'fresh' | 'cache' | 'saved' | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const fetchAbortRef = useRef<boolean>(false);
 
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(1);
   const activeFont = FONT_LEVELS[fontLevelIndex];
@@ -227,14 +232,53 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     ? `${singleDocName || 'Dokument i vetëm'} • ${clientName}`
     : `${caseName} • ${clientName} • ${documentCount} shkresa`;
 
-  // Kur hapet me preGeneratedReport → shfaq direkt
+  // ═══════════════════════════════════════════════════════════════════════════
+  // V5.0: LOAD STRATEGY
+  //   1. Nëse `preGeneratedReport` → përdor direkt (nga analiza e re)
+  //   2. Përndryshe → fetch nga server (GET /audit)
+  // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (isOpen && preGeneratedReport) {
+    if (!isOpen) return;
+
+    fetchAbortRef.current = false;
+
+    if (preGeneratedReport) {
       setReportContent(preGeneratedReport);
       setLastAuditedAt(new Date().toISOString());
       setReportSource(preGeneratedSource || 'fresh');
+      setIsLoadingFromServer(false);
+      setLoadError(null);
+      return;
     }
-  }, [isOpen, preGeneratedReport, preGeneratedSource]);
+
+    // Fetch from server
+    setIsLoadingFromServer(true);
+    setLoadError(null);
+    setReportContent('');
+
+    apiService.getCaseDossierAudit(caseId)
+      .then((data) => {
+        if (fetchAbortRef.current) return;
+        if (data.has_audit && data.content) {
+          setReportContent(data.content);
+          setLastAuditedAt(data.audited_at);
+          setReportSource('saved');
+        }
+      })
+      .catch((err) => {
+        if (fetchAbortRef.current) return;
+        console.warn('[CaseDossierAuditModal V5.0] Failed to load saved report:', err);
+        setLoadError('Dështoi ngarkimi i raportit të ruajtur.');
+      })
+      .finally(() => {
+        if (fetchAbortRef.current) return;
+        setIsLoadingFromServer(false);
+      });
+
+    return () => {
+      fetchAbortRef.current = true;
+    };
+  }, [isOpen, preGeneratedReport, preGeneratedSource, caseId]);
 
   // Reset kur mbyllet
   useEffect(() => {
@@ -244,6 +288,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       setReportSource(null);
       setCopied(false);
       setIsFullscreen(false);
+      setIsLoadingFromServer(false);
+      setLoadError(null);
     }
   }, [isOpen]);
 
@@ -411,7 +457,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   <p className="text-xs sm:text-sm font-bold text-text-primary">
                     {reportSource === 'cache'
                       ? 'Ky raport është shfaqur nga cache e serverit'
-                      : 'Ky raport ekziston nga një analizë e mëparshme'}
+                      : 'Ky raport është ruajtur më parë'}
                   </p>
                   <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
                     {reportSource === 'cache'
@@ -435,7 +481,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           )}
 
-          {/* Body — vetëm raport (pa streaming) */}
+          {/* Body */}
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -454,7 +500,12 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
               }
             `}</style>
 
-            {!reportContent ? (
+            {isLoadingFromServer ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
+                <Loader2 className="w-10 h-10 animate-spin text-primary-start" />
+                <p className="text-sm text-text-muted">Duke lexuar raportin e ruajtur...</p>
+              </div>
+            ) : !reportContent ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
                 <div className="w-14 h-14 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center">
                   {effectiveScope === 'document' ? <ShieldCheck size={28} /> : <Scale size={28} />}
@@ -462,9 +513,21 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 <div>
                   <h4 className="text-base font-bold text-text-primary">{reportTitle}</h4>
                   <p className="text-xs text-text-muted max-w-lg mt-1">
-                    Raporti nuk është gati. Provoni përsëri pas pak.
+                    {loadError
+                      ? loadError
+                      : 'Nuk ka raport të ruajtur për këtë fashikull. Klikoni "Analizo" për të gjeneruar një të re.'}
                   </p>
                 </div>
+                {onRegenerate && (
+                  <button
+                    type="button"
+                    onClick={handleRegenerate}
+                    className="mt-2 h-10 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md hover-lift"
+                  >
+                    <Sparkles size={14} />
+                    <span>Analizo {effectiveScope === 'document' ? 'Dokumentin' : 'Rastin'}</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="markdown-content fast-case-dossier-audit prose prose-slate dark:prose-invert max-w-none text-text-primary">

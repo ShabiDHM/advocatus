@@ -1,9 +1,9 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V98.1
+// PHOENIX PROTOCOL - CHAT PANEL V98.2
+// V98.2: SYNTHESIS GATING - integrar `useAuth` per te kaluar user role te ChatHeader.
+//        Butoni "Analizo Rastin" tani fshihet per userat normalë.
 // V98.1: Hequr klauzola statike e përgjegjësisë ligjore (footer).
-//        Filozofia: chat = Q&A e pastër, pa elemente statike që zënë hapësirë.
-//        Disclaimer mbetet brenda përgjigjes LLM ("Verifikoni me burimin zyrtar...").
-// V98.0: Pason 3 props të reja për inline progress në ChatHeader.
+// V98.0: Pason props për inline progress në ChatHeader.
 // V97.0: Background audit props.
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -20,6 +20,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { apiService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { autoLinkLegalCitations, extractFollowUpQuestions } from '../utils/chatHelpers';
 import { MessageCopyButton } from './chat/MessageCopyButton';
 import { FeedbackButtons } from './chat/FeedbackButtons';
@@ -58,7 +59,6 @@ interface ChatPanelProps {
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
   onAnalyzeDocument?: () => void;
   selectedDocName?: string;
-  // V97.0 / V98.0: Background audit + progress
   isAuditGenerating?: boolean;
   auditProgressText?: string;
   auditProgressPercent?: number;
@@ -385,6 +385,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     auditStartTime = null,
   } = props;
 
+  // V98.2: Marr user-in per te kontrolluar aksesin ne synthesis
+  const { user } = useAuth();
+
   const [input, setInput] = useState('');
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
@@ -563,6 +566,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         auditProgressPercent={auditProgressPercent}
         auditPhaseLabel={auditPhaseLabel}
         auditStartTime={auditStartTime}
+        user={user}
       />
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
@@ -622,9 +626,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         )}
       </div>
 
-      {/* V98.1: Klauzola statike e përgjegjësisë ligjore u HOQ.
-          Disclaimer mbetet brenda përgjigjes LLM:
-          "Verifikoni me burimin zyrtar për saktësi të plotë." */}
+      {/* V98.1: Klauzola statike e përgjegjësisë ligjore u HOQ. */}
 
       {/* INPUT AREA */}
       <div className="p-3 sm:p-4 bg-surface shrink-0 z-20">

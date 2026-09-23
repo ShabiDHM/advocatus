@@ -1,9 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V72.0
-// V72.0: + getAdminCases, unlockCase, lockCase — Admin Cases bindings (org-aware + apiClient auth)
-// V71.0: Hequr bindings për mobile flow (5 metoda të vdekura).
-// V70.0: Hequr forensicService (i fshirë) — 2 bindings + import + export.
-// V69.0: Removed bindings for dead spreadsheet methods.
+// PHOENIX PROTOCOL - MASTER API FACADE V73.0
+// V73.0: + getCaseDossierAudit + saveCaseDossierAudit me documentIds.
+// V72.0: + getAdminCases, unlockCase, lockCase.
 
 export * from './apiClient';
 export * from './authService';
@@ -26,6 +24,15 @@ import { chatService } from './chatService';
 import { adminService } from './adminService';
 import { lawService } from './lawService';
 import { caseAnalysisService } from './caseAnalysisService';
+
+export interface CaseDossierAuditResponse {
+  has_audit: boolean;
+  content: string | null;
+  audited_at: string | null;
+  scope: 'case' | 'document' | null;
+  document_ids: string[] | null;
+  length?: number;
+}
 
 class ApiService {
   public axiosInstance = apiClient;
@@ -84,10 +91,23 @@ class ApiService {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
   };
 
-  // 🧠 Doktrina e Rastit (Case-Level)
-  public saveCaseDossierAudit = async (caseId: string, content: string) => {
-    return apiClient.post(`/cases/${caseId}/audit`, { content });
+  // 🧠 Doktrina e Rastit (Case-Level) — V73.0
+  public getCaseDossierAudit = async (caseId: string): Promise<CaseDossierAuditResponse> => {
+    const { data } = await apiClient.get(`/cases/${caseId}/audit`);
+    return data as CaseDossierAuditResponse;
   };
+
+  public saveCaseDossierAudit = async (
+    caseId: string,
+    content: string,
+    documentIds?: string[] | null,
+  ) => {
+    return apiClient.post(`/cases/${caseId}/audit`, {
+      content,
+      document_ids: documentIds && documentIds.length > 0 ? documentIds : null,
+    });
+  };
+
   public clearCaseDossierAudit = async (caseId: string) => {
     return apiClient.post(`/cases/${caseId}/clear-audit`);
   };
@@ -165,7 +185,6 @@ class ApiService {
   public deleteUser = adminService.deleteUser.bind(adminService);
   public updateSubscription = adminService.updateSubscription.bind(adminService);
   public promoteToFirm = adminService.promoteToFirm.bind(adminService);
-  // V72.0: Admin Cases bindings
   public getAdminCases = adminService.getAdminCases.bind(adminService);
   public unlockCase = adminService.unlockCase.bind(adminService);
   public lockCase = adminService.lockCase.bind(adminService);

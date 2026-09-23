@@ -1,16 +1,11 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V109.10
-// V109.10: TYPEWRITER EFFECT — decouples network delivery from visual output.
-//          OpenRouter sends tokens in bursts; we buffer them and type at
-//          constant rate so user sees smooth character-by-character effect.
-// V109.9: Buffer + flush pattern (50ms interval) — për streaming të butë.
-// V109.8: strip titulli i dyfishuar nga LLM.
-// V109.7: buffer per section_key (paralel sections).
-// V109.6: REF GUARD — fetchCaseData vetëm 1 herë.
-// V109.5: rikthyer handler-i section_chunk.
-// V109.4: Hequr auditSubLabel + auditIsDocumentMode.
-// V109.3: Progress bar inline në ChatHeader.
-// V109.0: Background audit generation.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V110.0
+// V110.0: REPORT SHARING — modal hapet direkt pa analizë.
+//         - handleTriggerSelectedDocAudit → hap modal (auto-fetch nga server)
+//         - "Analizo"/"Rianalizo" butoni në modal → nis _runBackgroundAudit
+//         - _runBackgroundAudit ruan me document_ids (scope i saktë)
+// V109.11: FIX RACE CONDITION — explicitDocId param.
+// V109.10: TYPEWRITER EFFECT.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
@@ -32,12 +27,7 @@ import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
 import { CaseDossierAuditModal } from '../components/case/CaseDossierAuditModal';
 
 type CaseData = { details: Case | null };
-
 type MobileMainTab = 'DOCS' | 'MEDIA' | 'CHAT';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// V109.8: HELPERS — strip titulli i dyfishuar
-// ═══════════════════════════════════════════════════════════════════════════
 
 const _normalizeHeading = (s: string): string =>
   s
@@ -50,29 +40,22 @@ const _normalizeHeading = (s: string): string =>
 
 const _stripDuplicateHeading = (content: string, expectedTitle: string): string => {
   if (!content || !expectedTitle) return content;
-
   const normalizedExpected = _normalizeHeading(expectedTitle);
-
   const m = content.match(/^(\s*#{1,4}\s+.+?\n\s*)(#{1,4}\s+(.+?))(\n|$)/);
   if (!m) return content;
 
   const firstHeadingLine = m[1];
   const secondTitle = m[3];
   const trailing = m[4] || '';
-
   const normalizedSecond = _normalizeHeading(secondTitle);
-
   const matches =
     normalizedSecond === normalizedExpected ||
     normalizedSecond.includes(normalizedExpected) ||
     normalizedExpected.includes(normalizedSecond);
 
   if (!matches) return content;
-
   return firstHeadingLine + trailing + content.slice(m[0].length);
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -183,7 +166,7 @@ const CaseViewPage: React.FC = () => {
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V109.10] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V110.0] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
@@ -296,12 +279,6 @@ const CaseViewPage: React.FC = () => {
     setIsSendingMessage(true);
 
     try {
-      // ═══════════════════════════════════════════════════════════════════════
-      // V109.10: TYPEWRITER EFFECT
-      // Decouples network delivery from visual output. OpenRouter sends tokens
-      // in bursts; we buffer them and "type" at constant rate so user sees
-      // smooth character-by-character effect regardless of delivery pattern.
-      // ═══════════════════════════════════════════════════════════════════════
       let fullContent = '';
       let streamDone = false;
       let typedLength = 0;
@@ -349,7 +326,6 @@ const CaseViewPage: React.FC = () => {
 
       streamDone = true;
 
-      // Wait for typewriter to catch up
       await new Promise<void>((resolve) => {
         const waitInterval = setInterval(() => {
           if (typedLength >= fullContent.length) {
@@ -564,7 +540,7 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit V109.10] Accumulated content is empty!', {
+        console.error('[Background Audit V110.0] Accumulated content is empty!', {
           isDocMode,
           docsTotal,
           sectionsStarted,
@@ -577,8 +553,9 @@ const CaseViewPage: React.FC = () => {
         throw new Error('Raporti nuk u gjenerua. Provoni përsëri.');
       }
 
+      // V110.0: Save me document_ids (scope i saktë)
       try {
-        await apiService.saveCaseDossierAudit(currentCaseId, finalReport);
+        await apiService.saveCaseDossierAudit(currentCaseId, finalReport, docIds);
       } catch (saveErr) {
         console.error('Save audit error:', saveErr);
       }
@@ -593,7 +570,7 @@ const CaseViewPage: React.FC = () => {
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error V109.10]', err);
+      console.error('[Background Audit Error V110.0]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {
@@ -606,20 +583,34 @@ const CaseViewPage: React.FC = () => {
     }
   }, [currentCaseId]);
 
-  const handleTriggerSelectedDocAudit = useCallback(() => {
-    if (isAuditGenerating) return;
-
+  // ═══════════════════════════════════════════════════════════════════════════
+  // V110.0: OPEN MODAL DIRECTLY (auto-fetch from server)
+  // Nuk nis analizën — hap modalin, i cili lexon raportin e ruajtur nga server.
+  // Nëse përdoruesi klikon "Analizo"/"Rianalizo" brenda modalit → _runBackgroundAudit.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const handleOpenAuditModal = useCallback((explicitDocId?: string) => {
     let docIds: string[] | null = null;
-
-    if (selectedDocObj) {
+    if (explicitDocId) {
+      docIds = [String(explicitDocId)];
+    } else if (selectedDocObj) {
       docIds = [String(selectedDocObj.id)];
-    } else if (liveDocuments.length === 0) {
-      alert("Nuk ka shkresa të administruara në këtë lëndë. Ngarkoni shkresat së pari.");
-      return;
     }
 
-    _runBackgroundAudit(docIds);
-  }, [selectedDocObj, liveDocuments.length, isAuditGenerating, _runBackgroundAudit]);
+    setPendingAuditReport(null);
+    setPendingAuditSource('saved');
+    setPendingAuditDocIds(docIds);
+    setIsDossierAuditModalOpen(true);
+  }, [selectedDocObj]);
+
+  // Rregjistrohu për event global — lejon çdo komponent të hapë modalin
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      handleOpenAuditModal(detail.documentId);
+    };
+    window.addEventListener('open_case_audit', handler as EventListener);
+    return () => window.removeEventListener('open_case_audit', handler as EventListener);
+  }, [handleOpenAuditModal]);
 
   const handleCloseDossierModal = useCallback(() => {
     setIsDossierAuditModalOpen(false);
@@ -679,14 +670,9 @@ const CaseViewPage: React.FC = () => {
         <div className="flex lg:hidden items-center bg-surface border border-main rounded-xl p-1 shadow-xs shrink-0">
           <button
             type="button"
-            onClick={() => {
-              setMobileTab('DOCS');
-              setVaultSubTab('documents');
-            }}
+            onClick={() => { setMobileTab('DOCS'); setVaultSubTab('documents'); }}
             className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
-              mobileTab === 'DOCS'
-                ? 'bg-primary-start text-white shadow-sm'
-                : 'text-text-muted hover:text-text-primary'
+              mobileTab === 'DOCS' ? 'bg-primary-start text-white shadow-sm' : 'text-text-muted hover:text-text-primary'
             }`}
           >
             <FileText size={13} className="shrink-0" />
@@ -695,14 +681,9 @@ const CaseViewPage: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => {
-              setMobileTab('MEDIA');
-              setVaultSubTab('audio');
-            }}
+            onClick={() => { setMobileTab('MEDIA'); setVaultSubTab('audio'); }}
             className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
-              mobileTab === 'MEDIA'
-                ? 'bg-primary-start text-white shadow-sm'
-                : 'text-text-muted hover:text-text-primary'
+              mobileTab === 'MEDIA' ? 'bg-primary-start text-white shadow-sm' : 'text-text-muted hover:text-text-primary'
             }`}
           >
             <Film size={13} className="shrink-0" />
@@ -713,9 +694,7 @@ const CaseViewPage: React.FC = () => {
             type="button"
             onClick={() => setMobileTab('CHAT')}
             className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
-              mobileTab === 'CHAT'
-                ? 'bg-primary-start text-white shadow-sm'
-                : 'text-text-muted hover:text-text-primary'
+              mobileTab === 'CHAT' ? 'bg-primary-start text-white shadow-sm' : 'text-text-muted hover:text-text-primary'
             }`}
           >
             <BrainCircuit size={13} className="shrink-0" />
@@ -739,7 +718,8 @@ const CaseViewPage: React.FC = () => {
               onRenameDocument={setDocumentToRename}
               onVerifyDocumentLaws={(doc) => {
                 setSelectedDocumentIds([String(doc.id)]);
-                handleTriggerSelectedDocAudit();
+                // V110.0: Hap modal direkt — auto-fetch nga server
+                handleOpenAuditModal(String(doc.id));
               }}
               selectedDocumentId={selectedDocObj ? String(selectedDocObj.id) : ''}
               onSelectDocument={handleSelectDocument}
@@ -768,7 +748,7 @@ const CaseViewPage: React.FC = () => {
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
-              onAnalyzeDocument={handleTriggerSelectedDocAudit}
+              onAnalyzeDocument={() => handleOpenAuditModal()}
               selectedDocName={selectedDocObj?.file_name}
               isAuditGenerating={isAuditGenerating}
               auditProgressText={auditProgressText}

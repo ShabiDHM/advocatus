@@ -1,18 +1,11 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.9
-# V5.9: FIX - precedentet e gjetur kalojne te hallucination_checker:
-#       - Mblidhet set-i i case_number-ve te gjetur nga precedent_search
-#         (thread-safe me lock) gjate ekzekutimit paralel.
-#       - check_all_sections() merr extra_allowed_cases=found_precedent_cases
-#         per te shmangur false-positive 'high' severity.
-# V5.8: INTEGRIMI I PRECEDENTEVE TE VERTETA:
-#       - Import precedent_search (search_relevant_precedents)
-#       - Per section_key="supreme_court_precedents": thirrje per kerkim
-#         semantik ne legal_knowledge_base + injektim ne verified_context
-# V5.7: PARALLEL SECTIONS — ThreadPoolExecutor me max_workers=3 (env override).
-# V5.6: Integrimi i hallucination_checker.
-# V5.5: SEQUENTIAL + STREAMING OFF.
-# V5.0: Rishkruar nga e para.
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.10
+# V5.10: Pass file_name te build_fact_profile() — qe deadlines te kene
+#        source_document. Mundeson citimin e saktë te burimit:
+#        "Sipas Vendimi_i_Apelit.pdf, afati është 8 ditë."
+# V5.9: precedentet e gjetur kalojne te hallucination_checker.
+# V5.8: INTEGRIMI I PRECEDENTEVE TE VERTETA.
+# V5.7: PARALLEL SECTIONS — ThreadPoolExecutor me max_workers=3.
 
 import os
 import time
@@ -51,8 +44,8 @@ DEFAULT_SECTION_MAX_TOKENS = 3000
 
 class DocumentReviewService:
     """
-    V5.9 — Orkestruesi paralel me buffered output + hallucination check
-    + precedent search per seksionin supreme_court_precedents.
+    V5.10 — Orkestruesi paralel me buffered output + hallucination check
+    + precedent search + deadline sources.
     """
 
     def __init__(self, db):
@@ -100,7 +93,7 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.9] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.10] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, "
             f"len={len(doc_text)} chars, parallel x{MAX_CONCURRENT_SECTIONS}"
         )
@@ -119,8 +112,11 @@ class DocumentReviewService:
         citation_profile = build_citation_profile(doc_text)
         citation_time = _lap("build_citation_profile", t0)
 
+        # ═══════════════════════════════════════════════════════════════════════
+        # V5.10: Pass file_name si source_document per deadlines
+        # ═══════════════════════════════════════════════════════════════════════
         t0 = time.time()
-        fact_profile = build_fact_profile(doc_text)
+        fact_profile = build_fact_profile(doc_text, source_document=file_name)
         fact_time = _lap("build_fact_profile", t0)
 
         logger.info(
@@ -154,22 +150,19 @@ class DocumentReviewService:
             f"{verification_report['stats']['case_numbers_cited']}"
         )
 
-        # ═══ 4. NARRATIVE — V5.7: PARALLEL ═══
+        # ═══ 4. NARRATIVE — PARALLEL ═══
         sections: Dict[str, Any] = {}
         section_stats: Dict[str, Any] = {}
 
         sections_start = time.time()
 
         logger.warning(
-            f"🚀 [PARALLEL V5.9] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
+            f"🚀 [PARALLEL V5.10] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
             f"seksione me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
-        # V5.7: Thread-safe locks per callbacks
         _callback_lock = threading.Lock()
 
-        # V5.9: Set i numrave te lendeve te gjetur nga precedent_search
-        # (thread-safe, mbushet brenda _run_section)
         found_precedent_cases: Set[str] = set()
         _precedent_lock = threading.Lock()
 
@@ -196,17 +189,12 @@ class DocumentReviewService:
             section_cfg: Dict[str, Any],
         ) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
             """
-            V5.9: Ekzekuton nje seksion te vetem ne thread te pavarur.
-            Per section_key="supreme_court_precedents", ben kerkim precedentësh
-            dhe mbush found_precedent_cases (per hallucination_checker).
+            V5.10: Ekzekuton nje seksion te vetem ne thread te pavarur.
             """
             section_start = time.time()
             section_title = section_cfg["title"]
             section_max_tokens = section_cfg.get("max_tokens", DEFAULT_SECTION_MAX_TOKENS)
 
-            # ═══════════════════════════════════════════════════════════
-            # V5.8: PRECEDENT SEARCH (vetem per supreme_court_precedents)
-            # ═══════════════════════════════════════════════════════════
             precedents: Optional[List[Dict[str, Any]]] = None
             precedent_search_time = 0.0
 
@@ -232,7 +220,6 @@ class DocumentReviewService:
                         f"threshold={PRECEDENT_SIMILARITY_THRESHOLD})"
                     )
 
-                    # V5.9: mbushe setin global per hallucination_checker
                     if precedents:
                         with _precedent_lock:
                             for p in precedents:
@@ -246,7 +233,6 @@ class DocumentReviewService:
                     precedents = []
                 precedent_search_time = time.time() - t_prec
 
-            # Ndërto context per-section
             t_ctx = time.time()
             try:
                 verified_context = build_verified_context(
@@ -350,7 +336,7 @@ class DocumentReviewService:
                     },
                 )
 
-        # ═══ V5.7: Ekzekutim paralel ═══
+        # ═══ Ekzekutim paralel ═══
         try:
             with concurrent.futures.ThreadPoolExecutor(
                 max_workers=MAX_CONCURRENT_SECTIONS,
@@ -379,12 +365,12 @@ class DocumentReviewService:
                             })
                     except Exception as e:
                         logger.error(
-                            f"❌ [PARALLEL V5.9] Future failed for {section_key}: {e}"
+                            f"❌ [PARALLEL V5.10] Future failed for {section_key}: {e}"
                         )
 
         except Exception as e:
-            logger.error(f"❌ [PARALLEL V5.9] ThreadPoolExecutor failed: {e}")
-            logger.warning(f"🔄 [PARALLEL V5.9] Fallback në sequential mode")
+            logger.error(f"❌ [PARALLEL V5.10] ThreadPoolExecutor failed: {e}")
+            logger.warning(f"🔄 [PARALLEL V5.10] Fallback në sequential mode")
             for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
                 try:
                     key, sec_entry, stat_entry, _timing = _run_section(
@@ -410,13 +396,12 @@ class DocumentReviewService:
             f"{sections_total_time}s"
         )
 
-        # V5.9: Log per audit
         logger.info(
-            f"🏛️ [V5.9] Precedent cases qe do te lejohen: "
+            f"🏛️ [V5.10] Precedent cases qe do te lejohen: "
             f"{len(found_precedent_cases)} -> {sorted(found_precedent_cases)[:5]}"
         )
 
-        # ═══ 4b. ANTI-HALLUCINATION CHECK (V5.9) ═══
+        # ═══ 4b. ANTI-HALLUCINATION CHECK ═══
         if progress_callback:
             try:
                 progress_callback("section_started", {
@@ -432,7 +417,7 @@ class DocumentReviewService:
             citation_profile=citation_profile,
             fact_profile=fact_profile,
             verification_report=verification_report,
-            extra_allowed_cases=found_precedent_cases,   # V5.9
+            extra_allowed_cases=found_precedent_cases,
         )
         hallucination_time = _lap("hallucination_check", t0)
 
@@ -527,7 +512,7 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.9] Complete: "
+            f"✅ [DOC_REVIEW V5.10] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"articles_verified={verification_report['stats']['articles_verified']}, "
             f"precedents_found={precedents_found_total}, "

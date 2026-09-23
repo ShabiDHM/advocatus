@@ -1,12 +1,27 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V43.0 (SINGLE CIRCULAR PROGRESS)
-// V43.0: Hequr progress bar-in majtas. Butoni djathtas është i vetmi tregues progresi.
-//        Shtuar faza (phase label) si tooltip.
+// PHOENIX PROTOCOL - CHAT HEADER V44.1 (SYNTHESIS GATING - ADMIN ONLY)
+// V44.1: Konsistenca — hequr referencat "SUPERADMIN" (nuk ekziston).
+//        Vetem ADMIN ka akses ne synthesis.
+// V44.0: SYNTHESIS GATING (frontend UX):
+//        - Butoni "Analizo Rastin" shfaqet VETEM per ADMIN.
+//        - Butoni "Analizo Dokumentin" (single-doc) mbetet per te gjithe.
+//        - Kur user-i normal nuk ka doc te zgjedhur -> butoni fshihet krejt.
+//        - Shtuar prop `user` (opsional, per backward compat).
+// V43.0: Hequr progress bar-in majtas. Circular progress i vetmi tregues.
 // V42.0: Circular progress + përqindje.
 
 import React, { useEffect, useState } from 'react';
 import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles } from 'lucide-react';
 import { TFunction } from 'i18next';
+
+// V44.1: Vetem ADMIN ka akses ne synthesis (nuk ka SUPERADMIN).
+const SYNTHESIS_ALLOWED_ROLES = ['ADMIN'];
+
+interface ChatUser {
+  role?: string;
+  id?: string;
+  email?: string;
+}
 
 interface ChatHeaderProps {
   connectionStatus: string;
@@ -27,6 +42,8 @@ interface ChatHeaderProps {
   auditProgressPercent?: number;
   auditPhaseLabel?: string;
   auditStartTime?: number | null;
+  // V44.0: User info per te kontrolluar aksesin ne synthesis
+  user?: ChatUser | null;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -41,9 +58,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   auditProgressPercent = 0,
   auditPhaseLabel = '',
   auditStartTime = null,
+  user = null,
 }) => {
   const hasSelectedDoc = !!selectedDocName && selectedDocName.trim().length > 0;
   const [elapsed, setElapsed] = useState(0);
+
+  // V44.0: Kontrollo rolin e userit
+  const userRole = (user?.role || '').toUpperCase();
+  const canAnalyzeSynthesis = SYNTHESIS_ALLOWED_ROLES.includes(userRole);
+
+  // V44.0: Logjika e shfaqjes se butonit:
+  //   - hasSelectedDoc = true  -> shfaq "Analizo Dokumentin" (per te gjithe)
+  //   - hasSelectedDoc = false -> shfaq "Analizo Rastin" (VETEM ADMIN)
+  //   - hasSelectedDoc = false + jo ADMIN -> fshih butonin
+  const showAnalyzeButton = hasSelectedDoc || canAnalyzeSynthesis;
 
   useEffect(() => {
     if (!isAuditGenerating || !auditStartTime) {
@@ -84,7 +112,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         />
 
         {isAuditGenerating ? (
-          // V43.0: Vetëm teksti i fazës — pa progress bar
           <span
             className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-primary-start/10 border border-primary-start/30 text-[11px] font-bold text-primary-start max-w-[180px] sm:max-w-[400px] truncate"
             title={auditPhaseLabel || 'Duke analizuar...'}
@@ -112,8 +139,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* 2. DJATHTAS: Butoni dinamik me circular progress, Fullscreen, Eksporti, Koshi */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
 
-        {/* V43.0: Butoni Dinamik me circular progress */}
-        {onAnalyzeDocument && (
+        {/* V44.1: Butoni Dinamik — conditional per rolin */}
+        {onAnalyzeDocument && showAnalyzeButton && (
           <button
             type="button"
             onClick={onAnalyzeDocument}
@@ -128,7 +155,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 ? `Duke analizuar... ${safePercent}% — ${auditPhaseLabel || ''}`
                 : hasSelectedDoc
                   ? `Kryej pasqyrën e shkresës: ${selectedDocName}`
-                  : `Kryej doktrinën e rastit të plotë (të gjitha shkresat)`
+                  : `Kryej doktrinën e rastit të plotë (të gjitha shkresat) [ADMIN]`
             }
           >
             {isAuditGenerating ? (
@@ -164,12 +191,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </span>
               </>
             ) : hasSelectedDoc ? (
+              // Single-doc review: per te gjithe
               <>
                 <FileText size={12} className="shrink-0 text-primary-start" />
                 <span className="hidden sm:inline">Analizo Dokumentin</span>
                 <span className="sm:hidden">Analizo</span>
               </>
             ) : (
+              // V44.1: Synthesis: vetem per ADMIN
               <>
                 <Sparkles size={12} className="shrink-0 text-primary-start" />
                 <span className="hidden sm:inline">Analizo Rastin</span>
