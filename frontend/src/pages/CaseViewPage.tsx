@@ -1,11 +1,11 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V110.0
+// PHOENIX PROTOCOL - CASE VIEW PAGE V110.4
+// V110.4: force_reprocess=true — extraction_pipeline V1.5 bën hash-skip vetë,
+//         ndaj rinis review-in por NER skip-on kur teksti është i paprekur.
+// V110.3: Modal lexon raportin E BLLOKUAR nga DB pas analizës.
+// V110.2: META-EVENTS IZOLUAR — step_started handler.
 // V110.0: REPORT SHARING — modal hapet direkt pa analizë.
-//         - handleTriggerSelectedDocAudit → hap modal (auto-fetch nga server)
-//         - "Analizo"/"Rianalizo" butoni në modal → nis _runBackgroundAudit
-//         - _runBackgroundAudit ruan me document_ids (scope i saktë)
-// V109.11: FIX RACE CONDITION — explicitDocId param.
-// V109.10: TYPEWRITER EFFECT.
+// V109.11: FIX RACE CONDITION.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
@@ -56,6 +56,8 @@ const _stripDuplicateHeading = (content: string, expectedTitle: string): string 
   if (!matches) return content;
   return firstHeadingLine + trailing + content.slice(m[0].length);
 };
+
+const META_SECTION_KEYS = new Set(['extraction', 'verification', 'hallucination_check']);
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -166,7 +168,7 @@ const CaseViewPage: React.FC = () => {
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V110.0] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V110.4] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
@@ -402,13 +404,23 @@ const CaseViewPage: React.FC = () => {
     const SECTIONS_TOTAL = 6;
 
     try {
-      const stream = apiService.streamCaseAnalysis(currentCaseId, false, docIds || undefined);
+      // V110.4: force_reprocess=true — extraction_pipeline V1.5 bën hash-skip
+      // për NER-in nëse teksti është i paprekur, por review ri-bëhet gjithmonë.
+      const stream = apiService.streamCaseAnalysis(currentCaseId, true, docIds || undefined);
 
       for await (const evt of stream) {
         const evtType = evt.event;
 
         if (evtType === 'start') {
           setAuditProgressText(isDocMode ? 'Duke verifikuar dokumentin...' : 'Duke analizuar fashikullin...');
+          continue;
+        }
+
+        if (evtType === 'step_started') {
+          const stepTitle = evt.step_title || evt.section_title || '';
+          if (stepTitle) {
+            setAuditProgressText(stepTitle);
+          }
           continue;
         }
 
@@ -466,6 +478,10 @@ const CaseViewPage: React.FC = () => {
           sectionsStarted++;
           setAuditProgressText(`Seksioni: ${title || rawKey}`);
 
+          if (rawKey && META_SECTION_KEYS.has(rawKey)) {
+            continue;
+          }
+
           if (sectionsByKey[sKey] === undefined) {
             sectionOrder.push(sKey);
             sectionTitles[sKey] = title;
@@ -480,6 +496,10 @@ const CaseViewPage: React.FC = () => {
 
           if (chunk) {
             chunksReceived++;
+
+            if (rawKey && META_SECTION_KEYS.has(rawKey)) {
+              continue;
+            }
 
             if (rawKey && sectionsByKey[rawKey] !== undefined) {
               sectionsByKey[rawKey] += chunk;
@@ -540,7 +560,7 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit V110.0] Accumulated content is empty!', {
+        console.error('[Background Audit V110.4] Accumulated content is empty!', {
           isDocMode,
           docsTotal,
           sectionsStarted,
@@ -553,7 +573,6 @@ const CaseViewPage: React.FC = () => {
         throw new Error('Raporti nuk u gjenerua. Provoni përsëri.');
       }
 
-      // V110.0: Save me document_ids (scope i saktë)
       try {
         await apiService.saveCaseDossierAudit(currentCaseId, finalReport, docIds);
       } catch (saveErr) {
@@ -564,13 +583,14 @@ const CaseViewPage: React.FC = () => {
       setAuditPhaseLabel('Përfundoi');
       setAuditProgressText('Raporti u gjenerua me sukses');
 
-      setPendingAuditReport(finalReport);
-      setPendingAuditSource(detectedSource);
+      // V110.3: Null → modal lexon versionin E BLLOKUAR nga DB.
+      setPendingAuditReport(null);
+      setPendingAuditSource('saved');
       setPendingAuditDocIds(docIds);
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error V110.0]', err);
+      console.error('[Background Audit Error V110.4]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {
@@ -583,11 +603,6 @@ const CaseViewPage: React.FC = () => {
     }
   }, [currentCaseId]);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // V110.0: OPEN MODAL DIRECTLY (auto-fetch from server)
-  // Nuk nis analizën — hap modalin, i cili lexon raportin e ruajtur nga server.
-  // Nëse përdoruesi klikon "Analizo"/"Rianalizo" brenda modalit → _runBackgroundAudit.
-  // ═══════════════════════════════════════════════════════════════════════════
   const handleOpenAuditModal = useCallback((explicitDocId?: string) => {
     let docIds: string[] | null = null;
     if (explicitDocId) {
@@ -602,7 +617,6 @@ const CaseViewPage: React.FC = () => {
     setIsDossierAuditModalOpen(true);
   }, [selectedDocObj]);
 
-  // Rregjistrohu për event global — lejon çdo komponent të hapë modalin
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -718,7 +732,6 @@ const CaseViewPage: React.FC = () => {
               onRenameDocument={setDocumentToRename}
               onVerifyDocumentLaws={(doc) => {
                 setSelectedDocumentIds([String(doc.id)]);
-                // V110.0: Hap modal direkt — auto-fetch nga server
                 handleOpenAuditModal(String(doc.id));
               }}
               selectedDocumentId={selectedDocObj ? String(selectedDocObj.id) : ''}

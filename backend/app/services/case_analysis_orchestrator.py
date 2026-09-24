@@ -1,11 +1,9 @@
 # FILE: backend/app/services/case_analysis_orchestrator.py
-# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.6
-# V1.6: CACHE INVALIDATION DINAMIK — kur shtohet/fshihet/ndryshohet dokument,
-#       fingerprint ndryshon → cache i synthesis + cross_reference invalidate-ohet
-#       automatikisht. Sistemi nuk kthen me output stale nga cache.
-# V1.5: Removed document_ids param from synthesis call (V3.3 is case-only).
-#   - case scope → SynthesisService.synthesize()
-#   - document scope → DocumentReviewService.review()
+# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.7
+# V1.7: CLIENT CONTEXT — fetch user's full_name nga DB, kalo te document_review.review()
+#       per klasifikim te saktë te "Pozicioni i klientit".
+# V1.6: CACHE INVALIDATION DINAMIK.
+# V1.5: Removed document_ids param from synthesis call.
 
 import asyncio
 import hashlib
@@ -38,7 +36,6 @@ SECTION_ORDER = [
     "recommendations",
 ]
 
-# V1.4: SECTION_ORDER për document review (i ndryshëm)
 DOCUMENT_REVIEW_SECTION_ORDER = [
     "document_summary",
     "article_verification",
@@ -50,9 +47,6 @@ DOCUMENT_REVIEW_SECTION_ORDER = [
 
 
 class CaseAnalysisOrchestrator:
-    """
-    V1.6 — Routing + cache invalidation dinamik.
-    """
 
     def __init__(self, db):
         self.db = db
@@ -62,14 +56,37 @@ class CaseAnalysisOrchestrator:
         self.document_review = get_document_review_service(db)
 
     # ────────────────────────────────────────────────────────────────────
+    # V1.7: LOAD CLIENT NAME
+    # ────────────────────────────────────────────────────────────────────
+
+    def _load_client_name(self, user_id: str) -> Optional[str]:
+        """
+        V1.7: Lexon full_name/username te user-it (klientit te loguar)
+        per ta kaluar te document_review si kontekst.
+        """
+        if not user_id:
+            return None
+        try:
+            u_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
+            user = self.db.users.find_one(
+                {"_id": u_oid},
+                {"full_name": 1, "username": 1},
+            )
+            if not user:
+                return None
+            name = (user.get("full_name") or "").strip()
+            if not name:
+                name = (user.get("username") or "").strip()
+            return name or None
+        except Exception as e:
+            logger.warning(f"⚠️ [ORCH V1.7] Could not load client_name: {e}")
+            return None
+
+    # ────────────────────────────────────────────────────────────────────
     # V1.6: FINGERPRINT — cache invalidation
     # ────────────────────────────────────────────────────────────────────
 
     def _compute_docs_fingerprint(self, case_id: str) -> str:
-        """
-        V1.6: Hash i dokumenteve aktive (id + updated_at + status).
-        Ndryshon kur shtohet, fshihet, ose modifikohet nje dokument.
-        """
         try:
             case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             query = {
@@ -96,7 +113,7 @@ class CaseAnalysisOrchestrator:
             raw = "|".join(parts)
             return hashlib.md5(raw.encode("utf-8")).hexdigest()
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH V1.6] fingerprint compute failed: {e}")
+            logger.warning(f"⚠️ [ORCH V1.7] fingerprint compute failed: {e}")
             return ""
 
     def _is_cache_valid(
@@ -105,13 +122,6 @@ class CaseAnalysisOrchestrator:
         current_fp: str,
         label: str = "cache",
     ) -> bool:
-        """
-        V1.6: Kontrollon nese cache eshte ende e vlefshme.
-        - Pa cache → False
-        - Pa current_fp → True (backward compat: s'mund te verifikojme)
-        - Cache pa fingerprint → False (invalido per refresh te sigurt)
-        - Fingerprint i ndryshem → False
-        """
         if not cached:
             return False
 
@@ -125,14 +135,14 @@ class CaseAnalysisOrchestrator:
 
         if not stored_fp:
             logger.info(
-                f"🔄 [ORCH V1.6] {label} pa docs_fingerprint → invalidate "
+                f"🔄 [ORCH V1.7] {label} pa docs_fingerprint → invalidate "
                 f"(refresh i sigurt)"
             )
             return False
 
         if stored_fp != current_fp:
             logger.info(
-                f"🔄 [ORCH V1.6] {label} INVALIDATED — docs changed "
+                f"🔄 [ORCH V1.7] {label} INVALIDATED — docs changed "
                 f"(stored={stored_fp[:8]}... current={current_fp[:8]}...)"
             )
             return False
@@ -158,7 +168,13 @@ class CaseAnalysisOrchestrator:
         else:
             scope = "case"
 
-        # V1.6: Compute fingerprint i dokumenteve per cache validation
+        # V1.7: Fetch client_name once per run
+        client_name = self._load_client_name(user_id)
+        if client_name:
+            logger.info(f"👤 [ORCH V1.7] Client name: {client_name}")
+        else:
+            logger.warning(f"⚠️ [ORCH V1.7] Client name not available for user_id={user_id}")
+
         current_fp = self._compute_docs_fingerprint(case_id)
 
         yield {
@@ -169,7 +185,7 @@ class CaseAnalysisOrchestrator:
             "force_reprocess": force_reprocess,
             "document_ids": document_ids,
             "is_single_document": is_single_doc,
-            "docs_fingerprint": current_fp[:8],  # Vetëm prefiks per log
+            "docs_fingerprint": current_fp[:8],
         }
 
         # ═══════════════════════════════════════════════════════════════
@@ -179,6 +195,7 @@ class CaseAnalysisOrchestrator:
             async for evt in self._run_single_document(
                 case_id=case_id,
                 user_id=user_id,
+                client_name=client_name,   # V1.7
                 document_ids=document_ids,
                 force_reprocess=force_reprocess,
                 case_title=case_title,
@@ -254,14 +271,13 @@ class CaseAnalysisOrchestrator:
                 )
                 xref_stats = xref_result.get("stats", {})
 
-                # V1.6: Save fingerprint
                 try:
                     self.db[CROSS_REF_COLLECTION].update_one(
                         {"case_id": str(case_id), "status": "completed"},
                         {"$set": {"docs_fingerprint": current_fp}},
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.6] xref fingerprint save failed: {fp_err}")
+                    logger.warning(f"⚠️ [ORCH V1.7] xref fingerprint save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -290,10 +306,9 @@ class CaseAnalysisOrchestrator:
             synthesis_stats = existing_synth.get("stats", {})
             synthesis_result_for_markdown = existing_synth
         else:
-            # V1.6: Log reason
             if existing_synth and not synth_valid:
                 logger.info(
-                    f"🔄 [ORCH V1.6] Re-generating case synthesis (cache invalidated)"
+                    f"🔄 [ORCH V1.7] Re-generating case synthesis (cache invalidated)"
                 )
 
             try:
@@ -353,7 +368,6 @@ class CaseAnalysisOrchestrator:
                 synthesis_stats = synthesis_result.get("stats", {})
                 synthesis_result_for_markdown = synthesis_result
 
-                # V1.6: Save fingerprint ne synthesis doc
                 try:
                     self.db[SYNTHESIS_COLLECTION].update_one(
                         {
@@ -364,11 +378,11 @@ class CaseAnalysisOrchestrator:
                         {"$set": {"docs_fingerprint": current_fp}},
                     )
                     logger.info(
-                        f"💾 [ORCH V1.6] Saved docs_fingerprint={current_fp[:8]}... "
+                        f"💾 [ORCH V1.7] Saved docs_fingerprint={current_fp[:8]}... "
                         f"to synthesis cache"
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.6] synthesis fingerprint save failed: {fp_err}")
+                    logger.warning(f"⚠️ [ORCH V1.7] synthesis fingerprint save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -419,7 +433,7 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH V1.6] Complete: case={case_id}, scope=case, "
+            f"✅ [ORCH V1.7] Complete: case={case_id}, scope=case, "
             f"duration={total_duration}s, from_cache={is_cache_hit}, "
             f"fp={current_fp[:8]}..."
         )
@@ -427,7 +441,7 @@ class CaseAnalysisOrchestrator:
         yield {"event": "complete", "summary": final_summary}
 
     # ────────────────────────────────────────────────────────────────────
-    # V1.4 — SINGLE DOCUMENT RUN (Document Review)
+    # SINGLE DOCUMENT RUN (Document Review)
     # ────────────────────────────────────────────────────────────────────
 
     async def _run_single_document(
@@ -440,13 +454,14 @@ class CaseAnalysisOrchestrator:
         start_time: float,
         loop,
         current_fp: str = "",
+        client_name: Optional[str] = None,   # V1.7
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Rruga për review të një dokumenti të vetëm.
         """
         document_id = document_ids[0]
 
-        # ═══ FAZA 1 — Ekstraktimi i dokumentit (nëse mungon) ═══
+        # ═══ FAZA 1 — Ekstraktimi i dokumentit ═══
         try:
             yield {"event": "phase_started", "phase": "extraction"}
 
@@ -493,9 +508,7 @@ class CaseAnalysisOrchestrator:
 
         existing_review = self._get_existing_document_review(case_id, document_id)
 
-        # V1.6: Also validate fingerprint per document review
-        # (nëse dokumenti u modifikua, ri-review)
-        doc_fp = self._compute_docs_fingerprint(case_id)  # Case-wide fp
+        doc_fp = self._compute_docs_fingerprint(case_id)
         review_valid = self._is_cache_valid(
             existing_review, doc_fp, label="document_review"
         )
@@ -533,11 +546,13 @@ class CaseAnalysisOrchestrator:
                     except Exception as e:
                         logger.warning(f"⚠️ [ORCH] stream bridge failed: {e}")
 
+                # V1.7: Kalo client_name te review
                 review_future = loop.run_in_executor(
                     None,
                     lambda: self.document_review.review(
                         case_id=str(case_id),
                         user_id=user_id,
+                        client_name=client_name,   # V1.7
                         document_id=document_id,
                         progress_callback=_sync_progress,
                         section_stream_callback=_sync_stream,
@@ -568,7 +583,6 @@ class CaseAnalysisOrchestrator:
                 review_stats = review_result.get("stats", {})
                 review_result_for_markdown = review_result
 
-                # V1.6: Save fingerprint ne synthesis doc (document scope)
                 try:
                     self.db[SYNTHESIS_COLLECTION].update_one(
                         {
@@ -580,7 +594,7 @@ class CaseAnalysisOrchestrator:
                         {"$set": {"docs_fingerprint": doc_fp}},
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.6] review fingerprint save failed: {fp_err}")
+                    logger.warning(f"⚠️ [ORCH V1.7] review fingerprint save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -633,7 +647,7 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH V1.6] Complete: case={case_id}, scope=document, "
+            f"✅ [ORCH V1.7] Complete: case={case_id}, scope=document, "
             f"doc={document_id}, duration={total_duration}s, "
             f"from_cache={is_cache_hit}"
         )
@@ -641,7 +655,7 @@ class CaseAnalysisOrchestrator:
         yield {"event": "complete", "summary": final_summary}
 
     # ────────────────────────────────────────────────────────────────────
-    # MARKDOWN BUILDERS
+    # MARKDOWN BUILDERS (të paprekura)
     # ────────────────────────────────────────────────────────────────────
 
     def _build_markdown_from_case_synthesis(
@@ -723,7 +737,7 @@ class CaseAnalysisOrchestrator:
         return markdown
 
     # ────────────────────────────────────────────────────────────────────
-    # LOADERS
+    # LOADERS (të paprekura)
     # ────────────────────────────────────────────────────────────────────
 
     def _load_case(self, case_id: str) -> Dict[str, Any]:

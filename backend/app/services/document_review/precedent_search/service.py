@@ -1,15 +1,20 @@
 # FILE: backend/app/services/document_review/precedent_search/service.py
-# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.3
-# V2.3: Integrimi i Cohere Reranker dispatcher:
-#       - Import rerank() ne vend te rerank_deepseek()
-#       - Min score i veçante per Cohere (0-1) dhe DeepSeek (0-10)
-#       - Log shfaq reranker aktual
+# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.4
+# V2.4: PERFORMANCE — pre-filter para rerank + cache.
+#       - PRE-FILTER: vetëm top 20 kandidatë (sipas RRF/cosine) shkojnë në rerank.
+#         Fitimi: 50 → 20 LLM calls → ~110s → ~40s.
+#       - CACHE: rezultati cache-ohet 24h në Redis sipas query text.
+#         Fitimi: 40s → 0s në query të përsëritur.
+#       - Fix threshold: filtrimi aplikohet EDHE kur cosine=None (text-only).
+# V2.3: Cohere reranker dispatcher.
 # V2.2: _cli_test() shfaq topic_label + rerank_score.
 # V2.1: Filtrim me rerank_score >= PRECEDENT_RERANK_MIN_SCORE.
 # V2.0: Hybrid (Atlas + MongoDB text + RRF) + DeepSeek rerank.
 
+import hashlib
+import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from app.services.embedding_service import generate_embedding
 
@@ -35,9 +40,91 @@ from .rerank import rerank
 logger = logging.getLogger(__name__)
 
 
-# ===========================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.4: CACHE CONFIG
+# ═══════════════════════════════════════════════════════════════════════════
+
+PRECEDENT_CACHE_TTL_SECONDS = 24 * 3600  # 24 orë
+PRECEDENT_CACHE_KEY_PREFIX = "precedent_search:v1"
+PRECEDENT_CACHE_ENABLED = True
+
+# V2.4: Sa kandidatë dërgohen në rerank (para: pa limit → 50+)
+PRECEDENT_RERANK_PRE_FILTER_TOP_N = 20
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.4: CACHE HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _make_cache_key(query_text: str, top_k: int) -> str:
+    """V2.4: Çelës deterministik sipas query + top_k."""
+    normalized = " ".join(query_text.strip().lower().split())
+    digest = hashlib.md5(normalized.encode("utf-8")).hexdigest()[:16]
+    return f"{PRECEDENT_CACHE_KEY_PREFIX}:{digest}:{top_k}"
+
+
+def _get_cache(query_text: str, top_k: int) -> Optional[List[Dict[str, Any]]]:
+    """V2.4: Lexon rezultatin nga Redis (me timeout 0.3s, fail-open)."""
+    if not PRECEDENT_CACHE_ENABLED:
+        return None
+
+    try:
+        import redis
+        from app.core.config import settings
+
+        client = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=0.3,
+            socket_connect_timeout=0.3,
+        )
+        key = _make_cache_key(query_text, top_k)
+        raw = client.get(key)
+        client.close()
+
+        if not raw:
+            return None
+
+        data = json.loads(raw)
+        if isinstance(data, list):
+            logger.info(f"⚡ [PRECEDENT CACHE] HIT — {len(data)} rezultate (key={key})")
+            return data
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ [PRECEDENT CACHE] Get failed: {e}")
+        return None
+
+
+def _set_cache(query_text: str, top_k: int, results: List[Dict[str, Any]]) -> None:
+    """V2.4: Ruan rezultatin në Redis (fail-open, nuk bllokon)."""
+    if not PRECEDENT_CACHE_ENABLED:
+        return
+
+    try:
+        import redis
+        from app.core.config import settings
+
+        client = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=0.3,
+            socket_connect_timeout=0.3,
+        )
+        key = _make_cache_key(query_text, top_k)
+        client.setex(
+            key,
+            PRECEDENT_CACHE_TTL_SECONDS,
+            json.dumps(results, default=str, ensure_ascii=False),
+        )
+        client.close()
+        logger.info(f"💾 [PRECEDENT CACHE] SAVE — {len(results)} rezultate (key={key})")
+    except Exception as e:
+        logger.warning(f"⚠️ [PRECEDENT CACHE] Set failed: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # PUBLIC API
-# ===========================================================================
+# ═══════════════════════════════════════════════════════════════════════════
 
 def search_relevant_precedents(
     db,
@@ -46,16 +133,20 @@ def search_relevant_precedents(
     threshold: float = PRECEDENT_SIMILARITY_THRESHOLD,
 ) -> List[Dict[str, Any]]:
     """
-    V2.3: Hybrid (Atlas + MongoDB text + RRF) + Reranker (DeepSeek ose Cohere).
+    V2.4: Hybrid (Atlas + MongoDB text + RRF) + Reranker.
 
     Rrjedha:
-      1. Embedding query
-      2. Kandidatet: hybrid ose vector-only ose fallback
-      3. Filtrim: _is_real_case_number + cosine threshold (VETEM per cosine)
-      4. Dedup sipas case_number
-      5. Rerank me reranker te zgjedhur (deepseek | cohere | none)
-      6. Filtrim me rerank_score >= min_score (i veçante per cdo reranker)
-      7. Format + log
+      1. CACHE check — nëse ekziston në Redis, kthe direkt
+      2. Embedding query
+      3. Kandidatet: hybrid / vector-only / fallback
+      4. Filtrim: _is_real_case_number + threshold
+         (V2.4: aplikohet edhe kur cosine=None — text-only)
+      5. Dedup sipas case_number
+      6. V2.4: PRE-FILTER — top 20 sipas RRF/cosine → rerank
+      7. Rerank (deepseek | cohere | none)
+      8. Filtrim me rerank_score >= min_score
+      9. V2.4: CACHE save
+      10. Format + log
     """
     if not query_text or not query_text.strip():
         logger.warning("⚠️ [PRECEDENT] Query bosh - kthim []")
@@ -65,7 +156,12 @@ def search_relevant_precedents(
         logger.error("❌ [PRECEDENT] db=None - kthim []")
         return []
 
-    # 1. Embedding
+    # ─── 1. CACHE CHECK ───
+    cached = _get_cache(query_text, top_k)
+    if cached is not None:
+        return cached
+
+    # ─── 2. Embedding ───
     try:
         query_vector = generate_embedding(query_text)
     except Exception as e:
@@ -76,7 +172,7 @@ def search_relevant_precedents(
         logger.error("❌ [PRECEDENT] Embedding bosh - kthim []")
         return []
 
-    # 2. Kandidatet
+    # ─── 3. Kandidatet ───
     strategy = "vector_only"
     candidates: List[Dict[str, Any]] = []
 
@@ -112,26 +208,48 @@ def search_relevant_precedents(
         )
         return []
 
-    # 3. Filtrim + threshold (VETEM per cosine)
+    # ─── 4. Filtrim + threshold ───
+    # V2.4: threshold aplikohet edhe kur cosine=None (text-only results).
+    # Për ata, përdorim RRF score si metrikë alternative.
     filtered_for_dedup: List[Dict[str, Any]] = []
+    skipped_no_sim = 0
     for doc in candidates:
         cn = str(doc.get("case_number") or doc.get("title") or "").strip()
         if not is_real_case_number(cn):
             continue
 
         cosine = doc.get("similarity")
-        if cosine is not None and float(cosine) < threshold:
+        rrf = doc.get("rrf_score")
+
+        # V2.4: Nëse ka cosine → kontrollo; përndryshe kontrollo RRF (nëse ekziston)
+        if cosine is not None:
+            if float(cosine) < threshold:
+                continue
+        elif rrf is not None:
+            # RRF scores janë zakonisht 0-1 (ose 0-0.1 pas normalizimit).
+            # Threshold-i është për cosine, prandaj këtu kërkojmë RRF > 0.
+            if float(rrf) <= 0:
+                continue
+        else:
+            # As cosine, as RRF — nuk mund të vlerësojmë → skip
+            skipped_no_sim += 1
             continue
 
         filtered_for_dedup.append(doc)
+
+    if skipped_no_sim > 0:
+        logger.info(
+            f"ℹ️ [PRECEDENT] Skip {skipped_no_sim} kandidatë pa similarity/RRF"
+        )
 
     if not filtered_for_dedup:
         logger.info(
             f"ℹ️ [PRECEDENT] 0 kandidate pas filtrit (strategjia={strategy})"
         )
+        _set_cache(query_text, top_k, [])
         return []
 
-    # 4. Dedup
+    # ─── 5. Dedup ───
     seen: Dict[str, Dict[str, Any]] = {}
     for doc in filtered_for_dedup:
         cn = str(doc.get("case_number") or doc.get("title") or "").strip()
@@ -152,19 +270,35 @@ def search_relevant_precedents(
 
     deduped = list(seen.values())
 
-    # 5. Rerank (dispatcher: deepseek | cohere | none)
+    # ─── 6. V2.4: PRE-FILTER para rerank ───
+    # Sort sipas (RRF, cosine) desc, pastaj merr top N.
+    # Kjo shmang dërgimin e 50+ kandidatëve në LLM.
+    deduped_sorted = sorted(
+        deduped,
+        key=lambda d: (
+            d.get("rrf_score", 0) or 0,
+            d.get("similarity", 0) or 0,
+        ),
+        reverse=True,
+    )
+
+    pre_filter_limit = min(PRECEDENT_RERANK_PRE_FILTER_TOP_N, max(top_k * 2, 10))
+    pre_filtered = deduped_sorted[:pre_filter_limit]
+
+    logger.info(
+        f"⚡ [PRECEDENT V2.4] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
+        f"kandidatë për rerank (limit={pre_filter_limit})"
+    )
+
+    # ─── 7. Rerank ───
     reranked = False
-    if PRECEDENT_RERANKER in ("deepseek", "cohere") and len(deduped) > 0:
-        reranked_docs = rerank(query_text, deduped, top_n=top_k * 2)
+    if PRECEDENT_RERANKER in ("deepseek", "cohere") and len(pre_filtered) > 0:
+        reranked_docs = rerank(query_text, pre_filtered, top_n=top_k * 2)
         reranked = True
 
-        # V2.3: Min score i veçante per cdo reranker
         if PRECEDENT_RERANKER == "cohere":
-            # Cohere: score origjinal 0-1 -> ne e ruajme rerank_score 0-10
-            # Min score i konfiguruar 0.5 (0-1) skalohet ne 5.0 (0-10)
             min_score = PRECEDENT_RERANK_COHERE_MIN_SCORE * 10.0
         else:
-            # DeepSeek: score 0-10 direkt
             min_score = PRECEDENT_RERANK_MIN_SCORE
 
         final_docs = [
@@ -179,11 +313,11 @@ def search_relevant_precedents(
             )
             final_docs = reranked_docs[:3]
     else:
-        final_docs = deduped[:top_k]
+        final_docs = pre_filtered[:top_k]
 
     final_docs = final_docs[:top_k]
 
-    # 6. Format
+    # ─── 8. Format ───
     formatted: List[Dict[str, Any]] = []
     for doc in final_docs:
         formatted.append(format_result(
@@ -194,7 +328,12 @@ def search_relevant_precedents(
             search_source=doc.get("_search_source"),
         ))
 
-    # 7. Log
+    # ─── 9. CACHE SAVE ───
+    # Vetëm nëse kemi rezultate (mos cache bosh për shkak të transient errors)
+    if formatted:
+        _set_cache(query_text, top_k, formatted)
+
+    # ─── 10. Log ───
     logger.info(
         f"🏛️ [PRECEDENT] Strategjia={strategy}, "
         f"reranker={PRECEDENT_RERANKER}, "
@@ -202,6 +341,7 @@ def search_relevant_precedents(
         f"kandidate={len(candidates)}, "
         f"pas_threshold={len(filtered_for_dedup)}, "
         f"dedup={len(deduped)}, "
+        f"pre_filtered={len(pre_filtered)}, "
         f"final={len(formatted)}"
     )
     for i, p in enumerate(formatted, 1):
@@ -246,17 +386,28 @@ def _cli_test():
     )
 
     print(f"\n{'=' * 70}")
-    print(f"TEST V2.3 - Query: '{test_query}'")
+    print(f"TEST V2.4 - Query: '{test_query}'")
     print(f"Hybrid: {PRECEDENT_USE_HYBRID}, Reranker: {PRECEDENT_RERANKER}")
     print(f"Threshold: {PRECEDENT_SIMILARITY_THRESHOLD}, Top-K: {PRECEDENT_TOP_K}")
+    print(f"Pre-filter top N: {PRECEDENT_RERANK_PRE_FILTER_TOP_N}")
+    print(f"Cache: {'ENABLED' if PRECEDENT_CACHE_ENABLED else 'DISABLED'} "
+          f"(TTL={PRECEDENT_CACHE_TTL_SECONDS}s)")
     if PRECEDENT_RERANKER == "cohere":
         print(f"Min Cohere score: {PRECEDENT_RERANK_COHERE_MIN_SCORE}")
     else:
         print(f"Min DeepSeek score: {PRECEDENT_RERANK_MIN_SCORE}")
     print('=' * 70)
 
+    # Test 1: Cold run
+    print("\n[TEST 1] Cold run (nuk ka cache)...")
     results = search_relevant_precedents(db, test_query, top_k=5)
     print(f"\n>>> Rezultatet: {len(results)}")
+
+    # Test 2: Warm run
+    print("\n[TEST 2] Warm run (duhet cache HIT)...")
+    results2 = search_relevant_precedents(db, test_query, top_k=5)
+    print(f"\n>>> Rezultatet: {len(results2)}")
+
     for i, r in enumerate(results, 1):
         rs = r.get("rerank_score", "-")
         src = r.get("search_source", "-")

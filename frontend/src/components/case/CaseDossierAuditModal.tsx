@@ -1,10 +1,9 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V5.0
-// V5.0: SERVER FETCH — kur hapet pa `preGeneratedReport`, lexon raportin e ruajtur
-//       nga GET /cases/{id}/audit. Loading + error handling. "Analizo" buton në
-//       empty state. Banner "saved" me timestamp.
-// V4.0.1: Hequr useCallback, isSaving state.
-// V4.0.0: Modal bëhet VETËM viewer.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.0
+// V6.0: PER-DOCUMENT CLEAR — koshja fshin VETËM raportin e dokumentit aktual
+//       (jo cascade), kur `documentIds` është dhënë. Confirm message kontekstual.
+//       Fetch kalon documentIds për të lexuar raportin e saktë.
+// V5.0: SERVER FETCH.
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -203,7 +202,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
 
-  // V5.0: Server fetch state
   const [isLoadingFromServer, setIsLoadingFromServer] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -233,9 +231,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     : `${caseName} • ${clientName} • ${documentCount} shkresa`;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // V5.0: LOAD STRATEGY
-  //   1. Nëse `preGeneratedReport` → përdor direkt (nga analiza e re)
-  //   2. Përndryshe → fetch nga server (GET /audit)
+  // V6.0: LOAD — kalon documentIds në fetch
   // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isOpen) return;
@@ -251,12 +247,12 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       return;
     }
 
-    // Fetch from server
     setIsLoadingFromServer(true);
     setLoadError(null);
     setReportContent('');
 
-    apiService.getCaseDossierAudit(caseId)
+    // V6.0: Kalon documentIds — lexon raportin e saktë
+    apiService.getCaseDossierAudit(caseId, documentIds)
       .then((data) => {
         if (fetchAbortRef.current) return;
         if (data.has_audit && data.content) {
@@ -267,7 +263,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       })
       .catch((err) => {
         if (fetchAbortRef.current) return;
-        console.warn('[CaseDossierAuditModal V5.0] Failed to load saved report:', err);
+        console.warn('[CaseDossierAuditModal V6.0] Failed to load saved report:', err);
         setLoadError('Dështoi ngarkimi i raportit të ruajtur.');
       })
       .finally(() => {
@@ -278,7 +274,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     return () => {
       fetchAbortRef.current = true;
     };
-  }, [isOpen, preGeneratedReport, preGeneratedSource, caseId]);
+  }, [isOpen, preGeneratedReport, preGeneratedSource, caseId, documentIds]);
 
   // Reset kur mbyllet
   useEffect(() => {
@@ -295,12 +291,19 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
   const handleClearContent = async () => {
     if (!reportContent || !caseId || isPurging) return;
-    const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht raportin nga serveri?");
+
+    // V6.0: Confirm kontekstual
+    const confirmWipe = window.confirm(
+      isSingleDoc
+        ? `A jeni i sigurt që doni të fshini raportin e dokumentit "${singleDocName || 'i panjohur'}"?\n\nRaportet e dokumenteve të tjera dhe doktrina e rastit NUK preken.`
+        : `A jeni i sigurt që doni të fshini raportin e rastit?\n\nKy veprim do të fshijë:\n- Doktrinën e rastit\n- TË GJITHA raportet e dokumenteve\n- Ekstraktimet, cross-references dhe findings`
+    );
     if (!confirmWipe) return;
 
     setIsPurging(true);
     try {
-      await apiService.clearCaseDossierAudit(caseId);
+      // V6.0: Kalon documentIds — fshin vetëm raportin e dokumentit
+      await apiService.clearCaseDossierAudit(caseId, documentIds);
       setReportContent('');
       setLastAuditedAt(null);
       setReportSource(null);
@@ -420,7 +423,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   onClick={handleClearContent}
                   disabled={isPurging}
                   className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-colors cursor-pointer"
-                  title="Fshi raportin nga serveri"
+                  title={isSingleDoc ? "Fshi raportin e këtij dokumenti" : "Fshi raportin e rastit (cascade)"}
                 >
                   {isPurging ? <Loader2 size={16} className="animate-spin text-danger-start" /> : <Trash2 size={16} />}
                 </button>
@@ -515,7 +518,9 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   <p className="text-xs text-text-muted max-w-lg mt-1">
                     {loadError
                       ? loadError
-                      : 'Nuk ka raport të ruajtur për këtë fashikull. Klikoni "Analizo" për të gjeneruar një të re.'}
+                      : isSingleDoc
+                        ? `Nuk ka raport të ruajtur për dokumentin "${singleDocName || ''}". Klikoni "Analizo" për të gjeneruar një të re.`
+                        : 'Nuk ka raport të ruajtur për këtë fashikull. Klikoni "Analizo" për të gjeneruar një të re.'}
                   </p>
                 </div>
                 {onRegenerate && (
@@ -554,7 +559,11 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             {reportContent && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium">
                 <Lock size={12} className="text-text-muted" />
-                <span className="hidden sm:inline">Raporti është ruajtur (Përdorni koshin për ta asgjësuar)</span>
+                <span className="hidden sm:inline">
+                  {isSingleDoc
+                    ? 'Raporti i dokumentit është ruajtur veçmas'
+                    : 'Raporti i rastit është ruajtur'}
+                </span>
                 <span className="sm:hidden">E ruajtur</span>
               </div>
             )}

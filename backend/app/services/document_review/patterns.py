@@ -1,10 +1,8 @@
 # FILE: backend/app/services/document_review/patterns.py
-# PHOENIX PROTOCOL - REGEX PATTERNS V2.4
-# V2.4: FIX KRITIK — hequr KPK|KPRK nga CASE_NUMBER_PATTERN. Ata jane
-#       akronime LIGJESH, jo prefikse lendesh. Kjo parandalon qe
-#       "KPRK.nr.06/L-074" (kod ligji) te klasifikohet si numer lende.
-# V2.3: FIX DEADLINE + PERIOD për shumësin shqip.
-# V2.2: Shtuar pattern-e për dispozitiv, mjekësi, dënime, kontradikta.
+# PHOENIX PROTOCOL - REGEX PATTERNS V2.6
+# V2.6: LAW_NUMBER_LEGACY_PATTERN — kap formatin "Ligji Nr. 2004/32"
+#       (4-digit / 1-4-digit) që nuk përputhet me format XX/L-XXX.
+# V2.5: ARTICLE_PATTERN — kap listat me presje.
 
 import re
 
@@ -15,7 +13,9 @@ import re
 
 ARTICLE_PATTERN = re.compile(
     r'\b(?:Neni|Nenit|Nenin|Nen[ëe]t|Artikulli|Art\.?)\s+'
-    r'(\d+(?:[\.\/]\d+)*)'
+    r'(\d+(?:[\.\/]\d+)*'
+    r'(?:\s*[,;]\s*\d+(?:[\.\/]\d+)*)*'
+    r'(?:\s+dhe\s+\d+(?:[\.\/]\d+)*)?)'
     r'(?:\s*,?\s*(?:par(?:\.|agrafi|agrafit)?|paragrafi|paragrafit)\s*(\d+))?',
     re.IGNORECASE | re.UNICODE,
 )
@@ -30,17 +30,20 @@ LAW_NUMBER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# V2.6: Formati legjacy "Ligji Nr. 2004/32"
+LAW_NUMBER_LEGACY_PATTERN = re.compile(
+    r'(?:Ligj(?:it|i|ji)?|Kodi)\s+'
+    r'(?:Nr\.?\s*)?'
+    r'(\d{4})\s*[\/\-]\s*(\d{1,4})\b',
+    re.IGNORECASE | re.UNICODE,
+)
+
 LAW_NUMBER_WITH_NAME_PATTERN = re.compile(
     r'(?:Ligj(?:it|i|ji)?|Kodi)\s+'
     r'(?:Nr\.?\s*)?(\d{2}\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*\d{2,4})'
     r'(?:\s+(?:për|per|i|e)\s+([^.,;:()\n]{3,150}))?',
     re.IGNORECASE | re.UNICODE,
 )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# LAWS BY NAME
-# ═══════════════════════════════════════════════════════════════════════════
 
 LAW_NAME_PATTERN = re.compile(
     r'(?:Ligj(?:it|i|ji)?|Kodi)\s+'
@@ -50,17 +53,7 @@ LAW_NAME_PATTERN = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ABBREVIATIONS
-# ═══════════════════════════════════════════════════════════════════════════
-
 ABBREV_PATTERN = re.compile(r'\b([A-ZËÇ]{2,6})\b')
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# CASE NUMBERS — V2.4: pa KPK / KPRK (ata jane kode ligjesh)
-# ═══════════════════════════════════════════════════════════════════════════
 
 CASE_NUMBER_PATTERN = re.compile(
     r'\b('
@@ -71,11 +64,6 @@ CASE_NUMBER_PATTERN = re.compile(
     r'(\d+[\w\/\.\-]*)',
     re.IGNORECASE,
 )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# DATES
-# ═══════════════════════════════════════════════════════════════════════════
 
 DATE_PATTERN = re.compile(
     r'\b(\d{1,2})\s*[\.\/\-]\s*(\d{1,2})\s*[\.\/\-]\s*(\d{2,4})\b',
@@ -90,11 +78,6 @@ DATE_ALBANIAN_PATTERN = re.compile(
     r'(?<!\w)(\d{1,2})\s+(' + '|'.join(ALBANIAN_MONTHS) + r')(?:it|i|t)?\s+(\d{2,4})(?!\w)',
     re.IGNORECASE | re.UNICODE,
 )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# DEADLINES
-# ═══════════════════════════════════════════════════════════════════════════
 
 DEADLINE_PATTERN = re.compile(
     r'\b(\d+)\s*'
@@ -111,11 +94,6 @@ DEADLINE_CONTEXT_KEYWORDS = [
     "mbrojtje", "zgjatje", "ndryshim", "refuzim", "pranim",
 ]
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PARTIES
-# ═══════════════════════════════════════════════════════════════════════════
-
 PARTY_LABEL_PATTERN = re.compile(
     r'\b(?:Pala\s+e\s+mbrojtur|Pala\s+p[eë]rgjegj[eë]se|'
     r'I\s+padituri|E\s+paditura|Padit[eë]si|Kryesi\s+i\s+dhun[eë]s|'
@@ -125,20 +103,10 @@ PARTY_LABEL_PATTERN = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# DISPOSITIVE POINTS
-# ═══════════════════════════════════════════════════════════════════════════
-
 DISPOSITIVE_POINT_PATTERN = re.compile(
     r'^\s*(I{1,3}V?|IV|V|VI{0,3}|IX|X{1,3})\s*\.\s*(.+?)$',
     re.MULTILINE,
 )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# MEDICAL FINDINGS
-# ═══════════════════════════════════════════════════════════════════════════
 
 ICD_CODE_PATTERN = re.compile(
     r'\b([A-Z]\d{2}(?:\.\d{1,2})?)\b',
@@ -167,11 +135,6 @@ NEGATIVE_RESULT_KEYWORDS = [
     "nuk e kanë konstatuar", "nuk e kane konstatuar",
 ]
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PRIOR CONVICTIONS
-# ═══════════════════════════════════════════════════════════════════════════
-
 PRIOR_CONVICTION_PATTERN = re.compile(
     r'(?:Aktgjykim(?:i)?|Vendim(?:i)?|Dënuar|Denuar|'
     r'Dënuar\s+me\s+kusht|Gjykatë)\s+'
@@ -186,11 +149,6 @@ CONVICTION_KEYWORDS = [
     "dënim penal", "denim penal", "vepër penale", "veper penale",
     "aktgjykim", "aktgjykimi", "është dënuar", "eshte denuar",
 ]
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# JUDGE / COURT / APPEAL
-# ═══════════════════════════════════════════════════════════════════════════
 
 JUDGE_NAME_PATTERN = re.compile(
     r'(?:gjyqtar(?:in|i)?|gjyqtarja)\s+'
@@ -210,11 +168,6 @@ APPEAL_DEADLINE_PATTERN = re.compile(
     r'nga\s+(?:marrja|pranimi|njoftimi)',
     re.IGNORECASE | re.UNICODE,
 )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# CONTRADICTIONS
-# ═══════════════════════════════════════════════════════════════════════════
 
 PERIOD_PATTERN = re.compile(
     r'\b(\d+)\s*'

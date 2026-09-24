@@ -1,10 +1,9 @@
 # FILE: backend/app/services/document_review/prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V4.10 (LEGAL AUDIT, ASCII-SAFE)
-# V4.10: FIX KRITIK — article_verification: NUK LEJOHET te propozosh ligj
-#        specifik kur law_hint eshte bosh ose "Ligji i Paidentifikuar".
-#        Kjo eliminon hallucination "Neni 137 i KPPRK-se" kur neni nuk u gjet.
-# V4.9: KONTRADIKTA EKSTERNE + PRECEDENTE + AFATE.
-# V4.8: errors_corrections strict + article_verification dyfishim + precedents source.
+# PHOENIX PROTOCOL - SECTION PROMPTS V4.12
+# V4.12: CLIENT CONTEXT — kontekst i ri `[KLIENT]` me emrin e klientit dhe
+#        rregull i ri për klasifikim të saktë të pozicionit (jo "pala e mbrojtur"
+#        vetëm sepse dokumenti është në favor të saj).
+# V4.11: DOCUMENT HEADER CONTEXT.
 
 from typing import Dict, Any, List, Optional, Set
 
@@ -21,39 +20,63 @@ DOCUMENT_REVIEW_PROMPTS = {
 DETYRA: Harto nje PERMBLEDHJE EKZEKUTIVE te dokumentit - jo nje rrefim, por nje
 diagnoze profesionale per avokatin qe do te veproje me kete dokument.
 
+⚠️ RREGULL ABSOLUT PER KLASIFIKIMIN:
+
+0. **KLIENTI (i rëndësishëm!):** Shih bllokun "[KLIENT]".
+   - Nëse emri i klientit jepet → pozicioni i klientit DUHET të caktohet në
+     raport me ATË emër, jo me palën "e mbrojtur" të dokumentit.
+   - Shembull: në një Urdhër Mbrojtjeje ku klienti është "Pala Përgjegjëse",
+     raporti DUHET të thotë "Klienti është Pala Përgjegjëse", JO
+     "Pala e Mbrojtur".
+   - Nëse klienti NUK jepet → shkruaj "NUK PËRCAKTOHET (klienti nuk është identifikuar)".
+
+1. **Lëshuesi** = AI QE SHKRUAN dokumentin (parashtruesi), JO marrësi.
+   Lexo bllokun "[DOK] FILLIMI I DOKUMENTIT" — shih kush nënshkruan, kujt i drejtohet.
+
+2. **Data e dokumentit** = data qe shfaqet NE FILLIM ose NE FUND te dokumentit
+   (shih bllokun "[DOK] FUNDI I DOKUMENTIT").
+   ⚠️ NUK është data e nje ngjarjeje te permendur brenda dokumentit.
+   Nese nuk e identifikon dot qarte → shkruaj "NUK PËRCAKTOHET".
+
+3. **Roli i klientit** = roli i KLIENTIT TË IDENTIFIKUAR në këtë dokument.
+   - Lexo "[KLIENT]" për emrin.
+   - Lexo "[PALE]" për listën e palëve në dokument.
+   - Cakto rolin e klientit (Paditës / I Paditur / Palë e Mbrojtur /
+     Palë Përgjegjëse / Dëshmitar / I Pandehur / etj.)
+
 STRUKTURA E DETYRUAR:
 
 1. Klasifikimi i dokumentit
-- Lloji: [Vendim / Aktvendim / Padi / Kontrate / Kallezim / ...]
-- Leshuesi: [Gjykate / Prokurori / Pale / ...]
-- Data dhe numri i lendes
+- Lloji: [Vendim / Aktvendim / Padi / Kontrate / Kallëzim / Raport / ...]
+- Lëshuesi: [shih rregullin 1]
+- Data dhe numri i lendes [shih rregullin 2]
 
 2. Subjekti (palet + rolet)
 - Palet kryesore
-- Pozicioni i klientit (nese dihet)
+- Pozicioni i klientit [shih rregullin 3, me emrin konkret]
 
 3. Permbajtja operative (3-4 rreshta)
-- Cka vendosi/pretendoi pala?
+- Cka pretendoi/kerkoi parashtruesi?
 - Cilat ishin arsyet kryesore?
 
 4. Ceshtje kritike qe avokati DUHET te dije
-- Nese ka KONTRADIKTA te brendshme (kohezgjatje, distance) -> listoji
-- Nese ka diagnoza mjekesore -> permendji me ICD
-- Nese ka denime te meparshme -> permendji
-- Nese ka teste mjekesore -> permend rezultatin
+- Nese ka KONTRADIKTA te brendshme → listoji
+- Nese ka diagnoza mjekesore → permendji me ICD
+- Nese ka denime te meparshme → permendji
+- Nese ka teste mjekesore → permend rezultatin
 
 5. Niveli i auditimit
 - Sa nene u verifikuan me sukses
 - Sa nene mbeten te paverifikueshme
 
-RREGULLA:
-- Perdor VETEM faktet ne "FAKTET E VERIFIKUARA"
-- Mos shpik asnje detaj
-- Fokus ne ate qe Ndryshon vendimin, jo narrative
+RREGULLA FINALE:
+- Perdor VETEM faktet ne blloqet "[KLIENT]", "[DOK]", "[PALE]", "[NENE]", "[AFAT]"
+- Nese nje fakt NUK shfaqet → shkruaj "NUK PËRCAKTOHET ne dokument"
+- NUK shpik data, leshues, role
 - Perfundim: 1-2 rreshta "Hapi i ardhshëm" i sugjeruar""",
     },
 
-    # 2. VERIFIKIMI I NENEVE — V4.10 STRIKT
+    # 2. VERIFIKIMI I NENEVE — i paprekur
     "article_verification": {
         "title": "VERIFIKIMI DHE AUDITIMI I NENEVE LIGJORE",
         "max_tokens": 3500,
@@ -83,58 +106,36 @@ Nese NUK U GJET:
    (c) Neni ka nevoje per verifikim manual
 
 Nese u gjet ne LIGJ TE RI (successor):
--> Sugjero zevendesimin konkret: "Ligji Nr. 03/L-182 eshte zevendesuar me 08/L-185"
+-> Sugjero zevendesimin konkret.
 
 ═══════════════════════════════════════════════════════════════════════════
 🛑 RREGULL ABSOLUT — NUK LEJOHET PROPOZIM LIGJI SPECIFIK PA KONFIRMIM
 ═══════════════════════════════════════════════════════════════════════════
 
 NESE ne bllokun "[NENE] NENET E VERIFIKUARA" neni ka:
-   - "Ligji i cituar: -"  (vizë)
-   - "Ligji i cituar:" (bosh)
+   - "Ligji i cituar: -"  (vizë) / bosh
    - "Statusi: [X] NUK U GJET"
    - NUK ka fushe "Ligji ne baze: ..."
 
 ATEHERE:
 
-❌ NUK LEJOHET TE SHKRUASH:
-   - "Korrigjim i propozuar: Neni 137 i KPPRK-së"
-   - "Korrigjim i propozuar: Neni 137 i KPRK-së"
-   - "Korrigjim i propozuar: Neni 137 i [CFAREDO LIGJI]"
+❌ NUK LEJOHET:
+   - "Korrigjim i propozuar: Neni X i KPPRK-së"
+   - "Korrigjim i propozuar: Neni X i KPRK-së"
    - Çdo propozim që emërton nje ligj specifik
 
 ✅ SHKRUAJ SAKTËSISHT:
    - "Statusi: NUK U VERIFIKUA"
    - "Vendndodhja: -"
-   - "Vërejtje: Ligji burim nuk është i identifikuar në dokumentin 
+   - "Vërejtje: Ligji burim nuk është i identifikuar në dokumentin
       e ngarkuar. Kërkohet verifikim manual nga avokati."
 
-ARSYEJA: Ky eshte nje HALLUCINATION i ndaluar. Nuk ka asnje baze
-per te propozuar "KPPRK" ose "KPRK" pa konfirmim nga sistemi.
-
 ═══════════════════════════════════════════════════════════════════════════
-SHEMBULL i SAKTË
+NENE QE SHFAQEN DY HERE
 ═══════════════════════════════════════════════════════════════════════════
 
-Input (nga blloku [NENE]):
-   * Neni 137
-     Ligji i cituar: -
-     Statusi: [X] NUK U GJET
-     Arsyeja: law_hint_no_match
-
-Output i DETYRUAR:
-   ### Neni 137
-   Statusi: NUK U VERIFIKUA
-   Vendndodhja: -
-   Vërejtje: Ligji burim nuk është i identifikuar në dokumentin
-   e ngarkuar. Kërkohet verifikim manual nga avokati.
-
-═══════════════════════════════════════════════════════════════════════════
-NENE QE SHFAQEN DY HERE (KONFIRMO ME V4.10 + V1.8 DEDUP)
-═══════════════════════════════════════════════════════════════════════════
-
-Sistemi tani i deduplifikon nenet para se t'i dergoje. NESE prap shfaqet
-i njejti numer dy here (rast i rralle), trajtoji si NJE nen te vetem.
+Sistemi i deduplifikon nenet para se t'i dergoje. NESE prap shfaqet
+i njejti numer dy here, trajtoji si NJE nen te vetem.
 
 STRUKTURA FUNDIT:
 ### Permbledhje e verifikimit
@@ -145,7 +146,7 @@ STRUKTURA FUNDIT:
 MOS perfshi introduksione. Fillo direkt me nenet.""",
     },
 
-    # 3. PRECEDENTET (V4.9 — i paprekur)
+    # 3. PRECEDENTET (i paprekur)
     "supreme_court_precedents": {
         "title": "PRECEDENTET E GJYKATES SUPREME",
         "max_tokens": 3500,
@@ -170,25 +171,18 @@ dokumentit te fashikullit" — THUAJ "nga baza zyrtare e Gjykates Supreme".
 RREGULL VLERESIMI I RELEVANCES (3 NIVELET — KONSISTENCE E STRIKTE):
 
 ▶ NIVELI 1 — TEME IDENTIKE:
-  Precedenti trajton TE NJEJTEN çështje specifike (dhunë në familje,
-  urdhër mbrojtjeje, kontakt me fëmijë, kujdestari, ndryshim urdhri).
   → Shkruaj: "NIVELI 1 — Ka lidhje të drejtpërdrejtë."
 
 ▶ NIVELI 2 — TEME E NGJASHME:
-  Precedenti trajton teme të afert (procedurë penale, vlerësim provash,
-  gjykim i drejtë) POR NUK trajton të njëjtën çështje.
   → Shkruaj: "NIVELI 2 — Ka lidhje indirekte përmes [parimit X]."
 
 ▶ NIVELI 3 — TEME E NDRYSHME:
-  Precedenti trajton teme krejt të ndryshme (ndarje pasurie, kontrata,
-  kompensim, procedurë tjetër).
   → Shkruaj SAKTËSISHT: "NIVELI 3 — Nuk ka lidhje të drejtpërdrejtë."
 
 🛑 KONSISTENCE:
    NIVELI 1 ⟺ "Ka lidhje të drejtpërdrejtë."
    NIVELI 2 ⟺ "Ka lidhje indirekte."
    NIVELI 3 ⟺ "Nuk ka lidhje."
-   ❌ NUK LEJOHET: "NIVELI 1 — por nuk ka lidhje të drejtpërdrejtë."
 
 STRUKTURA E OUTPUT-IT:
 
@@ -198,13 +192,10 @@ STRUKTURA E OUTPUT-IT:
 ### B. Precedentë Relevante
 - Numri + Tema + Fragment + Burimi + Rendesia (NIVELI 1/2/3)
 
-### C. Rendesia Praktike (permbledhje)
-
-RREGULLA FINALE:
-- Perdor VETEM precedentet nga blloku "🏛️ PRECEDENTE RELEVANTE".""",
+### C. Rendesia Praktike (permbledhje)""",
     },
 
-    # 4. ANALIZA E CILESISE SE HARTIMIT (V4.9 — i paprekur)
+    # 4. ANALIZA E CILESISE SE HARTIMIT (i paprekur)
     "drafting_quality": {
         "title": "ANALIZA E CILESISE SE HARTIMIT",
         "max_tokens": 2400,
@@ -247,7 +238,7 @@ Note 1-5 me arsyetim 2-3 rreshta.
 NUK LEJOHET te shpikesh mangesi qe nuk shfaqen ne fakte.""",
     },
 
-    # 5. GABIME DHE KORRIGJIME (V4.9 — i paprekur)
+    # 5. GABIME DHE KORRIGJIME (i paprekur)
     "errors_corrections": {
         "title": "GABIME, KONTRADIKTA DHE KORRIGJIME",
         "max_tokens": 3000,
@@ -267,22 +258,13 @@ Per cdo nen qe NUK u verifikua:
         Korrigjim i propozuar: [neni i sakte / ligji i ri]
         Impakti: [cka humbet pa kete]
 
-═══════════════════════════════════════════════════════════════════════════
 🛑 RREGULL ABSOLUT — KURRË MOS PROPOZO LIGJ SPECIFIK PA KONFIRMIM
-═══════════════════════════════════════════════════════════════════════════
 
-NESE "Ligji i cituar" eshte:
-   - "-" (vize)
-   - bosh
-   - "(pa ligj)"
-   - "NUK U GJET"
+NESE "Ligji i cituar" eshte: "-" / bosh / "(pa ligj)" / "NUK U GJET":
 
 ATEHERE:
-
 ❌ NUK LEJOHET:
-   - "Korrigjim i propozuar: Neni 137 i KPPRK-së"
-   - "Korrigjim i propozuar: Neni 137 i KPRK-së"
-   - "Korrigjim i propozuar: Neni 137 i [cfaredo ligji]"
+   - "Korrigjim i propozuar: Neni X i KPPRK-së"
    - Çdo propozim me emer ligji
 
 ✅ SHKRUAJ SAKTËSISHT:
@@ -291,16 +273,12 @@ ATEHERE:
         Korrigjim i propozuar: Kërkohet verifikim manual.
         Impakti: Nuk mund të konfirmohet saktesia e referencës.
 
-KY ËSHTË HALLUCINATION NËSE SHKRUAN LIGJ SPECIFIK. NUK LEJOHET.
-
-═══════════════════════════════════════════════════════════════════════════
-
 ### B. Kontradikta te brendshme
 ⚠️ RREGULL ABSOLUT:
   - KONTROLLO VETEM bllokun "[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT".
   - NESE ka → listoji.
   - NESE nuk ka → shkruaj: "[OK] Nuk u identifikuan kontradikta të brendshme."
-  
+
   ⚠️ Blloku "[i] KONTRADIKTA TE RAPORTUARA" → shfaqi në nënseksion
      "### B.1 Kontradikta të raportuara (jashtë dokumentit)".
 
@@ -316,7 +294,7 @@ RREGULLA ABSOLUTE:
 - KONTRADIKTAT merren VETEM nga blloku automatik""",
     },
 
-    # 6. HAPAT KONKRET TE VEPRIMIT (V4.9 — i paprekur)
+    # 6. HAPAT KONKRET TE VEPRIMIT (i paprekur)
     "action_steps": {
         "title": "PLANI I VEPRIMIT DHE REKOMANDIMET",
         "max_tokens": 2800,
@@ -339,7 +317,7 @@ STRUKTURA:
 
 RREGULLA PER AFATET (STRIKTE):
 - Nese dokumenti permend afat -> cituoje ME BURIMIN E SAKTE.
-- NESE dokumenti NUK permend afat -> "Afati ligjor nuk u identifikua 
+- NESE dokumenti NUK permend afat -> "Afati ligjor nuk u identifikua
   ne dokumentet e ngarkuara — kerkohet verifikim nga avokati."
 - NUK LEJOHET "Afati: kontrollo manualisht"
 
@@ -347,14 +325,6 @@ RREGULLA PER AFATET (STRIKTE):
 - NUK LEJOHET te shkruash afate specifike ("24 ore", "48 ore", "8 dite",
   "15 dite", "3 dite", "1 jave") QE NUK SHFAQEN NE BLLOKUN [AFAT].
 - Nese rekomandon urgjence → "Menjëherë" ose "Sa më parë".
-- Nese veprimi ka afat ligjor te njohur → "Sipas [X], N dite."
-
-❌ SHEMBULL I NDALUAR:
-   "Dorëzimi duhet të bëhet brenda 24 orëve."
-   (24 orë NUK shfaqet në dokumente → HALLUCINATION)
-
-✅ SHEMBULL I SAKTË:
-   "Dorëzimi duhet të bëhet sa më parë."
 
 ### C. Hapat Afatgjate (1-3 muaj)
 
@@ -378,19 +348,15 @@ RREGULLA:
 }
 
 
-# ===========================================================
-# SECTION_CONTEXT_MAP
-# ===========================================================
-
 SECTION_CONTEXT_MAP: Dict[str, List[str]] = {
     "document_summary": [
-        "meta", "parties", "dispositive", "medical", "tests",
+        "client", "meta", "parties", "dispositive", "medical", "tests",
         "convictions", "judge_court", "contradictions", "articles", "laws",
     ],
     "article_verification": ["articles", "laws"],
     "supreme_court_precedents": ["case_numbers", "meta", "precedents"],
     "drafting_quality": [
-        "meta", "parties", "dispositive", "articles", "laws",
+        "client", "meta", "parties", "dispositive", "articles", "laws",
         "contradictions", "reported_contradictions",
     ],
     "errors_corrections": [
@@ -398,13 +364,13 @@ SECTION_CONTEXT_MAP: Dict[str, List[str]] = {
         "dispositive", "medical",
     ],
     "action_steps": [
-        "meta", "parties", "dates", "deadlines", "case_numbers",
+        "client", "meta", "parties", "dates", "deadlines", "case_numbers",
         "dispositive", "judge_court",
     ],
 }
 
 ALL_CONTEXT_BLOCKS = [
-    "meta", "articles", "laws", "case_numbers", "parties", "dates",
+    "client", "meta", "articles", "laws", "case_numbers", "parties", "dates",
     "deadlines", "dispositive", "medical", "tests", "convictions",
     "judge_court", "contradictions", "reported_contradictions", "precedents",
 ]
@@ -413,6 +379,36 @@ ALL_CONTEXT_BLOCKS = [
 # ===========================================================
 # CONTEXT BLOCK BUILDERS
 # ===========================================================
+
+def _block_client_context(client_name: Optional[str]) -> List[str]:
+    """V4.12: Kontekst i klientit per klasifikim te saktë te pozicionit."""
+    if not client_name or not client_name.strip():
+        return [
+            "=" * 70,
+            "[KLIENT] KONTEKST I KLIENTIT",
+            "=" * 70,
+            "",
+            "⚠️ Emri i klientit nuk është i disponueshëm.",
+            "Në seksionin 2, shkruaj 'NUK PËRCAKTOHET (klienti nuk është identifikuar)'.",
+            "",
+        ]
+
+    return [
+        "=" * 70,
+        "[KLIENT] KONTEKST I KLIENTIT",
+        "=" * 70,
+        "",
+        f"👤 KLIENTI (personi që përfaqësohet): **{client_name.strip()}**",
+        "",
+        "⚠️ RREGULL ABSOLUT:",
+        f"  - Pozicioni i klientit në dokument DUHET të caktohet bazuar në emrin",
+        f"    '{client_name.strip()}' — JO bazuar në atë se kujt i shërben dokumenti.",
+        f"  - Nëse '{client_name.strip()}' është 'Pala Përgjegjëse' → ky është pozicioni.",
+        f"  - Nëse '{client_name.strip()}' është 'Pala e Mbrojtur' → ky është pozicioni.",
+        f"  - Nëse emri nuk shfaqet në dokument → 'NUK PËRCAKTOHET ne dokument'.",
+        "",
+    ]
+
 
 def _block_meta(document_type: str, file_name: str) -> List[str]:
     return [
@@ -427,6 +423,35 @@ def _block_meta(document_type: str, file_name: str) -> List[str]:
     ]
 
 
+def _block_document_header(doc_text: Optional[str]) -> List[str]:
+    if not doc_text or not doc_text.strip():
+        return []
+
+    lines: List[str] = []
+
+    lines.append("=" * 70)
+    lines.append("[DOK] FILLIMI I DOKUMENTIT (per klasifikim + meta)")
+    lines.append("=" * 70)
+    lines.append("")
+
+    header = doc_text[:1500].strip()
+    if header:
+        lines.append(header)
+        lines.append("")
+
+    lines.append("=" * 70)
+    lines.append("[DOK] FUNDI I DOKUMENTIT (per date + nenshkrim)")
+    lines.append("=" * 70)
+    lines.append("")
+
+    footer = doc_text[-500:].strip()
+    if footer:
+        lines.append(footer)
+        lines.append("")
+
+    return lines
+
+
 def _block_precedents(precedents: Optional[List[Dict[str, Any]]]) -> List[str]:
     lines: List[str] = []
     lines.append("=" * 70)
@@ -436,11 +461,6 @@ def _block_precedents(precedents: Optional[List[Dict[str, Any]]]) -> List[str]:
     lines.append(
         "ℹ️ KETA PRECEDENTE VIJNE NGA BAZA GLOBALE E GJYKATES SUPREME — "
         "jo nga fashikulli i kesaj lende."
-    )
-    lines.append(
-        "ℹ️ Emrat e burimeve (p.sh. 'VENDIME TË PËRZGJEDHURA.pdf') jane "
-        "dokumente zyrtare te Gjykates Supreme, te ruajtura ne bazen e "
-        "njohurise ligjore te sistemit. NUK jane dokumente te fashikullit."
     )
     lines.append("")
 
@@ -459,17 +479,6 @@ def _block_precedents(precedents: Optional[List[Dict[str, Any]]]) -> List[str]:
 
     lines.append(
         f"Total: {len(precedents)} precedentë relevantë të verifikuar në bazën zyrtare."
-    )
-    lines.append("")
-    lines.append(
-        "⚠️ ÇDO precedent i mëposhtëm është VERIFIKUAR në bazën zyrtare."
-    )
-    lines.append(
-        "⚠️ NUK LEJOHET të shpikësh numra të tjerë, faqe, ose burime."
-    )
-    lines.append(
-        "⚠️ Klasifikoji sipas 3 niveleve (NIVELI 1: lidhje direkte; "
-        "NIVELI 2: lidhje indirekte; NIVELI 3: pa lidhje)."
     )
     lines.append("")
 
@@ -500,9 +509,6 @@ def _block_precedents(precedents: Optional[List[Dict[str, Any]]]) -> List[str]:
 
     lines.append(
         "⚠️ RREGULL: Paraqit VETËM këta precedentë. NUK LEJOHET të shpikësh asnjë."
-    )
-    lines.append(
-        "⚠️ THUAJ 'nga baza zyrtare e Gjykates Supreme', JO 'nga fashikulli'."
     )
     lines.append("")
     return lines
@@ -873,8 +879,6 @@ def _block_reported_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
     lines.append("=" * 70)
     lines.append("ℹ️ KETO JANE KONTRADIKTA QE DOKUMENTI RAPORTON PER DOKUMENTE TE TJERE.")
     lines.append("ℹ️ NUK JANE KONTRADIKTA TE DOKUMENTIT TONE!")
-    lines.append("⚠️ Ne raport, permendi si 'Dokumenti raporton kontradikte ne [X]',")
-    lines.append("   JO si 'dokumenti ka kontradikta'.")
     lines.append("")
     for c in reported:
         values = " vs ".join(str(v) for v in c.get("values", []))
@@ -896,6 +900,8 @@ def build_verified_context(
     file_name: str = "Dokument",
     section_key: Optional[str] = None,
     precedents: Optional[List[Dict[str, Any]]] = None,
+    doc_text: Optional[str] = None,
+    client_name: Optional[str] = None,   # V4.12
 ) -> str:
     if section_key:
         blocks_needed = SECTION_CONTEXT_MAP.get(section_key, ALL_CONTEXT_BLOCKS)
@@ -911,6 +917,13 @@ def build_verified_context(
         lines.append(f"DOKUMENTI: {file_name} - LLOJI: {document_type}")
         lines.append("=" * 70)
         lines.append("")
+
+    # V4.12: Client context (gjithmonë kur jepet)
+    if "client" in blocks_needed or client_name:
+        lines.extend(_block_client_context(client_name))
+
+    if section_key in ("document_summary", "action_steps") and doc_text:
+        lines.extend(_block_document_header(doc_text))
 
     lines.extend(_block_antihallucination(
         citation_profile, fact_profile, verification_report

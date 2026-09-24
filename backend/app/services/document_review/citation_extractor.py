@@ -1,14 +1,10 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.8
-# V1.8: DEDUP NENESH — nese i njejti numer neni shfaqet dy here (me paragraph
-#       dhe pa paragraph), mbaj VETEM versionin me informacion te plote:
-#       (1) me paragraph > pa paragraph
-#       (2) me law_hint > pa law_hint
-#       (3) context me i gjate > me i shkurter
-#       Impakti: eliminohen dyfishimet "Neni 384 par.1 (NUK U GJET)" +
-#       "Neni 384 (EKZISTON)" ne raport.
-# V1.7: Skip case_numbers qe permbajne "/L-" (kode ligjesh).
-# V1.6: _build_law_position_index perfshin LAW_NAME_PATTERN.
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.11
+# V1.11: PRECEDING LAW PRIORITY — _find_nearest_law preferon ligjin që vjen
+#        PARA nenit (si në dokumente reale: titujt e seksioneve paraprijnë nenet).
+#        Fix për Nenet 414/424 që kapnin gabimisht 08/L-185 (më afër pas tyre).
+# V1.10: MAX_LAW_DISTANCE 200 → 500.
+# V1.9: SPLIT LISTS.
 
 import re
 import logging
@@ -38,11 +34,23 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-MAX_LAW_DISTANCE = 200
+# V1.10: 200 → 500
+MAX_LAW_DISTANCE = 500
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.3: LAW POSITION INDEX
+# V1.9: SPLIT LISTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _split_article_numbers(raw: str) -> List[str]:
+    if not raw:
+        return []
+    parts = re.split(r'\s*[,;]\s*|\s+dhe\s+', raw.strip())
+    return [p.strip() for p in parts if p.strip()]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LAW POSITION INDEX
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
@@ -84,25 +92,52 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
     return laws
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.11: PRECEDING LAW PRIORITY
+# ═══════════════════════════════════════════════════════════════════════════
+
 def _find_nearest_law(
     law_index: List[Tuple[int, str]],
     position: int,
     max_distance: int = MAX_LAW_DISTANCE,
 ) -> str:
+    """
+    V1.11: Preferon ligjin PARA nenit (si në dokumente reale ku titujt
+    e seksioneve paraprijnë listat e neneve).
+
+    Rendi i preferencës:
+      1. Ligji më i afërt PARA nenit (brenda max_distance)
+      2. Ligji më i afërt PAS nenit (brenda max_distance)
+      3. Bosh
+    """
     if not law_index:
         return ""
-    best_law = ""
-    best_dist = float('inf')
-    for law_pos, law_name in law_index:
-        dist = abs(law_pos - position)
-        if dist < best_dist and dist <= max_distance:
-            best_dist = dist
-            best_law = law_name
-    return best_law
+
+    # Faza 1: ligji më i afërt PARA
+    preceding: List[Tuple[int, str]] = [
+        (pos, name) for pos, name in law_index if pos <= position
+    ]
+    if preceding:
+        preceding.sort(key=lambda x: position - x[0])
+        best_pos, best_law = preceding[0]
+        if position - best_pos <= max_distance:
+            return best_law
+
+    # Faza 2: fallback — ligji më i afërt PAS
+    following: List[Tuple[int, str]] = [
+        (pos, name) for pos, name in law_index if pos > position
+    ]
+    if following:
+        following.sort(key=lambda x: x[0] - position)
+        best_pos, best_law = following[0]
+        if best_pos - position <= max_distance:
+            return best_law
+
+    return ""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.4: ARTICLE NUMBER NORMALIZER
+# ARTICLE NUMBER NORMALIZER
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_article_number(
@@ -124,13 +159,10 @@ def _normalize_article_number(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.8: DEDUPE BY ARTICLE NUMBER
+# DEDUPE BY ARTICLE NUMBER
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _score_article_citation(c: Dict[str, Any]) -> Tuple[int, int, int]:
-    """
-    V1.8: Score për te zgjedhur versionin me informacion te plote.
-    """
     return (
         1 if c.get("paragraph") else 0,
         1 if c.get("law_hint") and c["law_hint"].strip() else 0,
@@ -141,10 +173,6 @@ def _score_article_citation(c: Dict[str, Any]) -> Tuple[int, int, int]:
 def _dedupe_articles_by_number(
     citations: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """
-    V1.8: Dedupliko nenet e njejte (384 par.1 vs 384) → mban vetem nje version.
-    Ruan rendin e pare te shfaqjes.
-    """
     if not citations:
         return citations
 
@@ -161,7 +189,6 @@ def _dedupe_articles_by_number(
             order.append(num)
             continue
 
-        # Zgjedh me score me te larte
         if _score_article_citation(c) > _score_article_citation(by_number[num]):
             by_number[num] = c
 
@@ -169,7 +196,7 @@ def _dedupe_articles_by_number(
     removed = len(citations) - len(deduped)
     if removed > 0:
         logger.info(
-            f"🧹 [V1.8 Dedup] Hequr {removed} nene te dyfishuara "
+            f"🧹 [V1.11 Dedup] Hequr {removed} nene te dyfishuara "
             f"({len(citations)} → {len(deduped)})"
         )
     return deduped
@@ -180,9 +207,6 @@ def _dedupe_articles_by_number(
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
-    """
-    V1.8: Nxjerr nenet me ligjin më të afërt + dedup pas ekstraktimit.
-    """
     if not text:
         return []
 
@@ -199,40 +223,42 @@ def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
         current_pos = sentence_start + len(sentence)
 
         for match in ARTICLE_PATTERN.finditer(sentence):
-            article_num_raw = match.group(1)
+            raw_numbers = match.group(1)
             paragraph_raw = match.group(2)
 
-            article_num, paragraph = _normalize_article_number(
-                article_num_raw, paragraph_raw
-            )
+            numbers = _split_article_numbers(raw_numbers)
 
-            article_pos = sentence_start + match.start()
-            law_hint = _find_nearest_law(law_index, article_pos)
-            context = extract_context(sentence, match.start(), window=100)
+            for article_num_raw in numbers:
+                article_num, paragraph = _normalize_article_number(
+                    article_num_raw, paragraph_raw
+                )
 
-            key = (article_num, paragraph, law_hint.lower())
-            if key in seen:
-                continue
-            seen.add(key)
+                article_pos = sentence_start + match.start()
+                law_hint = _find_nearest_law(law_index, article_pos)
+                context = extract_context(sentence, match.start(), window=100)
 
-            citations.append({
-                "number": article_num,
-                "paragraph": paragraph,
-                "law_hint": law_hint,
-                "context": context[:MAX_CONTEXT_CHARS],
-                "sentence": sentence[:500],
-                "position": article_pos,
-            })
+                key = (article_num, paragraph, law_hint.lower())
+                if key in seen:
+                    continue
+                seen.add(key)
 
-            if len(citations) >= MAX_ARTICLE_CITATIONS:
-                return _dedupe_articles_by_number(citations)
+                citations.append({
+                    "number": article_num,
+                    "paragraph": paragraph,
+                    "law_hint": law_hint,
+                    "context": context[:MAX_CONTEXT_CHARS],
+                    "sentence": sentence[:500],
+                    "position": article_pos,
+                })
 
-    # V1.8: Dedup perpara kthimit
+                if len(citations) >= MAX_ARTICLE_CITATIONS:
+                    return _dedupe_articles_by_number(citations)
+
     return _dedupe_articles_by_number(citations)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT LAW NUMBERS
+# EXTRACT LAW NUMBERS / NAMES / ABBREVS / CASE NUMBERS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
@@ -266,10 +292,6 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
     return results
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT LAW NAMES
-# ═══════════════════════════════════════════════════════════════════════════
-
 def extract_law_names(text: str) -> List[Dict[str, Any]]:
     if not text:
         return []
@@ -290,10 +312,6 @@ def extract_law_names(text: str) -> List[Dict[str, Any]]:
     return results
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT ABBREVIATIONS
-# ═══════════════════════════════════════════════════════════════════════════
-
 def extract_abbreviations(text: str) -> List[str]:
     if not text:
         return []
@@ -304,10 +322,6 @@ def extract_abbreviations(text: str) -> List[str]:
             abbrevs.add(abbr.upper())
     return sorted(abbrevs)
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT CASE NUMBERS (V1.7: skip law codes)
-# ═══════════════════════════════════════════════════════════════════════════
 
 def _is_likely_own_case(text: str, position: int, context: str) -> bool:
     context_lower = context.lower()
@@ -352,7 +366,7 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
 
         if _looks_like_law_code(normalized, context):
             logger.debug(
-                f"[V1.8] Skip case_number '{normalized}' — ne fakt kod ligji"
+                f"[V1.11] Skip case_number '{normalized}' — ne fakt kod ligji"
             )
             continue
 
@@ -407,7 +421,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR V1.8] Profile built: "
+        f"🔬 [EXTRACTOR V1.11] Profile built: "
         f"articles={stats['total_articles']} "
         f"(with_law_hint={stats['articles_with_law_hint']}, "
         f"with_paragraph={stats['articles_with_paragraph']}), "

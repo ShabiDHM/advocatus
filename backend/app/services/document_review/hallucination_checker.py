@@ -1,11 +1,12 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.4
-# V1.4: FIX - _extract_abbrevs tani SKIP prefixes te numrave te lendeve
-#       (PML, ARJ, REV, PA1, ...). Keto jane prefikse lendeje, jo akronime
-#       ligjesh -> shmangim false-positive 'low' ne seksionin supreme_court_precedents.
-# V1.3: PRECEDENTE TE VERTETA - shtuar extra_allowed_cases argument.
-# V1.2: FIX — _extract_cases rstrip(".,;:") mbi num_part.
-# V1.1: FIX — _build_allowed normalizon numrat e lendeve.
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.5
+# V1.5: SPLIT ARTICLE LISTS — "Neni 137, 138, 143" tani split-ohet në 3 vlera
+#       të veçanta para se të krahasohet me allowed. Kjo eliminon false-positives
+#       të prodhuara nga ARTICLE_PATTERN V2.5 (që kap lista me presje).
+# V1.4: Skip prefixes numrave të lendeve.
+# V1.3: Precedente të vërteta.
+# V1.2: FIX rstrip.
+# V1.1: FIX normalizim.
 # V1.0: Post-check mbi output-in e LLM.
 
 import re
@@ -40,17 +41,30 @@ logger = logging.getLogger(__name__)
 CASE_NUMBER_PREFIXES: Set[str] = {
     "PA1", "PKR", "PML", "REV", "KMLP", "ANR", "PZR",
     "CP", "AC", "PN", "KP", "ARJ", "A", "P",
-    # Forma te zgjeruara te shfaqura ne praktike
     "KPK", "KPPRK", "KPRK",
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.3: NORMALIZIM PRECEDENTESH (DB -> format i njejte si _extract_cases)
+# V1.5: SPLIT ARTICLE LISTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _split_article_numbers(raw: str) -> List[str]:
+    """
+    V1.5: Ndan "137, 138, 143 dhe 144" → ['137', '138', '143', '144'].
+    Trajton presje, pikëpresje, dhe 'dhe'.
+    """
+    if not raw:
+        return []
+    parts = re.split(r'\s*[,;]\s*|\s+dhe\s+', raw.strip())
+    return [p.strip() for p in parts if p.strip()]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.3: NORMALIZIM PRECEDENTESH
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_precedent_case(case_number: str) -> Optional[str]:
-    """V1.3: Normalizon nje case_number te precedentit (nga DB)."""
     if not case_number:
         return None
 
@@ -92,6 +106,10 @@ def _extract_dates_iso(text: str) -> Set[str]:
 
 
 def _extract_articles(text: str) -> Set[str]:
+    """
+    V1.5: Nxjerr nenet, duke SPLIT-uar listat me presje.
+    "Neni 137, 138, 143" → {"137", "138", "143"}
+    """
     found: Set[str] = set()
     if not text:
         return found
@@ -99,8 +117,15 @@ def _extract_articles(text: str) -> Set[str]:
     for m in ARTICLE_PATTERN.finditer(text):
         art_raw = m.group(1)
         par_raw = m.group(2)
-        art, _ = _normalize_article_number(art_raw, par_raw)
-        found.add(art)
+
+        # V1.5: Split lista "137, 138, 143"
+        parts = _split_article_numbers(art_raw)
+        for part in parts:
+            if not part:
+                continue
+            art, _ = _normalize_article_number(part, par_raw)
+            if art:
+                found.add(art)
 
     return found
 
@@ -124,7 +149,6 @@ def _extract_laws(text: str) -> Set[str]:
 
 
 def _extract_cases(text: str) -> Set[str]:
-    """V1.2: rstrip per te hequr piken e fjalisë."""
     found: Set[str] = set()
     if not text:
         return found
@@ -143,10 +167,6 @@ def _extract_cases(text: str) -> Set[str]:
 
 
 def _extract_abbrevs(text: str) -> Set[str]:
-    """
-    V1.4: Nxjerr akronimet e vlefshme ligjore.
-    SKIP nese akronimi eshte prefiks numri lendeje (PML, ARJ, REV, ...).
-    """
     found: Set[str] = set()
     if not text:
         return found
@@ -155,7 +175,6 @@ def _extract_abbrevs(text: str) -> Set[str]:
         abbr = m.group(1)
         abbr_up = abbr.upper()
 
-        # V1.4: skip prefixes lendeje
         if abbr_up in CASE_NUMBER_PREFIXES:
             continue
 
@@ -200,7 +219,7 @@ class HallucinationChecker:
             extra_allowed_cases=extra_allowed_cases,
         )
         logger.info(
-            f"[HALLUCINATION V1.4] Allowed values: "
+            f"[HALLUCINATION V1.5] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])}, "
             f"articles={len(self.allowed['articles'])}, "
@@ -437,7 +456,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.4] Status={global_status}, "
+        f"[HALLUCINATION V1.5] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

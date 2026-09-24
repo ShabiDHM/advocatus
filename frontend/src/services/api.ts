@@ -1,7 +1,10 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V73.0
+// PHOENIX PROTOCOL - MASTER API FACADE V74.0
+// V74.0: PER-DOCUMENT AUDIT — 3 metodat e dossier audit pranojnë documentIds?
+//        - getCaseDossierAudit(caseId, documentIds?)
+//        - saveCaseDossierAudit(caseId, content, documentIds?)
+//        - clearCaseDossierAudit(caseId, documentIds?)
 // V73.0: + getCaseDossierAudit + saveCaseDossierAudit me documentIds.
-// V72.0: + getAdminCases, unlockCase, lockCase.
 
 export * from './apiClient';
 export * from './authService';
@@ -91,9 +94,19 @@ class ApiService {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
   };
 
-  // 🧠 Doktrina e Rastit (Case-Level) — V73.0
-  public getCaseDossierAudit = async (caseId: string): Promise<CaseDossierAuditResponse> => {
-    const { data } = await apiClient.get(`/cases/${caseId}/audit`);
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🧠 Doktrina e Rastit — V74.0 (per-document + case)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  public getCaseDossierAudit = async (
+    caseId: string,
+    documentIds?: string[] | null,
+  ): Promise<CaseDossierAuditResponse> => {
+    const params: Record<string, string> = {};
+    if (documentIds && documentIds.length > 0) {
+      params.document_ids = documentIds.join(',');
+    }
+    const { data } = await apiClient.get(`/cases/${caseId}/audit`, { params });
     return data as CaseDossierAuditResponse;
   };
 
@@ -108,8 +121,15 @@ class ApiService {
     });
   };
 
-  public clearCaseDossierAudit = async (caseId: string) => {
-    return apiClient.post(`/cases/${caseId}/clear-audit`);
+  public clearCaseDossierAudit = async (
+    caseId: string,
+    documentIds?: string[] | null,
+  ) => {
+    const params: Record<string, string> = {};
+    if (documentIds && documentIds.length > 0) {
+      params.document_ids = documentIds.join(',');
+    }
+    return apiClient.post(`/cases/${caseId}/clear-audit`, null, { params });
   };
 
   // 🔬 Analiza SSE e Lëndës (Moduli 2 + 3 + 4)
