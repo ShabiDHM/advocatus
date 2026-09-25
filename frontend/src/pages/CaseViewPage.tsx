@@ -1,11 +1,16 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V110.4
-// V110.4: force_reprocess=true — extraction_pipeline V1.5 bën hash-skip vetë,
-//         ndaj rinis review-in por NER skip-on kur teksti është i paprekur.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V110.6
+// V110.6: VERIFY DRAFT PROGRESS — state + handler + passthrough:
+//         - State: isVerifyGenerating, verifyProgressPercent,
+//                  verifyPhaseLabel, verifyStartTime.
+//         - Callback: handleVerifyProgress (nga modal).
+//         - ChatPanel merr të gjitha props e reja.
+//         - DraftVerificationModal merr onProgressChange.
+// V110.5: VERIFY DRAFT — integrim i DraftVerificationModal.
+// V110.4: force_reprocess=true.
 // V110.3: Modal lexon raportin E BLLOKUAR nga DB pas analizës.
 // V110.2: META-EVENTS IZOLUAR — step_started handler.
-// V110.0: REPORT SHARING — modal hapet direkt pa analizë.
-// V109.11: FIX RACE CONDITION.
+// V110.0: REPORT SHARING.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
@@ -25,9 +30,21 @@ import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel, EvidenceSubTab } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
 import { CaseDossierAuditModal } from '../components/case/CaseDossierAuditModal';
+import DraftVerificationModal from '../components/case/DraftVerificationModal';
+import type { VerifyProgress } from '../components/case/DraftVerificationModal';
 
 type CaseData = { details: Case | null };
 type MobileMainTab = 'DOCS' | 'MEDIA' | 'CHAT';
+
+const VERIFY_DOC_TYPE_LABELS: Record<string, string> = {
+  padi_civile:        'Padi Civile',
+  pergjigje_padi:     'Përgjigje në Padi',
+  kallzim_penal:      'Kallëzim Penal',
+  kontrate:           'Kontratë',
+  kerkese_propozim:   'Kërkesë / Propozim',
+  ankese_kundershtim: 'Ankesë / Kundërshtim',
+  tjeter:             'Tjetër',
+};
 
 const _normalizeHeading = (s: string): string =>
   s
@@ -79,17 +96,26 @@ const CaseViewPage: React.FC = () => {
   const [mobileTab, setMobileTab] = useState<MobileMainTab>('DOCS');
   const [vaultSubTab, setVaultSubTab] = useState<EvidenceSubTab>('documents');
 
+  // Audit state
   const [isAuditGenerating, setIsAuditGenerating] = useState<boolean>(false);
   const [auditProgressText, setAuditProgressText] = useState<string>('');
   const [pendingAuditReport, setPendingAuditReport] = useState<string | null>(null);
   const [pendingAuditSource, setPendingAuditSource] = useState<'fresh' | 'cache' | 'saved'>('fresh');
   const [pendingAuditDocIds, setPendingAuditDocIds] = useState<string[] | null>(null);
-
   const [auditPhaseLabel, setAuditPhaseLabel] = useState<string>('');
   const [auditProgressPercent, setAuditProgressPercent] = useState<number>(0);
   const [auditStartTime, setAuditStartTime] = useState<number | null>(null);
-
   const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
+
+  // V110.5: Verify Draft state
+  const [verifyModalOpen, setVerifyModalOpen] = useState<boolean>(false);
+  const [verifyDocType, setVerifyDocType] = useState<string>('kallzim_penal');
+
+  // V110.6: Verify Draft progress (lifted from modal)
+  const [isVerifyGenerating, setIsVerifyGenerating] = useState<boolean>(false);
+  const [verifyProgressPercent, setVerifyProgressPercent] = useState<number>(0);
+  const [verifyPhaseLabel, setVerifyPhaseLabel] = useState<string>('');
+  const [verifyStartTime, setVerifyStartTime] = useState<number | null>(null);
 
   const loadedCaseIdRef = useRef<string | null>(null);
 
@@ -168,7 +194,7 @@ const CaseViewPage: React.FC = () => {
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V110.4] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V110.6] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
@@ -404,8 +430,6 @@ const CaseViewPage: React.FC = () => {
     const SECTIONS_TOTAL = 6;
 
     try {
-      // V110.4: force_reprocess=true — extraction_pipeline V1.5 bën hash-skip
-      // për NER-in nëse teksti është i paprekur, por review ri-bëhet gjithmonë.
       const stream = apiService.streamCaseAnalysis(currentCaseId, true, docIds || undefined);
 
       for await (const evt of stream) {
@@ -560,15 +584,10 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit V110.4] Accumulated content is empty!', {
-          isDocMode,
-          docsTotal,
-          sectionsStarted,
-          sectionsCompleted,
-          chunksReceived,
-          sectionOrderLength: sectionOrder.length,
-          currentPhase,
-          detectedSource
+        console.error('[Background Audit V110.6] Accumulated content is empty!', {
+          isDocMode, docsTotal, sectionsStarted, sectionsCompleted,
+          chunksReceived, sectionOrderLength: sectionOrder.length,
+          currentPhase, detectedSource
         });
         throw new Error('Raporti nuk u gjenerua. Provoni përsëri.');
       }
@@ -583,14 +602,13 @@ const CaseViewPage: React.FC = () => {
       setAuditPhaseLabel('Përfundoi');
       setAuditProgressText('Raporti u gjenerua me sukses');
 
-      // V110.3: Null → modal lexon versionin E BLLOKUAR nga DB.
       setPendingAuditReport(null);
       setPendingAuditSource('saved');
       setPendingAuditDocIds(docIds);
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error V110.4]', err);
+      console.error('[Background Audit Error V110.6]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {
@@ -648,6 +666,33 @@ const CaseViewPage: React.FC = () => {
       alert(t('error.generic', 'Ndodhi një gabim.'));
     }
   };
+
+  // V110.5: Hap modal-in e verifikimit
+  const handleVerifyDraft = useCallback((docType: string) => {
+    if (!selectedDocObj) {
+      alert('Zgjidhni një dokument për verifikim.');
+      return;
+    }
+    setVerifyDocType(docType);
+    setVerifyModalOpen(true);
+  }, [selectedDocObj]);
+
+  const handleCloseVerifyModal = useCallback(() => {
+    setVerifyModalOpen(false);
+  }, []);
+
+  // V110.6: Callback nga modal → përditëso progres në ChatHeader
+  const handleVerifyProgress = useCallback((progress: VerifyProgress) => {
+    setIsVerifyGenerating(progress.isGenerating);
+    setVerifyProgressPercent(progress.percent);
+    setVerifyPhaseLabel(progress.label);
+
+    if (progress.isGenerating) {
+      setVerifyStartTime((prev) => prev ?? Date.now());
+    } else {
+      setVerifyStartTime(null);
+    }
+  }, []);
 
   if (isAuthLoading || isLoading) {
     return (
@@ -762,12 +807,17 @@ const CaseViewPage: React.FC = () => {
               userSalutation={userSalutation}
               clientPosition={clientPosition}
               onAnalyzeDocument={() => handleOpenAuditModal()}
+              onVerifyDraft={handleVerifyDraft}
               selectedDocName={selectedDocObj?.file_name}
               isAuditGenerating={isAuditGenerating}
               auditProgressText={auditProgressText}
               auditProgressPercent={auditProgressPercent}
               auditPhaseLabel={auditPhaseLabel}
               auditStartTime={auditStartTime}
+              isVerifyGenerating={isVerifyGenerating}
+              verifyProgressPercent={verifyProgressPercent}
+              verifyPhaseLabel={verifyPhaseLabel}
+              verifyStartTime={verifyStartTime}
             />
           </div>
         </div>
@@ -802,6 +852,19 @@ const CaseViewPage: React.FC = () => {
         preGeneratedSource={pendingAuditSource}
         onRegenerate={handleRegenerateAudit}
       />
+
+      {selectedDocObj && (
+        <DraftVerificationModal
+          isOpen={verifyModalOpen}
+          onClose={handleCloseVerifyModal}
+          caseId={currentCaseId}
+          documentId={String(selectedDocObj.id)}
+          documentName={selectedDocObj.file_name || 'draft'}
+          docType={verifyDocType}
+          docTypeLabel={VERIFY_DOC_TYPE_LABELS[verifyDocType] || verifyDocType}
+          onProgressChange={handleVerifyProgress}
+        />
+      )}
     </motion.div>
   );
 };

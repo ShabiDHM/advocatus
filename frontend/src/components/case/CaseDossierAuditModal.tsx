@@ -1,23 +1,22 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.0
-// V6.0: PER-DOCUMENT CLEAR — koshja fshin VETËM raportin e dokumentit aktual
-//       (jo cascade), kur `documentIds` është dhënë. Confirm message kontekstual.
-//       Fetch kalon documentIds për të lexuar raportin e saktë.
-// V5.0: SERVER FETCH.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.2.1
+// V6.2.1: HEQUR "Në Fund" button — nuk nevojitet, scrollbar mjafton.
+// V6.2: STATS PANEL me gjetje ✅/❌/⚠️/💡.
+// V6.1.5: LAW CITATION LINK.
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, CheckCircle2,
-  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown, Lock, Scale, Folder,
-  ShieldCheck, RotateCcw, Calendar, Sparkles
+  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, Lock, Scale, Folder,
+  ShieldCheck, RotateCcw, Calendar, Sparkles, AlertTriangle, XCircle, TrendingUp,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { apiService } from '../../services/api';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
-import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
+import { LawCitationLink } from '../LawCitationLink';
 
 const WORD_CODE_BG = '#f1f5f9';
 const WORD_BLOCKQUOTE_BORDER = '#2563eb';
@@ -48,6 +47,56 @@ const formatAuditDate = (isoDate: string | Date | undefined | null): string => {
   }
 };
 
+// ───────────────────────────────────────────────────────────────────────────
+// PREPROCESS
+// ───────────────────────────────────────────────────────────────────────────
+
+const preprocessReport = (markdown: string): string => {
+  if (!markdown) return '';
+  return markdown
+    .replace(/\[OK\]/g, '✅')
+    .replace(/\[X\]/g, '❌')
+    .replace(/\[!\]/g, '⚠️')
+    .replace(/\[\?\]/g, '💡')
+    .replace(/\*\*File:\*\*/g, '**Dokumenti:**')
+    .replace(/\*\*File\*\*/g, '**Dokumenti**')
+    .replace(/\*\*Gatishmëria:\*\*\s*\*\*NEEDS WORK\*\*/g, '**Gatishmëria:** **KËRKON PUNË**')
+    .replace(/\*\*Gatishmëria:\*\*\s*\*\*READY\*\*/g, '**Gatishmëria:** **GATI**')
+    .replace(/\*\*Gatishmëria:\*\*\s*\*\*INCOMPLETE\*\*/g, '**Gatishmëria:** **I PËRPLOTË**')
+    .replace(/\*\*Gatishmëria:\*\*\s*\*\*UNKNOWN\*\*/g, '**Gatishmëria:** **I PANJOHUR**')
+    .replace(/\bNEEDS WORK\b/g, 'KËRKON PUNË')
+    .replace(/\bINCOMPLETE\b/g, 'I PËRPLOTË')
+    .replace(/\bUNKNOWN\b/g, 'I PANJOHUR')
+    .replace(/🛑\s*/g, '⛔ ')
+    .replace(/⚠️ SUGJERIM/g, '💡 **SUGJERIM**')
+    .replace(/ℹ️\s*/g, 'ℹ️  ');
+};
+
+interface DerivedStats {
+  countOK: number;
+  countX: number;
+  countWarn: number;
+  countSug: number;
+  readiness: string;
+}
+
+function deriveStats(content: string): DerivedStats {
+  if (!content) {
+    return { countOK: 0, countX: 0, countWarn: 0, countSug: 0, readiness: 'I PANJOHUR' };
+  }
+  const countOK = (content.match(/✅/g) || []).length;
+  const countX = (content.match(/❌/g) || []).length;
+  const countWarn = (content.match(/⚠️/g) || []).length;
+  const countSug = (content.match(/💡/g) || []).length;
+
+  let readiness = 'I PANJOHUR';
+  if (/GATI|READY/i.test(content)) readiness = 'GATI';
+  if (/KËRKON PUNË|NEEDS WORK/i.test(content)) readiness = 'KËRKON PUNË';
+  if (/I PËRPLOTË|INCOMPLETE/i.test(content)) readiness = 'I PËRPLOTË';
+
+  return { countOK, countX, countWarn, countSug, readiness };
+}
+
 interface CaseDossierAuditModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -66,8 +115,251 @@ const FONT_LEVELS = [
   { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
   { label: '100%', base: 15, h1: 21, h2: 18, h3: 16, line: 1.65 },
   { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 },
-  { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 }
+  { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 },
 ];
+
+// ───────────────────────────────────────────────────────────────────────────
+// CUSTOM MARKDOWN COMPONENTS
+// ───────────────────────────────────────────────────────────────────────────
+
+const buildReportComponents = () => ({
+  h1: ({ children }: any) => {
+    const text = String(children);
+    return (
+      <div className="mt-2 mb-6 pb-5 border-b-2 border-emerald-500/30">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <ShieldCheck size={22} className="text-emerald-500" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-text-primary tracking-tight">
+            {text.replace(/^RAPORT\s*—\s*/, '').replace(/^RAPORT VERIFIKIMI\s*—\s*/, '')}
+          </h1>
+        </div>
+        <p className="text-[11px] text-text-muted uppercase tracking-widest font-bold mt-2 ml-14">
+          Raport Auditimi
+        </p>
+      </div>
+    );
+  },
+
+  h2: ({ children }: any) => {
+    const text = String(children);
+    const match = text.match(/^(\d+)\.\s+(.+)$/);
+    if (match) {
+      return (
+        <h2 className="flex items-center gap-3 mt-8 mb-4 pb-3 border-b border-main">
+          <span className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+            {match[1]}
+          </span>
+          <span className="text-base sm:text-lg font-black text-text-primary tracking-tight uppercase">
+            {match[2]}
+          </span>
+        </h2>
+      );
+    }
+    return (
+      <h2 className="text-base sm:text-lg font-black text-text-primary mt-8 mb-4 pb-3 border-b border-main uppercase tracking-tight">
+        {children}
+      </h2>
+    );
+  },
+
+  h3: ({ children }: any) => {
+    const text = String(children);
+    const match = text.match(/^([A-Z])\.\s+(.+)$/);
+    if (match) {
+      return (
+        <h3 className="flex items-center gap-2.5 mt-5 mb-3">
+          <span className="w-1 h-5 rounded-full bg-emerald-500 shrink-0" />
+          <span className="text-sm sm:text-base font-bold text-text-primary">
+            <span className="text-emerald-500 mr-1">{match[1]}.</span>
+            {match[2]}
+          </span>
+        </h3>
+      );
+    }
+    return (
+      <h3 className="flex items-center gap-2.5 mt-5 mb-3">
+        <span className="w-1 h-5 rounded-full bg-emerald-500 shrink-0" />
+        <span className="text-sm sm:text-base font-bold text-text-primary">{children}</span>
+      </h3>
+    );
+  },
+
+  h4: ({ children }: any) => (
+    <h4 className="text-sm font-bold text-text-primary mt-4 mb-2 pl-3 border-l-2 border-emerald-500/40">
+      {children}
+    </h4>
+  ),
+
+  p: ({ children }: any) => (
+    <p className="text-xs sm:text-sm leading-relaxed text-text-primary mb-3">
+      {children}
+    </p>
+  ),
+
+  ul: ({ children }: any) => (
+    <ul className="list-none pl-0 mb-3 space-y-1.5">
+      {children}
+    </ul>
+  ),
+
+  ol: ({ children }: any) => (
+    <ol className="list-decimal pl-6 mb-3 space-y-1.5 text-xs sm:text-sm text-text-primary">
+      {children}
+    </ol>
+  ),
+
+  li: ({ children }: any) => {
+    const firstText = Array.isArray(children)
+      ? String(children[0] || '')
+      : String(children || '');
+    const trimmed = firstText.trim();
+
+    if (trimmed.startsWith('✅')) {
+      return (
+        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs sm:text-sm">
+          <span className="text-emerald-500 font-bold shrink-0 leading-relaxed">✓</span>
+          <span className="flex-1 leading-relaxed text-text-primary">
+            {Array.isArray(children)
+              ? [String(children[0]).replace('✅', '').trim(), ...children.slice(1)]
+              : String(children).replace('✅', '').trim()}
+          </span>
+        </li>
+      );
+    }
+
+    if (trimmed.startsWith('❌')) {
+      return (
+        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 text-xs sm:text-sm">
+          <span className="text-rose-500 font-bold shrink-0 leading-relaxed">✗</span>
+          <span className="flex-1 leading-relaxed text-text-primary">
+            {Array.isArray(children)
+              ? [String(children[0]).replace('❌', '').trim(), ...children.slice(1)]
+              : String(children).replace('❌', '').trim()}
+          </span>
+        </li>
+      );
+    }
+
+    if (trimmed.startsWith('⚠️')) {
+      return (
+        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs sm:text-sm">
+          <span className="text-amber-500 font-bold shrink-0 leading-relaxed">!</span>
+          <span className="flex-1 leading-relaxed text-text-primary">
+            {Array.isArray(children)
+              ? [String(children[0]).replace('⚠️', '').trim(), ...children.slice(1)]
+              : String(children).replace('⚠️', '').trim()}
+          </span>
+        </li>
+      );
+    }
+
+    if (trimmed.startsWith('💡')) {
+      return (
+        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-sky-500/5 border border-sky-500/20 text-xs sm:text-sm">
+          <span className="text-sky-500 font-bold shrink-0 leading-relaxed">?</span>
+          <span className="flex-1 leading-relaxed text-text-primary">
+            {Array.isArray(children)
+              ? [String(children[0]).replace('💡', '').trim(), ...children.slice(1)]
+              : String(children).replace('💡', '').trim()}
+          </span>
+        </li>
+      );
+    }
+
+    return (
+      <li className="flex items-start gap-2.5 pl-1 text-xs sm:text-sm leading-relaxed text-text-primary">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60 mt-2 shrink-0" />
+        <span className="flex-1">{children}</span>
+      </li>
+    );
+  },
+
+  strong: ({ children }: any) => (
+    <strong className="font-bold text-text-primary">{children}</strong>
+  ),
+
+  em: ({ children }: any) => (
+    <em className="italic text-text-secondary">{children}</em>
+  ),
+
+  code: ({ children }: any) => (
+    <code className="px-1.5 py-0.5 rounded bg-canvas border border-main font-mono text-[11px] text-emerald-500 font-semibold">
+      {children}
+    </code>
+  ),
+
+  hr: () => (
+    <div className="my-7 flex items-center justify-center">
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
+      <div className="mx-3 w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
+    </div>
+  ),
+
+  blockquote: ({ children }: any) => (
+    <blockquote className="my-4 pl-4 py-3 pr-3 border-l-4 border-emerald-500/50 bg-emerald-500/5 rounded-r-lg">
+      <div className="text-xs sm:text-sm italic text-text-secondary leading-relaxed">
+        {children}
+      </div>
+    </blockquote>
+  ),
+
+  a: ({ children, href }: any) => {
+    const isArticleLink = typeof href === 'string' && href.includes('/laws/article');
+
+    if (isArticleLink) {
+      return (
+        <LawCitationLink
+          lawTitle=""
+          articleNum=""
+          fullMatch={String(children)}
+          targetUrl={href}
+        />
+      );
+    }
+
+    return (
+      <a
+        href={href}
+        className="text-primary-start hover:text-primary-end underline underline-offset-2 transition-colors font-medium"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  },
+
+  table: ({ children }: any) => (
+    <div className="overflow-x-auto my-4 rounded-xl border border-main">
+      <table className="min-w-full text-xs">
+        {children}
+      </table>
+    </div>
+  ),
+
+  thead: ({ children }: any) => (
+    <thead className="bg-canvas/60">{children}</thead>
+  ),
+
+  th: ({ children }: any) => (
+    <th className="px-3 py-2 text-left font-bold text-text-primary border-b border-main">
+      {children}
+    </th>
+  ),
+
+  td: ({ children }: any) => (
+    <td className="px-3 py-2 border-b border-main/60 text-text-primary">
+      {children}
+    </td>
+  ),
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// MARKDOWN → DOCX HTML
+// ───────────────────────────────────────────────────────────────────────────
 
 const markdownToWordHtml = (markdown: string): string => {
   const lines = markdown.split(/\r?\n/);
@@ -109,16 +401,14 @@ const markdownToWordHtml = (markdown: string): string => {
     const line = rawLine.trim();
 
     if (/^(---|---|\*\*\*|___)$/.test(line)) {
-      flushList();
-      flushBlockquote();
+      flushList(); flushBlockquote();
       htmlOutput.push(`<hr style="border: 0; border-top: 1px solid ${WORD_HR_COLOR}; margin: 16px 0;" />`);
       continue;
     }
 
     const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
     if (hMatch) {
-      flushList();
-      flushBlockquote();
+      flushList(); flushBlockquote();
       const level = hMatch[1].length;
       const text = formatInline(hMatch[2]);
       const fontSize = level === 1 ? '16pt' : level === 2 ? '14pt' : '12pt';
@@ -150,7 +440,7 @@ const markdownToWordHtml = (markdown: string): string => {
     if (numMatch) {
       if (inList !== 'ol') {
         flushList();
-        htmlOutput.push('<ol style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
+        htmlOutput.push('<ol style="margin: 6px 6px 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
         inList = 'ol';
       }
       htmlOutput.push(`<li style="margin-bottom: 4px; color: ${WORD_BODY_COLOR}; font-size: 11pt;">${formatInline(numMatch[2])}</li>`);
@@ -159,29 +449,19 @@ const markdownToWordHtml = (markdown: string): string => {
 
     flushList();
     if (line.length === 0) continue;
-
     htmlOutput.push(`<p style="margin: 6px 0; font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: ${WORD_BODY_COLOR};">${formatInline(line)}</p>`);
   }
 
-  flushList();
-  flushBlockquote();
+  flushList(); flushBlockquote();
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Raport</title>
-      <style>
-        body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: ${WORD_BODY_COLOR}; }
-      </style>
-    </head>
-    <body>
-      ${htmlOutput.join('\n')}
-    </body>
-    </html>
-  `.trim();
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Raport</title>
+    <style>body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: ${WORD_BODY_COLOR}; }</style>
+    </head><body>${htmlOutput.join('\n')}</body></html>`.trim();
 };
+
+// ───────────────────────────────────────────────────────────────────────────
+// COMPONENT
+// ───────────────────────────────────────────────────────────────────────────
 
 export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   isOpen,
@@ -200,7 +480,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const [isPurging, setIsPurging] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
 
   const [isLoadingFromServer, setIsLoadingFromServer] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -208,12 +487,11 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const [lastAuditedAt, setLastAuditedAt] = useState<string | null>(null);
   const [reportSource, setReportSource] = useState<'fresh' | 'cache' | 'saved' | null>(null);
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fetchAbortRef = useRef<boolean>(false);
 
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(1);
   const activeFont = FONT_LEVELS[fontLevelIndex];
-  const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
+  const reportComponents = useMemo(() => buildReportComponents(), []);
 
   const isSingleDoc = Boolean(documentIds && documentIds.length > 0);
   const singleDocName = isSingleDoc && documentNames && documentNames.length > 0
@@ -230,9 +508,9 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     ? `${singleDocName || 'Dokument i vetëm'} • ${clientName}`
     : `${caseName} • ${clientName} • ${documentCount} shkresa`;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // V6.0: LOAD — kalon documentIds në fetch
-  // ═══════════════════════════════════════════════════════════════════════════
+  const derivedStats = useMemo(() => deriveStats(reportContent), [reportContent]);
+
+  // ── LOAD ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
 
@@ -251,7 +529,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     setLoadError(null);
     setReportContent('');
 
-    // V6.0: Kalon documentIds — lexon raportin e saktë
     apiService.getCaseDossierAudit(caseId, documentIds)
       .then((data) => {
         if (fetchAbortRef.current) return;
@@ -263,8 +540,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       })
       .catch((err) => {
         if (fetchAbortRef.current) return;
-        console.warn('[CaseDossierAuditModal V6.0] Failed to load saved report:', err);
-        setLoadError('Dështoi ngarkimi i raportit të ruajtur.');
+        console.warn('[CaseDossierAuditModal V6.2.1] Ngarkimi i raportit të ruajtur dështoi:', err);
+        setLoadError('Ngarkimi i raportit të ruajtur dështoi.');
       })
       .finally(() => {
         if (fetchAbortRef.current) return;
@@ -276,7 +553,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     };
   }, [isOpen, preGeneratedReport, preGeneratedSource, caseId, documentIds]);
 
-  // Reset kur mbyllet
+  // ── Reset kur mbyllet ───────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) {
       setReportContent('');
@@ -289,47 +566,55 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [isOpen]);
 
+  // ── ESC ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isOpen) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [isOpen, onClose]);
+
+  // ── CLEAR CONTENT ───────────────────────────────────────────────────────
   const handleClearContent = async () => {
     if (!reportContent || !caseId || isPurging) return;
 
-    // V6.0: Confirm kontekstual
     const confirmWipe = window.confirm(
       isSingleDoc
-        ? `A jeni i sigurt që doni të fshini raportin e dokumentit "${singleDocName || 'i panjohur'}"?\n\nRaportet e dokumenteve të tjera dhe doktrina e rastit NUK preken.`
-        : `A jeni i sigurt që doni të fshini raportin e rastit?\n\nKy veprim do të fshijë:\n- Doktrinën e rastit\n- TË GJITHA raportet e dokumenteve\n- Ekstraktimet, cross-references dhe findings`
+        ? `A jeni i sigurt që dëshironi të fshini raportin e dokumentit "${singleDocName || 'i panjohur'}"?\n\nRaportet e dokumenteve të tjera dhe doktrina e rastit NUK preken.`
+        : `A jeni i sigurt që dëshironi të fshini raportin e rastit?\n\nKy veprim do të fshijë:\n- Doktrinën e rastit\n- TË GJITHA raportet e dokumenteve\n- Ekstraktimet, cross-references dhe findings`
     );
     if (!confirmWipe) return;
 
     setIsPurging(true);
     try {
-      // V6.0: Kalon documentIds — fshin vetëm raportin e dokumentit
       await apiService.clearCaseDossierAudit(caseId, documentIds);
       setReportContent('');
       setLastAuditedAt(null);
       setReportSource(null);
     } catch (err) {
-      console.error("Purge error:", err);
-      alert("Dështoi asgjësimi i raportit në server.");
+      console.error("Fshirja dështoi:", err);
+      alert("Fshirja e raportit në server dështoi.");
     } finally {
       setIsPurging(false);
     }
   };
 
   const handleRegenerate = () => {
-    if (onRegenerate) {
-      onRegenerate();
-    }
+    if (onRegenerate) onRegenerate();
   };
 
   const handleCopy = async () => {
     if (!reportContent) return;
-    const htmlContent = markdownToWordHtml(reportContent);
+
+    const processed = preprocessReport(reportContent);
+    const htmlContent = markdownToWordHtml(processed);
+    const plainContent = processed;
 
     try {
       if (navigator.clipboard && window.ClipboardItem) {
         const clipboardItem = new ClipboardItem({
           'text/html': new Blob([htmlContent], { type: 'text/html' }),
-          'text/plain': new Blob([reportContent], { type: 'text/plain' }),
+          'text/plain': new Blob([plainContent], { type: 'text/plain' }),
         });
         await navigator.clipboard.write([clipboardItem]);
       } else {
@@ -338,28 +623,21 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      await navigator.clipboard.writeText(reportContent);
+      await navigator.clipboard.writeText(plainContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
-  };
-
-  const handleScroll = () => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    setShowScrollBottomBtn(distanceFromBottom > 80);
-  };
-
-  const scrollToBottom = () => {
-    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
-    setShowScrollBottomBtn(false);
   };
 
   if (!isOpen) return null;
 
   const showReportBanner = Boolean(reportContent.trim())
     && (reportSource === 'cache' || reportSource === 'saved');
+
+  const processedContent = preprocessReport(reportContent);
+  const linkedContent = processedContent ? autoLinkLegalCitations(processedContent) : '';
+
+  const hasDerivedStats = derivedStats.countOK + derivedStats.countX + derivedStats.countWarn > 0;
 
   return (
     <AnimatePresence>
@@ -374,10 +652,10 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
               : 'h-[92vh] max-w-5xl max-h-[880px] rounded-2xl sm:rounded-3xl border border-main'
           } p-4 sm:p-6 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
         >
-          {/* Header */}
+          {/* HEADER */}
           <div className="flex items-center justify-between pb-3.5 border-b border-main shrink-0 gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-10 h-10 bg-primary-start/15 text-primary-start rounded-2xl flex items-center justify-center border border-primary-start/30 shrink-0">
+              <div className="w-10 h-10 bg-emerald-500/15 text-emerald-500 rounded-2xl flex items-center justify-center border border-emerald-500/30 shrink-0">
                 {effectiveScope === 'document' ? <ShieldCheck className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
               </div>
               <div className="min-w-0 flex-1">
@@ -403,7 +681,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 >
                   <ZoomOut size={13} />
                 </button>
-                <span className="px-1.5 text-[10px] font-mono font-bold text-primary-start">
+                <span className="px-1.5 text-[10px] font-mono font-bold text-emerald-500">
                   {activeFont.label}
                 </span>
                 <button
@@ -422,8 +700,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   type="button"
                   onClick={handleClearContent}
                   disabled={isPurging}
-                  className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-colors cursor-pointer"
-                  title={isSingleDoc ? "Fshi raportin e këtij dokumenti" : "Fshi raportin e rastit (cascade)"}
+                  className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-colors cursor-pointer disabled:opacity-40"
+                  title={isSingleDoc ? "Fshi raportin e këtij dokumenti" : "Fshi raportin e rastit"}
                 >
                   {isPurging ? <Loader2 size={16} className="animate-spin text-danger-start" /> : <Trash2 size={16} />}
                 </button>
@@ -449,22 +727,22 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           </div>
 
-          {/* BANNER — cache/saved */}
+          {/* BANNER */}
           {showReportBanner && (
-            <div className="mt-3 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+            <div className="mt-3 p-3 sm:p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
               <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                <div className="w-8 h-8 rounded-lg bg-primary-start/15 flex items-center justify-center shrink-0">
-                  <Calendar size={15} className="text-primary-start" />
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <Calendar size={15} className="text-emerald-500" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-bold text-text-primary">
                     {reportSource === 'cache'
-                      ? 'Ky raport është shfaqur nga cache e serverit'
+                      ? 'Ky raport është shfaqur nga memoria e serverit'
                       : 'Ky raport është ruajtur më parë'}
                   </p>
                   <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
                     {reportSource === 'cache'
-                      ? 'Kliko "Rianalizo" për të gjeneruar nga e para'
+                      ? 'Klikoni "Rigjenero" për ta krijuar nga e para'
                       : <>Gjeneruar më <span className="font-mono font-semibold text-text-secondary">{formatAuditDate(lastAuditedAt)}</span></>}
                   </p>
                 </div>
@@ -474,20 +752,71 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   type="button"
                   onClick={handleRegenerate}
                   disabled={isPurging}
-                  className="h-9 px-4 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
-                  title="Rianalizo nga e para — injoron cache-në"
+                  className="h-9 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-500/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
+                  title="Rigjenero nga e para"
                 >
                   <RotateCcw size={13} />
-                  <span>Rianalizo</span>
+                  <span>Rigjenero</span>
                 </button>
               )}
             </div>
           )}
 
-          {/* Body */}
+          {/* STATS PANEL */}
+          {reportContent && hasDerivedStats && (
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
+              <div className="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/25 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-emerald-500/80 truncate">
+                    Gjetje OK
+                  </p>
+                </div>
+                <p className="text-sm font-black text-emerald-500 tabular-nums leading-tight">
+                  {derivedStats.countOK}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/25 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <XCircle size={11} className="text-rose-500 shrink-0" />
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-rose-500/80 truncate">
+                    Gabime
+                  </p>
+                </div>
+                <p className="text-sm font-black text-rose-500 tabular-nums leading-tight">
+                  {derivedStats.countX}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/25 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <AlertTriangle size={11} className="text-amber-500 shrink-0" />
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-amber-500/80 truncate">
+                    Kujdes
+                  </p>
+                </div>
+                <p className="text-sm font-black text-amber-500 tabular-nums leading-tight">
+                  {derivedStats.countWarn}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-sky-500/5 border border-sky-500/25 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <TrendingUp size={11} className="text-sky-500 shrink-0" />
+                  <p className="text-[9px] uppercase tracking-widest text-sky-500/80 truncate">
+                    Sugjerime
+                  </p>
+                </div>
+                <p className="text-sm font-black text-sky-500 tabular-nums leading-tight">
+                  {derivedStats.countSug}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* BODY */}
           <div
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
             className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-6 my-2 bg-surface/30 rounded-2xl border border-main text-text-primary select-text relative flex flex-col"
           >
             <style>{`
@@ -495,22 +824,16 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 font-size: ${activeFont.base}px !important;
                 line-height: ${activeFont.line} !important;
               }
-              .fast-case-dossier-audit h1, .fast-case-dossier-audit h2, .fast-case-dossier-audit h3 {
-                color: var(--text-primary);
-                font-weight: 800;
-                margin-top: 1em;
-                margin-bottom: 0.4em;
-              }
             `}</style>
 
             {isLoadingFromServer ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
-                <Loader2 className="w-10 h-10 animate-spin text-primary-start" />
+                <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
                 <p className="text-sm text-text-muted">Duke lexuar raportin e ruajtur...</p>
               </div>
             ) : !reportContent ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                   {effectiveScope === 'document' ? <ShieldCheck size={28} /> : <Scale size={28} />}
                 </div>
                 <div>
@@ -527,7 +850,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   <button
                     type="button"
                     onClick={handleRegenerate}
-                    className="mt-2 h-10 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md hover-lift"
+                    className="mt-2 h-10 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-500/90 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md hover-lift"
                   >
                     <Sparkles size={14} />
                     <span>Analizo {effectiveScope === 'document' ? 'Dokumentin' : 'Rastin'}</span>
@@ -535,26 +858,18 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 )}
               </div>
             ) : (
-              <div className="markdown-content fast-case-dossier-audit prose prose-slate dark:prose-invert max-w-none text-text-primary">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                  {autoLinkLegalCitations(reportContent)}
+              <div className="fast-case-dossier-audit markdown-content">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={reportComponents as any}
+                >
+                  {linkedContent}
                 </ReactMarkdown>
               </div>
             )}
-
-            {showScrollBottomBtn && (
-              <button
-                type="button"
-                onClick={scrollToBottom}
-                className="sticky bottom-2 right-2 ml-auto z-20 px-3 py-1.5 bg-text-primary text-text-inverse text-[11px] font-bold rounded-full shadow-lg border border-border-strong flex items-center gap-1 cursor-pointer"
-              >
-                <span>Te Fundi</span>
-                <ArrowDown size={12} className="animate-bounce" />
-              </button>
-            )}
           </div>
 
-          {/* Bottom Actions */}
+          {/* FOOTER */}
           <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
             {reportContent && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium">
@@ -564,7 +879,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                     ? 'Raporti i dokumentit është ruajtur veçmas'
                     : 'Raporti i rastit është ruajtur'}
                 </span>
-                <span className="sm:hidden">E ruajtur</span>
+                <span className="sm:hidden">I ruajtur</span>
               </div>
             )}
 
@@ -573,10 +888,10 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 type="button"
                 onClick={handleCopy}
                 disabled={!reportContent}
-                className="h-9 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
+                className="h-9 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-500/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
               >
                 {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-                <span>{copied ? 'U Kopjua!' : 'Kopjo për Word'}</span>
+                <span>{copied ? 'U Kopjua!' : 'Kopjo për Dokument'}</span>
               </button>
             </div>
           </div>

@@ -1,8 +1,9 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.15
-# V5.15: CLIENT CONTEXT — review() pranon client_name, e kalon te
-#        build_verified_context() per klasifikim te saktë te pozicionit te klientit.
-# V5.14: ARTICLE_VERIFICATION_BATCHES 2 → 3.
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.16
+# V5.16: CLIENT POSITION — review() pranon client_position, e kalon te
+#        build_verified_context() per klasifikim te dyfishe (case + doc).
+# V5.15: CLIENT CONTEXT — client_name.
+# V5.14: ARTICLE_VERIFICATION_BATCHES 3.
 # V5.13: BATCH ARTICLE_VERIFICATION.
 
 import os
@@ -54,7 +55,8 @@ class DocumentReviewService:
         document_id: str,
         progress_callback: Optional[Callable] = None,
         section_stream_callback: Optional[Callable[[str, str], None]] = None,
-        client_name: Optional[str] = None,   # V5.15
+        client_name: Optional[str] = None,
+        client_position: Optional[str] = None,   # V5.16
     ) -> Dict[str, Any]:
         start = time.time()
 
@@ -90,10 +92,10 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.15] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.16] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, "
-            f"len={len(doc_text)} chars, client={client_name or '?'}, "
-            f"parallel x{MAX_CONCURRENT_SECTIONS}"
+            f"len={len(doc_text)} chars, client={client_name or '?'} "
+            f"({client_position or '?'}), parallel x{MAX_CONCURRENT_SECTIONS}"
         )
 
         # ═══ 2. LABORATORI ═══
@@ -152,7 +154,7 @@ class DocumentReviewService:
         sections_start = time.time()
 
         logger.warning(
-            f"🚀 [PARALLEL V5.15] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
+            f"🚀 [PARALLEL V5.16] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
             f"seksione me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -197,7 +199,7 @@ class DocumentReviewService:
             ]
 
             logger.info(
-                f"⚡ [V5.15 BATCH] article_verification: {total_articles} nene "
+                f"⚡ [V5.16 BATCH] article_verification: {total_articles} nene "
                 f"→ {len(batches)} batches (size≈{batch_size})"
             )
 
@@ -205,7 +207,7 @@ class DocumentReviewService:
                 partial_report = dict(verification_report)
                 partial_report["articles"] = batch_articles
 
-                # V5.15: Kalo client_name
+                # V5.16: Kalo client_name + client_position
                 partial_context = build_verified_context(
                     citation_profile=citation_profile,
                     fact_profile=fact_profile,
@@ -215,11 +217,12 @@ class DocumentReviewService:
                     section_key=section_key,
                     precedents=None,
                     doc_text=None,
-                    client_name=client_name,   # V5.15
+                    client_name=client_name,
+                    client_position=client_position,   # V5.16
                 )
 
                 logger.warning(
-                    f"▶️ [V5.15 BATCH {batch_idx + 1}/{len(batches)}] "
+                    f"▶️ [V5.16 BATCH {batch_idx + 1}/{len(batches)}] "
                     f"article_verification — {len(batch_articles)} nene, "
                     f"context={len(partial_context)} chars"
                 )
@@ -234,13 +237,13 @@ class DocumentReviewService:
                         stream_callback=None,
                     )
                     logger.warning(
-                        f"✅ [V5.15 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"✅ [V5.16 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Përfundoi: {len(content)} chars"
                     )
                     return content
                 except Exception as e:
                     logger.error(
-                        f"❌ [V5.15 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"❌ [V5.16 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Dështoi: {e}"
                     )
                     return f"[Seksioni batch {batch_idx + 1} dështoi: {e}]"
@@ -259,14 +262,14 @@ class DocumentReviewService:
                     try:
                         contents[idx] = fut.result()
                     except Exception as e:
-                        logger.error(f"❌ [V5.15 BATCH] Future {idx} error: {e}")
+                        logger.error(f"❌ [V5.16 BATCH] Future {idx} error: {e}")
                         contents[idx] = f"[Batch {idx + 1} dështoi]"
 
             combined = "\n\n".join(c for c in contents if c).strip()
             elapsed = round(time.time() - section_start, 2)
 
             logger.warning(
-                f"✅ [SECTION DONE V5.15] {section_key}: {elapsed}s, "
+                f"✅ [SECTION DONE V5.16] {section_key}: {elapsed}s, "
                 f"{len(combined)} chars combined (batches={len(batches)})"
             )
 
@@ -309,16 +312,14 @@ class DocumentReviewService:
                         case_type=None,
                     )
                     precedents = search_relevant_precedents(
-                        self.db,
-                        query,
+                        self.db, query,
                         top_k=PRECEDENT_TOP_K,
                         threshold=PRECEDENT_SIMILARITY_THRESHOLD,
                     )
                     logger.info(
                         f"🏛️ [SECTION {section_key}] Precedent search: "
                         f"{len(precedents) if precedents else 0} rezultate "
-                        f"(top_k={PRECEDENT_TOP_K}, "
-                        f"threshold={PRECEDENT_SIMILARITY_THRESHOLD})"
+                        f"(top_k={PRECEDENT_TOP_K}, threshold={PRECEDENT_SIMILARITY_THRESHOLD})"
                     )
 
                     if precedents:
@@ -328,9 +329,7 @@ class DocumentReviewService:
                                 if cn:
                                     found_precedent_cases.add(cn)
                 except Exception as e:
-                    logger.error(
-                        f"❌ [SECTION {section_key}] Precedent search failed: {e}"
-                    )
+                    logger.error(f"❌ [SECTION {section_key}] Precedent search failed: {e}")
                     precedents = []
                 precedent_search_time = time.time() - t_prec
 
@@ -352,7 +351,7 @@ class DocumentReviewService:
 
             t_ctx = time.time()
             try:
-                # V5.15: Kalo client_name
+                # V5.16: kalo client_position
                 verified_context = build_verified_context(
                     citation_profile=citation_profile,
                     fact_profile=fact_profile,
@@ -362,17 +361,14 @@ class DocumentReviewService:
                     section_key=section_key,
                     precedents=precedents,
                     doc_text=doc_text,
-                    client_name=client_name,   # V5.15
+                    client_name=client_name,
+                    client_position=client_position,   # V5.16
                 )
             except Exception as e:
                 logger.error(f"❌ [SECTION {section_key}] Context build failed: {e}")
                 return (
                     section_key,
-                    {
-                        "title": section_title,
-                        "content": "",
-                        "error": f"context_build_failed: {e}",
-                    },
+                    {"title": section_title, "content": "", "error": f"context_build_failed: {e}"},
                     {
                         "duration_sec": round(time.time() - section_start, 2),
                         "error": f"context_build_failed: {e}",
@@ -380,10 +376,7 @@ class DocumentReviewService:
                         "precedent_search_sec": round(precedent_search_time, 2),
                         "precedents_found": len(precedents) if precedents else 0,
                     },
-                    {
-                        "context_build_time": 0.0,
-                        "precedent_search_time": precedent_search_time,
-                    },
+                    {"context_build_time": 0.0, "precedent_search_time": precedent_search_time},
                 )
 
             context_build_time = time.time() - t_ctx
@@ -429,17 +422,12 @@ class DocumentReviewService:
                         "precedent_search_sec": round(precedent_search_time, 2),
                         "precedents_found": len(precedents) if precedents else 0,
                     },
-                    {
-                        "context_build_time": context_build_time,
-                        "precedent_search_time": precedent_search_time,
-                    },
+                    {"context_build_time": context_build_time, "precedent_search_time": precedent_search_time},
                 )
 
             except Exception as e:
                 elapsed = round(time.time() - section_start, 2)
-                logger.error(
-                    f"❌ [DOC_REVIEW] Section {section_key} failed after {elapsed}s: {e}"
-                )
+                logger.error(f"❌ [DOC_REVIEW] Section {section_key} failed after {elapsed}s: {e}")
                 return (
                     section_key,
                     {"title": section_title, "content": "", "error": str(e)},
@@ -450,10 +438,7 @@ class DocumentReviewService:
                         "precedent_search_sec": round(precedent_search_time, 2),
                         "precedents_found": len(precedents) if precedents else 0,
                     },
-                    {
-                        "context_build_time": context_build_time,
-                        "precedent_search_time": precedent_search_time,
-                    },
+                    {"context_build_time": context_build_time, "precedent_search_time": precedent_search_time},
                 )
 
         try:
@@ -465,17 +450,14 @@ class DocumentReviewService:
                     executor.submit(_run_section, k, c): k
                     for k, c in DOCUMENT_REVIEW_PROMPTS.items()
                 }
-
                 for fut in concurrent.futures.as_completed(futures):
                     section_key = futures[fut]
                     try:
                         key, sec_entry, stat_entry, _timing = fut.result()
                         sections[key] = sec_entry
                         section_stats[key] = stat_entry
-
                         if sec_entry.get("content"):
                             _emit_section(key, sec_entry["content"])
-
                         if not sec_entry.get("error"):
                             _emit_progress("section_completed", {
                                 "section_key": key,
@@ -483,18 +465,14 @@ class DocumentReviewService:
                                 "content_length": stat_entry.get("content_length", 0),
                             })
                     except Exception as e:
-                        logger.error(
-                            f"❌ [PARALLEL V5.15] Future failed for {section_key}: {e}"
-                        )
+                        logger.error(f"❌ [PARALLEL V5.16] Future failed for {section_key}: {e}")
 
         except Exception as e:
-            logger.error(f"❌ [PARALLEL V5.15] ThreadPoolExecutor failed: {e}")
-            logger.warning(f"🔄 [PARALLEL V5.15] Fallback në sequential mode")
+            logger.error(f"❌ [PARALLEL V5.16] ThreadPoolExecutor failed: {e}")
+            logger.warning(f"🔄 [PARALLEL V5.16] Fallback në sequential mode")
             for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
                 try:
-                    key, sec_entry, stat_entry, _timing = _run_section(
-                        section_key, section_cfg
-                    )
+                    key, sec_entry, stat_entry, _timing = _run_section(section_key, section_cfg)
                     sections[key] = sec_entry
                     section_stats[key] = stat_entry
                     if sec_entry.get("content"):
@@ -502,25 +480,18 @@ class DocumentReviewService:
                 except Exception as e2:
                     logger.error(f"❌ [SEQUENTIAL FALLBACK] {section_key}: {e2}")
 
-        sections = {
-            k: sections[k] for k in DOCUMENT_REVIEW_PROMPTS.keys() if k in sections
-        }
-        section_stats = {
-            k: section_stats[k] for k in DOCUMENT_REVIEW_PROMPTS.keys() if k in section_stats
-        }
+        sections = {k: sections[k] for k in DOCUMENT_REVIEW_PROMPTS.keys() if k in sections}
+        section_stats = {k: section_stats[k] for k in DOCUMENT_REVIEW_PROMPTS.keys() if k in section_stats}
 
         sections_total_time = round(time.time() - sections_start, 2)
-        logger.warning(
-            f"⏱️ [TIMING] sections_total (parallel x{MAX_CONCURRENT_SECTIONS}): "
-            f"{sections_total_time}s"
-        )
+        logger.warning(f"⏱️ [TIMING] sections_total (parallel x{MAX_CONCURRENT_SECTIONS}): {sections_total_time}s")
 
         logger.info(
-            f"🏛️ [V5.15] Precedent cases qe do te lejohen: "
+            f"🏛️ [V5.16] Precedent cases qe do te lejohen: "
             f"{len(found_precedent_cases)} -> {sorted(found_precedent_cases)[:5]}"
         )
 
-        # ═══ 4b. ANTI-HALLUCINATION CHECK ═══
+        # ANTI-HALLUCINATION CHECK
         if progress_callback:
             try:
                 progress_callback("step_started", {
@@ -552,12 +523,10 @@ class DocumentReviewService:
         if hallucination_report["status"] == "suspect":
             suspicious_keys = set(hallucination_report.get("suspicious_sections", []))
             blocked_count = 0
-
             for key in suspicious_keys:
                 sec = sections.get(key)
                 if not sec or not sec.get("content"):
                     continue
-
                 per_sec = hallucination_report["per_section"].get(key, {})
                 issues = per_sec.get("issues", [])
                 high_issues = [i for i in issues if i.get("severity") == "high"]
@@ -578,28 +547,18 @@ class DocumentReviewService:
                 warning_lines.append("> **Kërkohet verifikim manual nga avokati.**")
 
                 warning = "\n".join(warning_lines)
-
                 sec["_original_content"] = sec["content"]
                 sec["_blocked_by_hallucination"] = True
                 sec["content"] = (
-                    warning
-                    + "\n\n---\n\n"
-                    + "**Përmbajtja e gjeneruar u refuzua. "
-                    + "Klikoni \"Rianalizo\" për të provuar përsëri.**"
+                    warning + "\n\n---\n\n"
+                    + "**Përmbajtja e gjeneruar u refuzua. Klikoni \"Rianalizo\" për të provuar përsëri.**"
                 )
                 blocked_count += 1
 
-            logger.warning(
-                f"🛡️ [V5.15 GATE] Bllokuan {blocked_count} seksione suspect: "
-                f"{sorted(suspicious_keys)}"
-            )
+            logger.warning(f"🛡️ [V5.16 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
 
-        # ═══ 5. MONTIMI FINAL ═══
-        document_meta = {
-            "file_name": file_name,
-            "document_type": document_type,
-        }
-
+        # MONTIMI FINAL
+        document_meta = {"file_name": file_name, "document_type": document_type}
         t0 = time.time()
         full_report = build_full_report(
             sections=sections,
@@ -611,7 +570,6 @@ class DocumentReviewService:
         _lap("build_full_report", t0)
 
         duration = round(time.time() - start, 2)
-
         precedents_found_total = (
             section_stats.get("supreme_court_precedents", {}).get("precedents_found", 0)
         )
@@ -623,7 +581,8 @@ class DocumentReviewService:
             "document_ids": [document_id],
             "document_type": document_type,
             "file_name": file_name,
-            "client_name": client_name,   # V5.15
+            "client_name": client_name,          # V5.15
+            "client_position": client_position,  # V5.16
             "built_at": datetime.now(timezone.utc).isoformat(),
             "full_report": full_report,
             "sections": sections,
@@ -634,23 +593,20 @@ class DocumentReviewService:
                 "file_name": file_name,
                 "document_type": document_type,
                 "client_name": client_name,
+                "client_position": client_position,
                 "text_length": len(doc_text),
                 "citation_stats": citation_profile.get("stats", {}),
                 "fact_stats": fact_profile.get("stats", {}),
                 "verification_stats": verification_report.get("stats", {}),
-                "sections_generated": len(
-                    [s for s in sections.values() if s.get("content")]
-                ),
+                "sections_generated": len([s for s in sections.values() if s.get("content")]),
                 "sections_total": len(DOCUMENT_REVIEW_PROMPTS),
                 "sections_blocked": len(hallucination_report.get("suspicious_sections", [])),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.15",
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.16",
                 "hallucination_status": hallucination_report["status"],
                 "hallucination_issues": hallucination_report["total_issues"],
-                "hallucination_suspicious_sections": hallucination_report[
-                    "suspicious_sections"
-                ],
+                "hallucination_suspicious_sections": hallucination_report["suspicious_sections"],
                 "precedents_found": precedents_found_total,
                 "precedent_threshold": PRECEDENT_SIMILARITY_THRESHOLD,
                 "precedent_top_k": PRECEDENT_TOP_K,
@@ -680,15 +636,14 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.15] Complete: "
+            f"✅ [DOC_REVIEW V5.16] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"blocked={result['stats']['sections_blocked']}, "
             f"articles_verified={verification_report['stats']['articles_verified']}, "
             f"precedents_found={precedents_found_total}, "
             f"hallucination={hallucination_report['status']} "
             f"({hallucination_report['total_issues']} issues), "
-            f"report_chars={len(full_report)}, "
-            f"duration={duration}s, mode={result['stats']['execution_mode']}"
+            f"report_chars={len(full_report)}, duration={duration}s, mode={result['stats']['execution_mode']}"
         )
 
         return result

@@ -1,13 +1,11 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.5
-# V1.5: SPLIT ARTICLE LISTS — "Neni 137, 138, 143" tani split-ohet në 3 vlera
-#       të veçanta para se të krahasohet me allowed. Kjo eliminon false-positives
-#       të prodhuara nga ARTICLE_PATTERN V2.5 (që kap lista me presje).
-# V1.4: Skip prefixes numrave të lendeve.
-# V1.3: Precedente të vërteta.
-# V1.2: FIX rstrip.
-# V1.1: FIX normalizim.
-# V1.0: Post-check mbi output-in e LLM.
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.11
+# V1.11: STRICT OUTPUT VALIDATION — _safe_normalize_law valido outputin me regex:
+#        outputi DUHET te permbaje 'L-' ose '/' + numra. Refuzon tituj si 'LMDHF'
+#        ose 'Ligjit për Familjen'. Heq `name` dhe `title` nga skanimi.
+# V1.10: UNCONDITIONAL LAW SCAN (garbage).
+# V1.9: STRICT LAW_TITLE SCAN.
+# V1.8: CONSERVATIVE SUCCESSOR LAWS.
 
 import re
 import logging
@@ -34,10 +32,6 @@ from .citation_extractor import _normalize_article_number
 logger = logging.getLogger(__name__)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V1.4: PREFIXE NUMRASH LENDEJSH (nuk jane akronime ligjesh)
-# ═══════════════════════════════════════════════════════════════════════════
-
 CASE_NUMBER_PREFIXES: Set[str] = {
     "PA1", "PKR", "PML", "REV", "KMLP", "ANR", "PZR",
     "CP", "AC", "PN", "KP", "ARJ", "A", "P",
@@ -45,15 +39,100 @@ CASE_NUMBER_PREFIXES: Set[str] = {
 }
 
 
+LAW_NUMBER_LEGACY_PATTERN = re.compile(
+    r'\b(\d{4})\s*[\/\-]\s*(\d{1,4})\b'
+)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.5: SPLIT ARTICLE LISTS
+# V1.11: STRICT LAW VALIDATOR
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Output-i duhet te jete:
+#   - XX/L-XXX format (p.sh. "08/L-185", "03/L-182")
+#   - ose 4-digit/2-digit (p.sh. "2004/32")
+_STRICT_LAW_OUTPUT_PATTERN = re.compile(
+    r'^(\d{2}/L-\d+|\d{4}/\d{1,4})$'
+)
+
+
+def _is_valid_law_output(s: str) -> bool:
+    """V1.11: Kontrollon qe output-i eshte format i sakte ligji."""
+    if not s:
+        return False
+    return bool(_STRICT_LAW_OUTPUT_PATTERN.match(s.strip()))
+
+
+def _safe_normalize_law(raw_value: str) -> Optional[str]:
+    """
+    V1.11: Kthen output-in VETEM nese eshte format i sakte ligji.
+    Refuzon: "LMDHF", "Ligjit për Familjen", tituj te tjere.
+    """
+    if not raw_value:
+        return None
+    s = str(raw_value).strip()
+    if not s:
+        return None
+
+    # 1. Provo normalize_law_number, por valido output-in
+    n = normalize_law_number(s)
+    if n and _is_valid_law_output(n):
+        return n
+
+    # 2. XX/L-XXX brenda tekstit
+    m = LAW_NUMBER_PATTERN.search(s)
+    if m:
+        n2 = normalize_law_number(m.group(0))
+        if n2 and _is_valid_law_output(n2):
+            return n2
+
+    # 3. Legacy 4-digit/2-digit
+    stripped = re.sub(r'^(ligj(?:it|i|ji)?|kodi)\s*(?:nr\.?\s*)?', '', s, flags=re.IGNORECASE).strip()
+    m = LAW_NUMBER_LEGACY_PATTERN.match(stripped)
+    if m:
+        candidate = f"{m.group(1)}/{m.group(2)}"
+        if _is_valid_law_output(candidate):
+            return candidate
+
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STRICT TITLE SCAN (output gjithashtu i validuar)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _extract_law_numbers_from_title_strict(title: str) -> Set[str]:
+    """
+    V1.11: Nxjerr numra ligjesh VETEM ne formatet strikte.
+    """
+    found: Set[str] = set()
+    if not title:
+        return found
+
+    s = str(title)
+
+    for m in LAW_NUMBER_PATTERN.finditer(s):
+        n = normalize_law_number(m.group(0))
+        if n and _is_valid_law_output(n):
+            found.add(n)
+
+    lower = s.lower()
+    for m in LAW_NUMBER_LEGACY_PATTERN.finditer(s):
+        start = max(0, m.start() - 100)
+        ctx = lower[start:m.start() + 10]
+        if any(k in ctx for k in ("ligj", "kodi", "nr.", "nr ")):
+            candidate = f"{m.group(1)}/{m.group(2)}"
+            if _is_valid_law_output(candidate):
+                found.add(candidate)
+
+    return found
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SPLIT ARTICLE LISTS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _split_article_numbers(raw: str) -> List[str]:
-    """
-    V1.5: Ndan "137, 138, 143 dhe 144" → ['137', '138', '143', '144'].
-    Trajton presje, pikëpresje, dhe 'dhe'.
-    """
     if not raw:
         return []
     parts = re.split(r'\s*[,;]\s*|\s+dhe\s+', raw.strip())
@@ -61,13 +140,12 @@ def _split_article_numbers(raw: str) -> List[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.3: NORMALIZIM PRECEDENTESH
+# NORMALIZIM PRECEDENTESH
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_precedent_case(case_number: str) -> Optional[str]:
     if not case_number:
         return None
-
     m = CASE_NUMBER_PATTERN.search(case_number)
     if m:
         prefix = m.group(1).upper()
@@ -76,8 +154,110 @@ def _normalize_precedent_case(case_number: str) -> Optional[str]:
             return None
         raw = f"{prefix}.nr.{num_part}"
         return normalize_case_number(raw)
-
     return normalize_case_number(case_number) or case_number.upper().strip()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.11: COLLECT SUCCESSOR LAWS (STRICT)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_EXPLICIT_LAW_NUMBER_FIELDS = (
+    "law_number",
+    "number",
+    "new_law",
+)
+
+# V1.11: vetem fushat specifike per title
+_LAW_TITLE_FIELDS = (
+    "law_title",
+    "law_name",
+)
+
+
+def _scan_dict_for_laws(d: Dict[str, Any], context_label: str) -> Set[str]:
+    """V1.11: Skanon dict per numra ligjesh VETEM ne format strikte."""
+    found: Set[str] = set()
+    if not isinstance(d, dict):
+        return found
+
+    for key in _EXPLICIT_LAW_NUMBER_FIELDS:
+        val = d.get(key)
+        if val:
+            n = _safe_normalize_law(str(val))
+            if n:
+                found.add(n)
+
+    for key in _LAW_TITLE_FIELDS:
+        val = d.get(key)
+        if val:
+            nums = _extract_law_numbers_from_title_strict(str(val))
+            if nums:
+                found.update(nums)
+
+    return found
+
+
+def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
+    successors: Set[str] = set()
+    if not verification_report:
+        return successors
+
+    # 1. Top-level successor_laws
+    top_level = verification_report.get("successor_laws") or []
+    for idx, s in enumerate(top_level):
+        if isinstance(s, dict):
+            successors.update(_scan_dict_for_laws(s, f"successor[{idx}]"))
+        elif isinstance(s, str):
+            n = _safe_normalize_law(s)
+            if n:
+                successors.add(n)
+            successors.update(_extract_law_numbers_from_title_strict(s))
+
+    # 2. Article-level
+    for idx, a in enumerate(verification_report.get("articles", []) or []):
+        if not isinstance(a, dict):
+            continue
+
+        art_num = a.get("article_number", "?")
+
+        # 2a. law_hint
+        law_hint = a.get("law_hint")
+        if law_hint:
+            n = _safe_normalize_law(str(law_hint))
+            if n:
+                successors.add(n)
+            successors.update(_extract_law_numbers_from_title_strict(str(law_hint)))
+
+        # 2b. suggested_replacement
+        sr = a.get("suggested_replacement")
+        if isinstance(sr, dict):
+            successors.update(_scan_dict_for_laws(sr, f"art{art_num}.sr"))
+
+        # 2c. matched_doc
+        matched_doc = a.get("matched_doc")
+        if isinstance(matched_doc, dict):
+            successors.update(_scan_dict_for_laws(matched_doc, f"art{art_num}.md"))
+
+        # 2d. alternative_laws
+        alts = a.get("alternative_laws")
+        if isinstance(alts, list):
+            for alt_idx, alt in enumerate(alts):
+                if isinstance(alt, dict):
+                    successors.update(_scan_dict_for_laws(alt, f"art{art_num}.alt{alt_idx}"))
+
+        # 2e. matched_document (fallback)
+        alt_matched = a.get("matched_document")
+        if isinstance(alt_matched, dict):
+            successors.update(_scan_dict_for_laws(alt_matched, f"art{art_num}.md2"))
+
+    if successors:
+        logger.info(
+            f"[HALLUCINATION V1.11] Successor laws collected: {sorted(successors)}"
+        )
+    else:
+        logger.info(f"[HALLUCINATION V1.11] No successor laws collected.")
+
+    return successors
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -106,10 +286,6 @@ def _extract_dates_iso(text: str) -> Set[str]:
 
 
 def _extract_articles(text: str) -> Set[str]:
-    """
-    V1.5: Nxjerr nenet, duke SPLIT-uar listat me presje.
-    "Neni 137, 138, 143" → {"137", "138", "143"}
-    """
     found: Set[str] = set()
     if not text:
         return found
@@ -117,8 +293,6 @@ def _extract_articles(text: str) -> Set[str]:
     for m in ARTICLE_PATTERN.finditer(text):
         art_raw = m.group(1)
         par_raw = m.group(2)
-
-        # V1.5: Split lista "137, 138, 143"
         parts = _split_article_numbers(art_raw)
         for part in parts:
             if not part:
@@ -137,13 +311,18 @@ def _extract_laws(text: str) -> Set[str]:
 
     for m in LAW_NUMBER_WITH_NAME_PATTERN.finditer(text):
         n = normalize_law_number(m.group(1))
-        if n:
+        if n and _is_valid_law_output(n):
             found.add(n)
 
     for m in LAW_NUMBER_PATTERN.finditer(text):
         n = normalize_law_number(m.group(0))
-        if n:
+        if n and _is_valid_law_output(n):
             found.add(n)
+
+    for m in LAW_NUMBER_LEGACY_PATTERN.finditer(text):
+        candidate = f"{m.group(1)}/{m.group(2)}"
+        if _is_valid_law_output(candidate):
+            found.add(candidate)
 
     return found
 
@@ -174,10 +353,8 @@ def _extract_abbrevs(text: str) -> Set[str]:
     for m in ABBREV_PATTERN.finditer(text):
         abbr = m.group(1)
         abbr_up = abbr.upper()
-
         if abbr_up in CASE_NUMBER_PREFIXES:
             continue
-
         if is_valid_law_abbrev(abbr):
             found.add(abbr_up)
 
@@ -219,9 +396,9 @@ class HallucinationChecker:
             extra_allowed_cases=extra_allowed_cases,
         )
         logger.info(
-            f"[HALLUCINATION V1.5] Allowed values: "
+            f"[HALLUCINATION V1.11] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
-            f"laws={len(self.allowed['laws'])}, "
+            f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
             f"cases={len(self.allowed['cases'])}, "
             f"abbrevs={len(self.allowed['abbrevs'])}"
@@ -240,14 +417,28 @@ class HallucinationChecker:
                 dates_iso.add(d["iso"])
 
         laws: Set[str] = set()
+
+        base_laws: Set[str] = set()
         for l in citation_profile.get("laws_by_number", []) or []:
             if l.get("number"):
-                n = normalize_law_number(l["number"]) or l["number"]
-                laws.add(n)
+                n = _safe_normalize_law(str(l["number"]))
+                if n:
+                    base_laws.add(n)
+                    laws.add(n)
+
         for l in verification_report.get("laws_by_number", []) or []:
             if l.get("number"):
-                n = normalize_law_number(l["number"]) or l["number"]
-                laws.add(n)
+                n = _safe_normalize_law(str(l["number"]))
+                if n:
+                    laws.add(n)
+
+        successors = _collect_successor_laws(verification_report)
+        laws.update(successors)
+
+        logger.info(
+            f"[HALLUCINATION V1.11] Laws: base={len(base_laws)}, "
+            f"successors={len(successors)}, total={len(laws)}"
+        )
 
         articles: Set[str] = set()
         for a in citation_profile.get("articles", []) or []:
@@ -287,9 +478,7 @@ class HallucinationChecker:
         issues = []
         for d in sorted(unknown):
             issues.append({
-                "type": "date",
-                "value": d,
-                "severity": "high",
+                "type": "date", "value": d, "severity": "high",
                 "message": f"Data '{d}' nuk shfaqet ne faktet e dokumentit.",
                 "snippet": _find_snippet(content, d),
             })
@@ -301,9 +490,7 @@ class HallucinationChecker:
         issues = []
         for a in sorted(unknown):
             issues.append({
-                "type": "article",
-                "value": f"Neni {a}",
-                "severity": "medium",
+                "type": "article", "value": f"Neni {a}", "severity": "medium",
                 "message": f"Neni {a} nuk u gjet ne citimet e dokumentit.",
                 "snippet": _find_snippet(content, f"Neni {a}") or _find_snippet(content, f"Nenit {a}"),
             })
@@ -315,9 +502,7 @@ class HallucinationChecker:
         issues = []
         for l in sorted(unknown):
             issues.append({
-                "type": "law",
-                "value": l,
-                "severity": "medium",
+                "type": "law", "value": l, "severity": "medium",
                 "message": f"Ligji '{l}' nuk u gjet ne citimet e dokumentit.",
                 "snippet": _find_snippet(content, l),
             })
@@ -329,9 +514,7 @@ class HallucinationChecker:
         issues = []
         for c in sorted(unknown):
             issues.append({
-                "type": "case_number",
-                "value": c,
-                "severity": "high",
+                "type": "case_number", "value": c, "severity": "high",
                 "message": f"Numri i lendes '{c}' nuk u gjet ne dokument.",
                 "snippet": _find_snippet(content, c),
             })
@@ -343,24 +526,18 @@ class HallucinationChecker:
         issues = []
         for a in sorted(unknown):
             issues.append({
-                "type": "abbreviation",
-                "value": a,
-                "severity": "low",
+                "type": "abbreviation", "value": a, "severity": "low",
                 "message": f"Akronimi '{a}' nuk u gjet ne citimet e dokumentit.",
                 "snippet": _find_snippet(content, a),
             })
         return issues
 
     def check_section(
-        self,
-        section_key: str,
-        content: str,
+        self, section_key: str, content: str,
     ) -> Dict[str, Any]:
         if not content or not content.strip():
             return {
-                "section_key": section_key,
-                "status": "empty",
-                "issues": [],
+                "section_key": section_key, "status": "empty", "issues": [],
                 "severity_counts": {"high": 0, "medium": 0, "low": 0},
                 "counts": {
                     "dates_found": 0, "dates_unknown": 0,
@@ -425,9 +602,7 @@ def check_all_sections(
     extra_allowed_cases: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     checker = HallucinationChecker(
-        citation_profile,
-        fact_profile,
-        verification_report,
+        citation_profile, fact_profile, verification_report,
         extra_allowed_cases=extra_allowed_cases,
     )
 
@@ -456,7 +631,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.5] Status={global_status}, "
+        f"[HALLUCINATION V1.11] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

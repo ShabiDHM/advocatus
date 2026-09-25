@@ -1,10 +1,13 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.11
-# V1.11: PRECEDING LAW PRIORITY — _find_nearest_law preferon ligjin që vjen
-#        PARA nenit (si në dokumente reale: titujt e seksioneve paraprijnë nenet).
-#        Fix për Nenet 414/424 që kapnin gabimisht 08/L-185 (më afër pas tyre).
-# V1.10: MAX_LAW_DISTANCE 200 → 500.
-# V1.9: SPLIT LISTS.
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.14
+# V1.14: CASE-NUMBER-PREFIX EXCLUSION — akronimet "PML", "P", "PA1", "Rev",
+#        "CA", "KML" etj. që ndiqen nga ".Nr." / "Nr." NUK janë ligje, janë
+#        prefikse numrash çështjesh. Plus: regjistro "KPRK-së", "KPRK-t" si
+#        akronim (Albanian genitive suffix).
+# V1.13: SUPER CLOSE AFTER — prefiks "të/i/e" midis nenit dhe ligjit.
+# V1.12: LEGACY LAW EXTRACTION.
+# V1.11: PRECEDING LAW PRIORITY.
+# V1.10: MAX_LAW_DISTANCE 500.
 
 import re
 import logging
@@ -18,6 +21,7 @@ from .constants import (
 from .patterns import (
     ARTICLE_PATTERN,
     LAW_NUMBER_PATTERN,
+    LAW_NUMBER_LEGACY_PATTERN,
     LAW_NUMBER_WITH_NAME_PATTERN,
     LAW_NAME_PATTERN,
     ABBREV_PATTERN,
@@ -34,13 +38,27 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-# V1.10: 200 → 500
 MAX_LAW_DISTANCE = 500
 
+# V1.13: Distanca maksimale për "close after"
+MAX_CLOSE_AFTER_DISTANCE = 35
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V1.9: SPLIT LISTS
-# ═══════════════════════════════════════════════════════════════════════════
+# V1.14: Prefikse numrash çështjesh që NUK janë ligje.
+# Nga praktika gjyqësore e Kosovës: P, PML, PA, PA1, PP, PP.I, PP.II,
+# Rev, KML, KM, C, CA, CML, GJ, GJK, K, KI, KŽ, etj.
+CASE_NUMBER_PREFIXES: Set[str] = {
+    "P", "PML", "PA", "PA1", "PA2",
+    "PP", "PP1", "PP2", "PPI", "PPII",
+    "REV", "KML", "KM", "K",
+    "C", "CA", "CML", "CM",
+    "GJ", "GJK", "KI", "KZ",
+}
+
+# V1.14: Pattern për "KPRK-së", "KPRK-t" (genitive suffix albanian)
+GENITIVE_SUFFIX_PATTERN = re.compile(
+    r'\b([A-ZËÇ]{3,7})[-–](?:së|s|t|të|it|in|ut|ve|vet)\b'
+)
+
 
 def _split_article_numbers(raw: str) -> List[str]:
     if not raw:
@@ -49,13 +67,24 @@ def _split_article_numbers(raw: str) -> List[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# LAW POSITION INDEX
-# ═══════════════════════════════════════════════════════════════════════════
+def _is_case_number_prefix(abbr_upper: str, text: str, end_pos: int) -> bool:
+    """
+    V1.14: Kontrollo nëse akronimi i gjetur është prefiks numri çështjeje.
+    Shembull: "PML" në "PML.Nr. 122/2025" → True.
+    """
+    # 1. Kontrollo listën e prefiksave të njohur
+    if abbr_upper in CASE_NUMBER_PREFIXES:
+        # Verifiko që ndiqet nga ".Nr." ose "Nr." ose " nr"
+        after = text[end_pos:end_pos + 12]
+        if re.match(r'^\s*\.?\s*[Nn]r\.?', after):
+            return True
+    return False
+
 
 def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
     laws: List[Tuple[int, str]] = []
 
+    # 1. "Ligji Nr. XX/L-YYY <emri>"
     for match in LAW_NUMBER_WITH_NAME_PATTERN.finditer(text):
         num = normalize_law_number(match.group(1))
         if not num:
@@ -64,6 +93,7 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
         law_str = f"{num} {name}".strip() if name else num
         laws.append((match.start(), law_str))
 
+    # 2. "XX/L-YYY"
     for match in LAW_NUMBER_PATTERN.finditer(text):
         num = normalize_law_number(match.group(0))
         if not num:
@@ -73,12 +103,47 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
             continue
         laws.append((match.start(), num))
 
+    # 3. Legacy "2004/32"
+    for match in LAW_NUMBER_LEGACY_PATTERN.finditer(text):
+        raw = f"{match.group(1)}/{match.group(2)}"
+        too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
+        if too_close:
+            continue
+        laws.append((match.start(), raw))
+
+    # 4. Akronime të pastra (KPRK, KPK, LPK, etj.)
     for match in ABBREV_PATTERN.finditer(text):
         abbr = match.group(1)
         if not is_valid_law_abbrev(abbr):
             continue
-        laws.append((match.start(), abbr.upper()))
+        abbr_upper = abbr.upper()
 
+        # V1.14: Përjashto prefikset e numrave të çështjeve (PML, P, PA1, ...)
+        if _is_case_number_prefix(abbr_upper, text, match.end()):
+            logger.debug(
+                f"[V1.14] Skip abbrev '{abbr}' — case number prefix"
+            )
+            continue
+
+        too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
+        if too_close:
+            continue
+        laws.append((match.start(), abbr_upper))
+
+    # 5. V1.14: "KPRK-së", "KPRK-t" (Albanian genitive suffix)
+    for match in GENITIVE_SUFFIX_PATTERN.finditer(text):
+        abbr = match.group(1)
+        if not is_valid_law_abbrev(abbr):
+            continue
+        abbr_upper = abbr.upper()
+        if _is_case_number_prefix(abbr_upper, text, match.end()):
+            continue
+        too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
+        if too_close:
+            continue
+        laws.append((match.start(), abbr_upper))
+
+    # 6. Emra të plotë ligjesh
     for match in LAW_NAME_PATTERN.finditer(text):
         full_match = match.group(0).strip()
         if len(full_match) < 15:
@@ -92,28 +157,42 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
     return laws
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V1.11: PRECEDING LAW PRIORITY
-# ═══════════════════════════════════════════════════════════════════════════
-
 def _find_nearest_law(
     law_index: List[Tuple[int, str]],
     position: int,
     max_distance: int = MAX_LAW_DISTANCE,
+    text: str = "",
 ) -> str:
     """
-    V1.11: Preferon ligjin PARA nenit (si në dokumente reale ku titujt
-    e seksioneve paraprijnë listat e neneve).
+    V1.14: Zgjidh ligjin më të afërt për një nen.
 
-    Rendi i preferencës:
-      1. Ligji më i afërt PARA nenit (brenda max_distance)
-      2. Ligji më i afërt PAS nenit (brenda max_distance)
-      3. Bosh
+    Radha:
+      0. SUPER CLOSE AFTER — ligji menjëherë pas me connector "të/i/e".
+      1. Closest BEFORE (brenda max_distance).
+      2. Closest AFTER (fallback).
     """
     if not law_index:
         return ""
 
-    # Faza 1: ligji më i afërt PARA
+    # FAZA 0 — SUPER CLOSE AFTER me connector
+    following_close: List[Tuple[int, str]] = []
+    for pos, name in law_index:
+        if pos <= position:
+            continue
+        distance = pos - position
+        if distance > MAX_CLOSE_AFTER_DISTANCE:
+            continue
+        between = text[position:pos] if text else ""
+        if re.search(r'\b(të|te|i|e)\b', between, re.IGNORECASE):
+            following_close.append((pos, name))
+
+    if following_close:
+        following_close.sort(key=lambda x: x[0] - position)
+        chosen = following_close[0][1]
+        logger.debug(f"[V1.14] Neni@{position}: SUPER CLOSE AFTER → '{chosen}'")
+        return chosen
+
+    # FAZA 1 — Closest BEFORE
     preceding: List[Tuple[int, str]] = [
         (pos, name) for pos, name in law_index if pos <= position
     ]
@@ -123,7 +202,7 @@ def _find_nearest_law(
         if position - best_pos <= max_distance:
             return best_law
 
-    # Faza 2: fallback — ligji më i afërt PAS
+    # FAZA 2 — Closest AFTER (fallback)
     following: List[Tuple[int, str]] = [
         (pos, name) for pos, name in law_index if pos > position
     ]
@@ -135,10 +214,6 @@ def _find_nearest_law(
 
     return ""
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ARTICLE NUMBER NORMALIZER
-# ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_article_number(
     article_num: str,
@@ -157,10 +232,6 @@ def _normalize_article_number(
         return article_num, paragraph
     return parts[0], parts[1]
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# DEDUPE BY ARTICLE NUMBER
-# ═══════════════════════════════════════════════════════════════════════════
 
 def _score_article_citation(c: Dict[str, Any]) -> Tuple[int, int, int]:
     return (
@@ -196,15 +267,11 @@ def _dedupe_articles_by_number(
     removed = len(citations) - len(deduped)
     if removed > 0:
         logger.info(
-            f"🧹 [V1.11 Dedup] Hequr {removed} nene te dyfishuara "
+            f"🧹 [V1.14 Dedup] Hequr {removed} nene te dyfishuara "
             f"({len(citations)} → {len(deduped)})"
         )
     return deduped
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT ARTICLES
-# ═══════════════════════════════════════════════════════════════════════════
 
 def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
     if not text:
@@ -234,7 +301,9 @@ def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
                 )
 
                 article_pos = sentence_start + match.start()
-                law_hint = _find_nearest_law(law_index, article_pos)
+                law_hint = _find_nearest_law(
+                    law_index, article_pos, text=text,
+                )
                 context = extract_context(sentence, match.start(), window=100)
 
                 key = (article_num, paragraph, law_hint.lower())
@@ -256,10 +325,6 @@ def extract_articles_with_context(text: str) -> List[Dict[str, Any]]:
 
     return _dedupe_articles_by_number(citations)
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT LAW NUMBERS / NAMES / ABBREVS / CASE NUMBERS
-# ═══════════════════════════════════════════════════════════════════════════
 
 def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
     if not text:
@@ -289,6 +354,25 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
             "name": "",
             "context": extract_context(text, match.start(), window=80),
         })
+
+    for match in LAW_NUMBER_LEGACY_PATTERN.finditer(text):
+        raw = f"{match.group(1)}/{match.group(2)}"
+        if raw in seen:
+            continue
+        ctx_start = max(0, match.start() - 60)
+        ctx = text[ctx_start:match.start() + 20].lower()
+        if not any(k in ctx for k in ["ligj", "kodi", "nr.", "nr "]):
+            continue
+        seen.add(raw)
+        results.append({
+            "number": raw,
+            "name": "",
+            "context": extract_context(text, match.start(), window=80),
+        })
+
+    logger.info(
+        f"🔬 [V1.14] extract_law_numbers: {len(results)} ligje"
+    )
     return results
 
 
@@ -318,8 +402,24 @@ def extract_abbreviations(text: str) -> List[str]:
     abbrevs: Set[str] = set()
     for match in ABBREV_PATTERN.finditer(text):
         abbr = match.group(1)
+        abbr_upper = abbr.upper()
+
+        # V1.14: Përjashto prefikset e numrave të çështjeve
+        if _is_case_number_prefix(abbr_upper, text, match.end()):
+            continue
+
         if is_valid_law_abbrev(abbr):
-            abbrevs.add(abbr.upper())
+            abbrevs.add(abbr_upper)
+
+    # V1.14: Shto "KPRK-së" etj. si akronime
+    for match in GENITIVE_SUFFIX_PATTERN.finditer(text):
+        abbr = match.group(1)
+        abbr_upper = abbr.upper()
+        if _is_case_number_prefix(abbr_upper, text, match.end()):
+            continue
+        if is_valid_law_abbrev(abbr):
+            abbrevs.add(abbr_upper)
+
     return sorted(abbrevs)
 
 
@@ -365,9 +465,7 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
         context = extract_context(text, position, window=100)
 
         if _looks_like_law_code(normalized, context):
-            logger.debug(
-                f"[V1.11] Skip case_number '{normalized}' — ne fakt kod ligji"
-            )
+            logger.debug(f"[V1.14] Skip case_number '{normalized}' — ne fakt kod ligji")
             continue
 
         seen.add(normalized)
@@ -384,10 +482,6 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
             break
     return results
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# BUILD DOCUMENT CITATION PROFILE
-# ═══════════════════════════════════════════════════════════════════════════
 
 def build_citation_profile(text: str) -> Dict[str, Any]:
     if not text:
@@ -421,7 +515,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR V1.11] Profile built: "
+        f"🔬 [EXTRACTOR V1.14] Profile built: "
         f"articles={stats['total_articles']} "
         f"(with_law_hint={stats['articles_with_law_hint']}, "
         f"with_paragraph={stats['articles_with_paragraph']}), "

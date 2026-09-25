@@ -1,7 +1,10 @@
 # FILE: backend/app/services/case_analysis_orchestrator.py
-# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.7
-# V1.7: CLIENT CONTEXT — fetch user's full_name nga DB, kalo te document_review.review()
-#       per klasifikim te saktë te "Pozicioni i klientit".
+# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.8.2
+# V1.8.2: RIGOROUS ANALYSIS — shtuar "analiza_e_thelluar" ne
+#         DOCUMENT_REVIEW_SECTION_ORDER per ta shfaqur ne raport.
+# V1.8.1: NO HARDCODE — _normalize_client_position kthen raw value.
+# V1.8: CLIENT POSITION — lexon case.client_position.
+# V1.7: CLIENT CONTEXT — client_name.
 # V1.6: CACHE INVALIDATION DINAMIK.
 # V1.5: Removed document_ids param from synthesis call.
 
@@ -28,14 +31,11 @@ CROSS_REF_COLLECTION = "case_cross_references"
 SYNTHESIS_COLLECTION = "case_synthesis"
 
 SECTION_ORDER = [
-    "executive_summary",
-    "chronology",
-    "parties_and_roles",
-    "legal_framework",
-    "key_findings_contradictions",
-    "recommendations",
+    "executive_summary", "chronology", "parties_and_roles",
+    "legal_framework", "key_findings_contradictions", "recommendations",
 ]
 
+# V1.8.2: Shtuar "analiza_e_thelluar" ne fund per renditjen e raportit
 DOCUMENT_REVIEW_SECTION_ORDER = [
     "document_summary",
     "article_verification",
@@ -43,6 +43,7 @@ DOCUMENT_REVIEW_SECTION_ORDER = [
     "drafting_quality",
     "errors_corrections",
     "action_steps",
+    "analiza_e_thelluar",
 ]
 
 
@@ -60,10 +61,7 @@ class CaseAnalysisOrchestrator:
     # ────────────────────────────────────────────────────────────────────
 
     def _load_client_name(self, user_id: str) -> Optional[str]:
-        """
-        V1.7: Lexon full_name/username te user-it (klientit te loguar)
-        per ta kaluar te document_review si kontekst.
-        """
+        """Lexon full_name/username te user-it (klientit te loguar)."""
         if not user_id:
             return None
         try:
@@ -79,14 +77,29 @@ class CaseAnalysisOrchestrator:
                 name = (user.get("username") or "").strip()
             return name or None
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH V1.7] Could not load client_name: {e}")
+            logger.warning(f"⚠️ [ORCH V1.8.2] Could not load client_name: {e}")
             return None
 
     # ────────────────────────────────────────────────────────────────────
-    # V1.6: FINGERPRINT — cache invalidation
+    # V1.8.1: NO HARDCODE — raw value
+    # ────────────────────────────────────────────────────────────────────
+
+    def _normalize_client_position(self, raw: Optional[str]) -> Optional[str]:
+        """
+        V1.8.1: Kthen raw value (case.client_position) pa interpretim.
+        Nuk hardcode-ojmë mapping sepse rastet mund të kenë vlera të tjera.
+        LLM-i do ta interpretojë vlerën raw në kontekstin e dokumentit.
+        """
+        if not raw:
+            return None
+        return str(raw).strip()
+
+    # ────────────────────────────────────────────────────────────────────
+    # V1.6: FINGERPRINT
     # ────────────────────────────────────────────────────────────────────
 
     def _compute_docs_fingerprint(self, case_id: str) -> str:
+        """Hash i dokumenteve aktive (id + updated_at + status)."""
         try:
             case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             query = {
@@ -113,7 +126,7 @@ class CaseAnalysisOrchestrator:
             raw = "|".join(parts)
             return hashlib.md5(raw.encode("utf-8")).hexdigest()
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH V1.7] fingerprint compute failed: {e}")
+            logger.warning(f"⚠️ [ORCH V1.8.2] fingerprint compute failed: {e}")
             return ""
 
     def _is_cache_valid(
@@ -124,29 +137,21 @@ class CaseAnalysisOrchestrator:
     ) -> bool:
         if not cached:
             return False
-
         if not current_fp:
             return True
-
         stored_fp = (
             cached.get("docs_fingerprint")
             or cached.get("stats", {}).get("docs_fingerprint")
         )
-
         if not stored_fp:
-            logger.info(
-                f"🔄 [ORCH V1.7] {label} pa docs_fingerprint → invalidate "
-                f"(refresh i sigurt)"
-            )
+            logger.info(f"🔄 [ORCH V1.8.2] {label} pa docs_fingerprint → invalidate")
             return False
-
         if stored_fp != current_fp:
             logger.info(
-                f"🔄 [ORCH V1.7] {label} INVALIDATED — docs changed "
+                f"🔄 [ORCH V1.8.2] {label} INVALIDATED — docs changed "
                 f"(stored={stored_fp[:8]}... current={current_fp[:8]}...)"
             )
             return False
-
         return True
 
     async def run(
@@ -162,18 +167,20 @@ class CaseAnalysisOrchestrator:
         case = self._load_case(case_id)
         case_title = case.get("title") or case.get("case_name") or "Lënda"
         is_single_doc = bool(document_ids and len(document_ids) >= 1)
+        scope = "document" if is_single_doc else "case"
 
-        if is_single_doc:
-            scope = "document"
-        else:
-            scope = "case"
-
-        # V1.7: Fetch client_name once per run
         client_name = self._load_client_name(user_id)
+        client_position = self._normalize_client_position(
+            case.get("client_position")
+        )
+
         if client_name:
-            logger.info(f"👤 [ORCH V1.7] Client name: {client_name}")
+            logger.info(
+                f"👤 [ORCH V1.8.2] Client: name={client_name}, "
+                f"case_position={client_position or '?'}"
+            )
         else:
-            logger.warning(f"⚠️ [ORCH V1.7] Client name not available for user_id={user_id}")
+            logger.warning(f"⚠️ [ORCH V1.8.2] Client name unavailable (user_id={user_id})")
 
         current_fp = self._compute_docs_fingerprint(case_id)
 
@@ -188,14 +195,13 @@ class CaseAnalysisOrchestrator:
             "docs_fingerprint": current_fp[:8],
         }
 
-        # ═══════════════════════════════════════════════════════════════
-        # SINGLE-DOCUMENT MODE → Document Review
-        # ═══════════════════════════════════════════════════════════════
+        # ═══════════ SINGLE-DOCUMENT MODE ═══════════
         if is_single_doc:
             async for evt in self._run_single_document(
                 case_id=case_id,
                 user_id=user_id,
-                client_name=client_name,   # V1.7
+                client_name=client_name,
+                client_position=client_position,
                 document_ids=document_ids,
                 force_reprocess=force_reprocess,
                 case_title=case_title,
@@ -206,14 +212,11 @@ class CaseAnalysisOrchestrator:
                 yield evt
             return
 
-        # ═══════════════════════════════════════════════════════════════
-        # CASE MODE → Case Synthesis
-        # ═══════════════════════════════════════════════════════════════
+        # ═══════════ CASE MODE ═══════════
 
-        # ═══ PHASE 1 — EXTRACTION ═══
+        # PHASE 1 — EXTRACTION
         try:
             yield {"event": "phase_started", "phase": "extraction"}
-
             extraction_summary: Dict[str, Any] = {}
 
             async for evt in self.pipeline.run(
@@ -223,7 +226,6 @@ class CaseAnalysisOrchestrator:
                 force_reprocess=force_reprocess,
             ):
                 evt_type = evt.get("event", "")
-
                 if evt_type == "complete":
                     extraction_summary = evt.get("summary", {})
                     yield {
@@ -237,9 +239,7 @@ class CaseAnalysisOrchestrator:
                         "phase": "extraction",
                         "message": evt.get("message", "Unknown error"),
                     }
-                    yield self._final_error(
-                        start_time, "extraction", evt.get("message", "Unknown")
-                    )
+                    yield self._final_error(start_time, "extraction", evt.get("message", "Unknown"))
                     return
                 else:
                     yield {"phase": "extraction", **evt}
@@ -250,7 +250,7 @@ class CaseAnalysisOrchestrator:
             yield self._final_error(start_time, "extraction", str(e))
             return
 
-        # ═══ PHASE 2 — CROSS-REFERENCE ═══
+        # PHASE 2 — CROSS-REFERENCE
         xref_stats: Dict[str, Any] = {}
         existing_xref = self._get_existing_xref(case_id)
         xref_valid = self._is_cache_valid(existing_xref, current_fp, label="xref")
@@ -266,19 +266,16 @@ class CaseAnalysisOrchestrator:
             try:
                 yield {"event": "phase_started", "phase": "cross_reference"}
                 xref_result = await loop.run_in_executor(
-                    None,
-                    lambda: self.xref_service.build(str(case_id)),
+                    None, lambda: self.xref_service.build(str(case_id)),
                 )
                 xref_stats = xref_result.get("stats", {})
-
                 try:
                     self.db[CROSS_REF_COLLECTION].update_one(
                         {"case_id": str(case_id), "status": "completed"},
                         {"$set": {"docs_fingerprint": current_fp}},
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.7] xref fingerprint save failed: {fp_err}")
-
+                    logger.warning(f"⚠️ [ORCH V1.8.2] xref fp save failed: {fp_err}")
                 yield {
                     "event": "phase_completed",
                     "phase": "cross_reference",
@@ -288,7 +285,7 @@ class CaseAnalysisOrchestrator:
                 logger.exception(f"❌ [ORCH] Cross-reference phase failed: {e}")
                 yield {"event": "error", "phase": "cross_reference", "message": str(e)}
 
-        # ═══ PHASE 3 — SYNTHESIS (case-only) ═══
+        # PHASE 3 — SYNTHESIS (case-only)
         synthesis_stats: Dict[str, Any] = {}
         synthesis_result_for_markdown: Optional[Dict[str, Any]] = None
         is_cache_hit = False
@@ -307,13 +304,10 @@ class CaseAnalysisOrchestrator:
             synthesis_result_for_markdown = existing_synth
         else:
             if existing_synth and not synth_valid:
-                logger.info(
-                    f"🔄 [ORCH V1.7] Re-generating case synthesis (cache invalidated)"
-                )
+                logger.info(f"🔄 [ORCH V1.8.2] Re-generating case synthesis (cache invalidated)")
 
             try:
                 yield {"event": "phase_started", "phase": "synthesis"}
-
                 event_queue: asyncio.Queue = asyncio.Queue()
 
                 def _sync_progress(event_type: str, data: Dict[str, Any]) -> None:
@@ -354,7 +348,6 @@ class CaseAnalysisOrchestrator:
                             yield {"phase": "synthesis", **evt}
                         except asyncio.QueueEmpty:
                             break
-
                     if synth_future in done:
                         while not event_queue.empty():
                             try:
@@ -370,19 +363,14 @@ class CaseAnalysisOrchestrator:
 
                 try:
                     self.db[SYNTHESIS_COLLECTION].update_one(
-                        {
-                            "case_id": str(case_id),
-                            "status": "completed",
-                            "scope": "case",
-                        },
+                        {"case_id": str(case_id), "status": "completed", "scope": "case"},
                         {"$set": {"docs_fingerprint": current_fp}},
                     )
                     logger.info(
-                        f"💾 [ORCH V1.7] Saved docs_fingerprint={current_fp[:8]}... "
-                        f"to synthesis cache"
+                        f"💾 [ORCH V1.8.2] Saved docs_fingerprint={current_fp[:8]}... to synthesis cache"
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.7] synthesis fingerprint save failed: {fp_err}")
+                    logger.warning(f"⚠️ [ORCH V1.8.2] synthesis fp save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -394,7 +382,7 @@ class CaseAnalysisOrchestrator:
                 logger.exception(f"❌ [ORCH] Synthesis phase failed: {e}")
                 yield {"event": "error", "phase": "synthesis", "message": str(e)}
 
-        # ═══ PHASE 4 — REPORT READY ═══
+        # PHASE 4 — REPORT READY
         if is_cache_hit:
             report_markdown = self._build_markdown_from_case_synthesis(
                 synthesis_result_for_markdown
@@ -408,15 +396,9 @@ class CaseAnalysisOrchestrator:
                     "scope": "case",
                 }
         else:
-            yield {
-                "event": "report_ready",
-                "from_cache": False,
-                "scope": "case",
-            }
+            yield {"event": "report_ready", "from_cache": False, "scope": "case"}
 
-        # ═══ COMPLETE ═══
         total_duration = round(time.time() - start_time, 2)
-
         final_summary = {
             "case_id": str(case_id),
             "case_title": case_title,
@@ -433,11 +415,9 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH V1.7] Complete: case={case_id}, scope=case, "
-            f"duration={total_duration}s, from_cache={is_cache_hit}, "
-            f"fp={current_fp[:8]}..."
+            f"✅ [ORCH V1.8.2] Complete: case={case_id}, scope=case, "
+            f"duration={total_duration}s, from_cache={is_cache_hit}"
         )
-
         yield {"event": "complete", "summary": final_summary}
 
     # ────────────────────────────────────────────────────────────────────
@@ -454,17 +434,14 @@ class CaseAnalysisOrchestrator:
         start_time: float,
         loop,
         current_fp: str = "",
-        client_name: Optional[str] = None,   # V1.7
+        client_name: Optional[str] = None,
+        client_position: Optional[str] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """
-        Rruga për review të një dokumenti të vetëm.
-        """
         document_id = document_ids[0]
 
-        # ═══ FAZA 1 — Ekstraktimi i dokumentit ═══
+        # FAZA 1 — Ekstraktimi
         try:
             yield {"event": "phase_started", "phase": "extraction"}
-
             extraction_summary: Dict[str, Any] = {}
 
             async for evt in self.pipeline.run(
@@ -474,7 +451,6 @@ class CaseAnalysisOrchestrator:
                 force_reprocess=force_reprocess,
             ):
                 evt_type = evt.get("event", "")
-
                 if evt_type == "complete":
                     extraction_summary = evt.get("summary", {})
                     yield {
@@ -488,9 +464,7 @@ class CaseAnalysisOrchestrator:
                         "phase": "extraction",
                         "message": evt.get("message", "Unknown error"),
                     }
-                    yield self._final_error(
-                        start_time, "extraction", evt.get("message", "Unknown")
-                    )
+                    yield self._final_error(start_time, "extraction", evt.get("message", "Unknown"))
                     return
                 else:
                     yield {"phase": "extraction", **evt}
@@ -501,13 +475,12 @@ class CaseAnalysisOrchestrator:
             yield self._final_error(start_time, "extraction", str(e))
             return
 
-        # ═══ FAZA 2 — Document Review ═══
+        # FAZA 2 — Document Review
         review_stats: Dict[str, Any] = {}
         review_result_for_markdown: Optional[Dict[str, Any]] = None
         is_cache_hit = False
 
         existing_review = self._get_existing_document_review(case_id, document_id)
-
         doc_fp = self._compute_docs_fingerprint(case_id)
         review_valid = self._is_cache_valid(
             existing_review, doc_fp, label="document_review"
@@ -525,7 +498,6 @@ class CaseAnalysisOrchestrator:
         else:
             try:
                 yield {"event": "phase_started", "phase": "document_review"}
-
                 event_queue: asyncio.Queue = asyncio.Queue()
 
                 def _sync_progress(event_type: str, data: Dict[str, Any]) -> None:
@@ -546,13 +518,13 @@ class CaseAnalysisOrchestrator:
                     except Exception as e:
                         logger.warning(f"⚠️ [ORCH] stream bridge failed: {e}")
 
-                # V1.7: Kalo client_name te review
                 review_future = loop.run_in_executor(
                     None,
                     lambda: self.document_review.review(
                         case_id=str(case_id),
                         user_id=user_id,
-                        client_name=client_name,   # V1.7
+                        client_name=client_name,
+                        client_position=client_position,
                         document_id=document_id,
                         progress_callback=_sync_progress,
                         section_stream_callback=_sync_stream,
@@ -569,7 +541,6 @@ class CaseAnalysisOrchestrator:
                             yield {"phase": "document_review", **evt}
                         except asyncio.QueueEmpty:
                             break
-
                     if review_future in done:
                         while not event_queue.empty():
                             try:
@@ -594,7 +565,7 @@ class CaseAnalysisOrchestrator:
                         {"$set": {"docs_fingerprint": doc_fp}},
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.7] review fingerprint save failed: {fp_err}")
+                    logger.warning(f"⚠️ [ORCH V1.8.2] review fp save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -610,7 +581,7 @@ class CaseAnalysisOrchestrator:
                     "message": str(e),
                 }
 
-        # ═══ FAZA 3 — Report Ready ═══
+        # FAZA 3 — Report Ready
         if is_cache_hit:
             report_markdown = self._build_markdown_from_document_review(
                 review_result_for_markdown
@@ -624,15 +595,9 @@ class CaseAnalysisOrchestrator:
                     "scope": "document",
                 }
         else:
-            yield {
-                "event": "report_ready",
-                "from_cache": False,
-                "scope": "document",
-            }
+            yield {"event": "report_ready", "from_cache": False, "scope": "document"}
 
-        # ═══ COMPLETE ═══
         total_duration = round(time.time() - start_time, 2)
-
         final_summary = {
             "case_id": str(case_id),
             "case_title": case_title,
@@ -647,28 +612,23 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH V1.7] Complete: case={case_id}, scope=document, "
-            f"doc={document_id}, duration={total_duration}s, "
-            f"from_cache={is_cache_hit}"
+            f"✅ [ORCH V1.8.2] Complete: case={case_id}, scope=document, "
+            f"doc={document_id}, duration={total_duration}s, from_cache={is_cache_hit}"
         )
-
         yield {"event": "complete", "summary": final_summary}
 
     # ────────────────────────────────────────────────────────────────────
-    # MARKDOWN BUILDERS (të paprekura)
+    # MARKDOWN BUILDERS
     # ────────────────────────────────────────────────────────────────────
 
     def _build_markdown_from_case_synthesis(
-        self,
-        synthesis_result: Optional[Dict[str, Any]],
+        self, synthesis_result: Optional[Dict[str, Any]],
     ) -> str:
         if not synthesis_result:
             return ""
-
         sections = synthesis_result.get("sections") or {}
         if not sections:
             return ""
-
         parts: List[str] = []
         for key in SECTION_ORDER:
             section = sections.get(key)
@@ -679,7 +639,6 @@ class CaseAnalysisOrchestrator:
             if not content.strip():
                 continue
             parts.append(f"# {title}\n\n{content.strip()}\n\n---\n\n")
-
         for key, section in sections.items():
             if key in SECTION_ORDER:
                 continue
@@ -690,25 +649,23 @@ class CaseAnalysisOrchestrator:
             if not content.strip():
                 continue
             parts.append(f"# {title}\n\n{content.strip()}\n\n---\n\n")
-
         markdown = "".join(parts).rstrip()
         if markdown.endswith("---"):
             markdown = markdown[:-3].rstrip()
-
         return markdown
 
     def _build_markdown_from_document_review(
-        self,
-        review_result: Optional[Dict[str, Any]],
+        self, review_result: Optional[Dict[str, Any]],
     ) -> str:
         if not review_result:
             return ""
-
         sections = review_result.get("sections") or {}
         if not sections:
             return ""
 
         parts: List[str] = []
+
+        # V1.8.2: Rendit sipas DOCUMENT_REVIEW_SECTION_ORDER (tani 7 seksione)
         for key in DOCUMENT_REVIEW_SECTION_ORDER:
             section = sections.get(key)
             if not section:
@@ -719,6 +676,7 @@ class CaseAnalysisOrchestrator:
                 continue
             parts.append(f"# {title}\n\n{content.strip()}\n\n---\n\n")
 
+        # Seksione shtesë që nuk janë në order (nëse ka)
         for key, section in sections.items():
             if key in DOCUMENT_REVIEW_SECTION_ORDER:
                 continue
@@ -733,11 +691,10 @@ class CaseAnalysisOrchestrator:
         markdown = "".join(parts).rstrip()
         if markdown.endswith("---"):
             markdown = markdown[:-3].rstrip()
-
         return markdown
 
     # ────────────────────────────────────────────────────────────────────
-    # LOADERS (të paprekura)
+    # LOADERS
     # ────────────────────────────────────────────────────────────────────
 
     def _load_case(self, case_id: str) -> Dict[str, Any]:
@@ -783,10 +740,7 @@ class CaseAnalysisOrchestrator:
             return None
 
     def _final_error(
-        self,
-        start_time: float,
-        phase: str,
-        message: str,
+        self, start_time: float, phase: str, message: str,
     ) -> Dict[str, Any]:
         return {
             "event": "complete",
@@ -799,10 +753,6 @@ class CaseAnalysisOrchestrator:
             },
         }
 
-
-# ────────────────────────────────────────────────────────────────────────────
-# FACTORY
-# ────────────────────────────────────────────────────────────────────────────
 
 def get_case_analysis_orchestrator(db) -> CaseAnalysisOrchestrator:
     return CaseAnalysisOrchestrator(db)

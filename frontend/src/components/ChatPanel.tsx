@@ -1,7 +1,10 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V98.2
-// V98.2: SYNTHESIS GATING - integrar `useAuth` per te kaluar user role te ChatHeader.
-//        Butoni "Analizo Rastin" tani fshihet per userat normalë.
+// PHOENIX PROTOCOL - CHAT PANEL V98.4
+// V98.4: VERIFY DRAFT PROGRESS — prop-e të reja për ChatHeader:
+//        isVerifyGenerating, verifyProgressPercent, verifyPhaseLabel,
+//        verifyStartTime.
+// V98.3: VERIFY DRAFT — prop onVerifyDraft.
+// V98.2: SYNTHESIS GATING.
 // V98.1: Hequr klauzola statike e përgjegjësisë ligjore (footer).
 // V98.0: Pason props për inline progress në ChatHeader.
 // V97.0: Background audit props.
@@ -58,12 +61,18 @@ interface ChatPanelProps {
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
   onAnalyzeDocument?: () => void;
+  onVerifyDraft?: (docType: string) => void;
   selectedDocName?: string;
   isAuditGenerating?: boolean;
   auditProgressText?: string;
   auditProgressPercent?: number;
   auditPhaseLabel?: string;
   auditStartTime?: number | null;
+  // V98.4: Verify Draft progress
+  isVerifyGenerating?: boolean;
+  verifyProgressPercent?: number;
+  verifyPhaseLabel?: string;
+  verifyStartTime?: number | null;
 }
 
 type FileCategory = 'audio' | 'spreadsheet' | 'image' | 'document';
@@ -377,15 +386,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     clientPosition = 'DEFENDANT',
     isPro = true,
     onAnalyzeDocument,
+    onVerifyDraft,
     selectedDocName,
     isAuditGenerating = false,
     auditProgressText = '',
     auditProgressPercent = 0,
     auditPhaseLabel = '',
     auditStartTime = null,
+    // V98.4
+    isVerifyGenerating = false,
+    verifyProgressPercent = 0,
+    verifyPhaseLabel = '',
+    verifyStartTime = null,
   } = props;
 
-  // V98.2: Marr user-in per te kontrolluar aksesin ne synthesis
   const { user } = useAuth();
 
   const [input, setInput] = useState('');
@@ -558,6 +572,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         t={t}
         isPro={isPro}
         onAnalyzeDocument={onAnalyzeDocument}
+        onVerifyDraft={onVerifyDraft}
         selectedDocName={selectedDocName}
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen(prev => !prev)}
@@ -566,6 +581,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         auditProgressPercent={auditProgressPercent}
         auditPhaseLabel={auditPhaseLabel}
         auditStartTime={auditStartTime}
+        isVerifyGenerating={isVerifyGenerating}
+        verifyProgressPercent={verifyProgressPercent}
+        verifyPhaseLabel={verifyPhaseLabel}
+        verifyStartTime={verifyStartTime}
         user={user}
       />
 
@@ -625,8 +644,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
           </div>
         )}
       </div>
-
-      {/* V98.1: Klauzola statike e përgjegjësisë ligjore u HOQ. */}
 
       {/* INPUT AREA */}
       <div className="p-3 sm:p-4 bg-surface shrink-0 z-20">
