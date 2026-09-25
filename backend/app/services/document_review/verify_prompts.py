@@ -1,8 +1,10 @@
 # FILE: backend/app/services/document_review/verify_prompts.py
-# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.6
-# V1.6: SHEMBUJ KONKRETË — Section 5 (Rekomandime) kërkon "Shembull: ..."
-#       për çdo rekomandim. Ka rregull anti-copy: "PËRSHTATE, mos kopjo".
-# V1.5: HEQUR "Rendi i prioriteteve" + shpjegimi X/Y/Z.
+# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.8
+# V1.8: HYBRID SECTION 3 — Python generon 3.A (faktet e precedentëve) direkt
+#       nga MongoDB; LLM shkruan PSE_RELEVANT + 3.B + 3.C. Zero hallucination.
+# V1.7: HYBRID SECTION 2 — Python generon 2.A (Nenet e verifikuara).
+# V1.6: SHEMBUJ KONKRETË — Section 5 (Rekomandime).
+# V1.5: HEQUR "Rendi i prioriteteve".
 # V1.4: CROSS-SECTION DEDUP + "Pse relevant".
 # V1.3: READINESS SHQIP.
 # V1.2: ALTERNATIVE_LAWS display.
@@ -237,15 +239,21 @@ RREGULLA:
 """ + DEDUP_RULE,
     },
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # SECTION 2 — V1.7: HYBRID (A nga Python, B/C/D nga LLM)
+    # ═══════════════════════════════════════════════════════════════════════
     "legal_quality": {
         "title": "2. CILËSIA LIGJORE (NENET)",
-        "max_tokens": 2800,
+        "max_tokens": 2000,
         "needs": ["draft", "checklist", "articles"],
         "prompt": """Ti je "Verifikues i Cilësisë Ligjore" me specializim në legjislacionin e Kosovës.
 
 ⚠️ KY ËSHTË VERIFIKIM DRAFTI — JO audit i fashikullit.
 
-⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
+🛑 SEKSIONI A (Nenet e verifikuara) GJENEROHET AUTOMATIKISHT NGA SISTEMI (Python).
+   TI SHKRUAJ VETËM B, C, D.
+   Fillo DIREKT me "### B. Nenet problematike".
+   NUK SHKRUAJ "### A." — nuk të takon ty. NUK përmend "shih më lart" për A.
 
 🛑 RREGULL ABSOLUT PËR ATRIBIMIN E LIGJIT:
 - Blloku "[NENE]" ka për secilin nen një rresht "Ligji i cituar: X".
@@ -258,77 +266,87 @@ RREGULLA:
 - NËSE blloku "[NENE]" përmban rreshtin "→ Ekziston në ligje të tjera:",
   kjo do të thotë që neni NUK u gjet në ligjin e cituar,
   POR ekziston në ligje të tjera në bazë.
-- Në këtë rast, RAPORTO TË DYJA.
+- Në këtë rast, RAPORTO TË DYJA në seksionin B.
 
 STRUKTURA E DETYRUAR:
-
-### A. Nenet e verifikuara
-Format:
-  [OK] Neni X i [Ligjit të cituar SAKTËSISHT siç shfaqet në [NENE]]
-    Cituar në draft: "[konteksti]"
-    Statusi: EKZISTON — [arsyeja e verifikimit]
 
 ### B. Nenet problematike
 Format:
   [X] Neni X i [Ligjit të cituar SAKTËSISHT]
     Problem: [përshkrim]
-    Sugjerim: [zé vendësim / korrigjim / verifikim manual]
+    Sugjerim: [zë vendësim / korrigjim / verifikim manual]
     Impakti: [sa i rëndësishëm është për draftin]
     ⚠️ NËSE ka alternative_laws → listo ATO këtu.
+
+NËSE nuk ka nene problematike → shkruaj "Nuk u identifikuan nene problematike."
 
 ### C. Nene që mund të mungojnë
 Format:
   [?] Neni [numri i mundshëm] — [arsyeja]
       ⚠️ SUGJERIM — verifikim manual i nevojshëm para shtimit.
 
+NËSE nuk ka sugjerime → shkruaj "Nuk u identifikuan nene që mungojnë."
+
 ### D. Konsistenca e brendshme e citimeve
+1-3 fjali përmbledhëse mbi saktësinë e citimeve.
 
 RREGULLA:
 - Përdor VETËM nenet që shfaqen në "[NENE]" — me LIGJIN E CITUAR SAKTË.
+- NUK përsërit nenet që tashmë janë raportuar në Seksionin A (Python).
 """ + DEDUP_RULE,
     },
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # SECTION 3 — V1.8: HYBRID (3.A nga Python, PSE_RELEVANT + 3.B/C nga LLM)
+    # ═══════════════════════════════════════════════════════════════════════
     "supporting_precedents": {
         "title": "3. PRECEDENTË MBËSHTETËS",
-        "max_tokens": 2400,
+        "max_tokens": 2000,
         "needs": ["draft", "precedents"],
-        "prompt": """Ti je "Analist i Precedenteve" në Gjykatën Supreme të Kosovës.
+        "prompt": """Ti je "Analist i Precedentëve" në Gjykatën Supreme të Kosovës.
 
 ⚠️ KY ËSHTË VERIFIKIM DRAFTI — JO audit i fashikullit.
 
-⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
+🛑 SEKSIONI A (Precedentët e identifikuar) GJENEROHET AUTOMATIKISHT NGA SISTEMI (Python).
+   TI SHKRUAJ VETËM:
+   1. Bllokun "PSE_RELEVANT" (një fjali për secilin precedent)
+   2. Seksionin "### B. Si mund të përdoren në draft"
+   3. Seksionin "### C. Precedentë që mungojnë"
 
-🛑 RREGULL ABSOLUT PËR PRECEDENTËT:
-- Blloku "[PRECEDENTE]" përmban precedentët e VËRTETË nga baza e Gjykatës Supreme.
-- NUK LEJOHET të shpikësh numra precedentësh, faqe, ose burime.
-- NËSE blloku thotë "Nuk u identifikuan..." → shkruaj SAKTËSISHT atë frazë.
+🛑 FORMATI I DETYRUAR — fillo SAKTËSISHT me "PSE_RELEVANT_START":
 
-STRUKTURA E DETYRUAR:
-
-### A. Precedentët e identifikuar
-Për SECILIN precedent nga "[PRECEDENTE]", formato SAKTËSISHT kështu:
-
-[numri i çështjes] — similarity=X.XX
-
-**Fragment:** "[fragmenti]"
-
-**Pse relevant:** [1 fjali konkrete — cila nen ose argument specifik i draftit lidhet me këtë precedent. Cito numrin e nenit nga drafti kur është e mundur.]
-
-**Niveli i relevancës:** [1/2/3]
-  1 — TEMË IDENTIKE
-  2 — TEMË E NGJASHME
-  3 — TEMË E NDRYSHME
-
-⚠️ "Pse relevant" ËSHTË E DETYRUESHME. Pa të, precedent-i nuk ka vlerë.
+PSE_RELEVANT_START
+1: [fjali 1 për precedentin 1 — 20-30 fjalë]
+2: [fjali 1 për precedentin 2 — 20-30 fjalë]
+3: [fjali 1 për precedentin 3 — 20-30 fjalë]
+PSE_RELEVANT_END
 
 ### B. Si mund të përdoren në draft
-Për secilin precedent relevant, 1 fjali:
-- Ku në draft mund të citohet (seksioni / argumenti)
+- **PML.Nr.75/2025** → [ku në draft mund të citohet — seksioni/argumenti konkret]
+- **Pml.nr.528/2026** → [...]
+- ...
 
 ### C. Precedentë që mungojnë (nëse ka)
+- [nëse ka, ose "Nuk u identifikuan precedentë të tjerë relevantë."]
 
-RREGULLA:
-- NUK LEJOHET asnjë precedent që nuk shfaqet në "[PRECEDENTE]".
+🛑 RREGULLA ABSOLUTE:
+- Rendi i precedentëve në PSE_RELEVANT duhet të përputhet SAKTËSISHT me rendin në bllokun [PRECEDENTE].
+- NËSE blloku [PRECEDENTE] ka N precedentë → shkruaj SAKTËSISHT N rreshta në PSE_RELEVANT.
+- NUK përsërit numrin e çështjes, similarity, ose fragmentin — ato tashmë shfaqen në Seksionin A (Python).
+- Çdo fjali duhet të përmendë një nen konkret të draftit kur është e mundur (p.sh. "shih Nenin 414").
+- NUK shpik precedentë që nuk shfaqen në [PRECEDENTE].
+- NËSE blloku thotë "Nuk u identifikuan..." → shkruaj SAKTËSISHT:
+  PSE_RELEVANT_START
+  PSE_RELEVANT_END
+
+  ### B. Si mund të përdoren në draft
+  Nuk ka precedentë relevantë për t'u cituar.
+
+  ### C. Precedentë që mungojnë (nëse ka)
+  Nuk u identifikuan precedentë të tjerë relevantë.
+
+- SHKRUAJ VETËM NË SHQIP. Termat si "similarity" ose "score" NUK lejohen në output.
+
 """ + DEDUP_RULE,
     },
 
@@ -376,7 +394,7 @@ RREGULLA:
     },
 
     # ═══════════════════════════════════════════════════════════════════════
-    # SECTION 5 — V1.6: SHTOHET "Shembull: ..." për çdo rekomandim
+    # SECTION 5 — V1.6: "Shembull: ..." për çdo rekomandim
     # ═══════════════════════════════════════════════════════════════════════
     "concrete_recommendations": {
         "title": "5. REKOMANDIME KONKRETE",
@@ -794,7 +812,7 @@ def get_checklist(doc_type: str) -> Optional[Dict[str, Any]]:
 
 def _cli_test():
     print("=" * 70)
-    print("VERIFY PROMPTS V1.6 — DIAGNOSTIKË")
+    print("VERIFY PROMPTS V1.8 — DIAGNOSTIKË")
     print("=" * 70)
 
     print(f"\nLlojet e dokumenteve ({len(VERIFY_DOC_TYPES)}):")
@@ -808,11 +826,14 @@ def _cli_test():
         needs = cfg.get("needs", [])
         print(f"  - {k:25s} max_tokens={cfg.get('max_tokens')} needs={needs}")
 
-    print(f"\nV1.6 Konstante:")
+    print(f"\nV1.8 Konstante:")
     print(f"  - DEFAULT_MAX_DRAFT_CHARS: {DEFAULT_MAX_DRAFT_CHARS}")
     print(f"  - MIN_PRECEDENT_SIMILARITY: {MIN_PRECEDENT_SIMILARITY}")
+    print(f"  - Section 2: HYBRID (A nga Python, B/C/D nga LLM)")
+    print(f"  - Section 2 max_tokens: 2000 (ishte 2800)")
+    print(f"  - Section 3: HYBRID (3.A nga Python, PSE_RELEVANT + B/C nga LLM)")
+    print(f"  - Section 3 max_tokens: 2000 (ishte 2400)")
     print(f"  - Section 5: 4 fusha (Ku / Pse / Si / Shembull)")
-    print(f"  - Section 5 max_tokens: 3000 (ishte 2600)")
 
 
 if __name__ == "__main__":

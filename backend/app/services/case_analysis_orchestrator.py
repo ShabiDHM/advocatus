@@ -1,5 +1,14 @@
 # FILE: backend/app/services/case_analysis_orchestrator.py
-# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.8.2
+# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.9
+# V1.9: SYNTHESIS REMOVED — Hequr dega CASE MODE dhe varësitë nga synthesis:
+#       - Importi get_synthesis_service dhe atributi self.synthesis
+#       - Importi get_cross_reference_service dhe self.xref_service
+#       - Konstantet SECTION_ORDER, CROSS_REF_COLLECTION
+#       - Metodat _get_existing_xref, _get_existing_case_synthesis
+#       - Metoda _build_markdown_from_case_synthesis
+#       - Dega CASE MODE në run() — tani vetëm single-document mode.
+#       Router V1.12 e bllokon analizën pa document_ids me 400; orchestratori
+#       ka mbrojtje të brendshme në rast thirrjeje direkte.
 # V1.8.2: RIGOROUS ANALYSIS — shtuar "analiza_e_thelluar" ne
 #         DOCUMENT_REVIEW_SECTION_ORDER per ta shfaqur ne raport.
 # V1.8.1: NO HARDCODE — _normalize_client_position kthen raw value.
@@ -18,8 +27,6 @@ from typing import Dict, Any, List, Optional, AsyncGenerator
 from bson import ObjectId
 
 from app.services.extraction_pipeline import get_extraction_pipeline
-from app.services.pillars.cross_reference_service import get_cross_reference_service
-from app.services.synthesis_service import get_synthesis_service
 from app.services.document_review_service import get_document_review_service
 
 logger = logging.getLogger(__name__)
@@ -27,15 +34,9 @@ logger = logging.getLogger(__name__)
 
 QUEUE_POLL_INTERVAL_SEC = 0.3
 EXTRACTION_COLLECTION = "case_extractions"
-CROSS_REF_COLLECTION = "case_cross_references"
 SYNTHESIS_COLLECTION = "case_synthesis"
 
-SECTION_ORDER = [
-    "executive_summary", "chronology", "parties_and_roles",
-    "legal_framework", "key_findings_contradictions", "recommendations",
-]
-
-# V1.8.2: Shtuar "analiza_e_thelluar" ne fund per renditjen e raportit
+# V1.8.2: Renditja e seksioneve për raportin e document review
 DOCUMENT_REVIEW_SECTION_ORDER = [
     "document_summary",
     "article_verification",
@@ -52,8 +53,6 @@ class CaseAnalysisOrchestrator:
     def __init__(self, db):
         self.db = db
         self.pipeline = get_extraction_pipeline(db)
-        self.xref_service = get_cross_reference_service(db)
-        self.synthesis = get_synthesis_service(db)
         self.document_review = get_document_review_service(db)
 
     # ────────────────────────────────────────────────────────────────────
@@ -77,7 +76,7 @@ class CaseAnalysisOrchestrator:
                 name = (user.get("username") or "").strip()
             return name or None
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH V1.8.2] Could not load client_name: {e}")
+            logger.warning(f"⚠️ [ORCH V1.9] Could not load client_name: {e}")
             return None
 
     # ────────────────────────────────────────────────────────────────────
@@ -126,7 +125,7 @@ class CaseAnalysisOrchestrator:
             raw = "|".join(parts)
             return hashlib.md5(raw.encode("utf-8")).hexdigest()
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH V1.8.2] fingerprint compute failed: {e}")
+            logger.warning(f"⚠️ [ORCH V1.9] fingerprint compute failed: {e}")
             return ""
 
     def _is_cache_valid(
@@ -144,15 +143,19 @@ class CaseAnalysisOrchestrator:
             or cached.get("stats", {}).get("docs_fingerprint")
         )
         if not stored_fp:
-            logger.info(f"🔄 [ORCH V1.8.2] {label} pa docs_fingerprint → invalidate")
+            logger.info(f"🔄 [ORCH V1.9] {label} pa docs_fingerprint → invalidate")
             return False
         if stored_fp != current_fp:
             logger.info(
-                f"🔄 [ORCH V1.8.2] {label} INVALIDATED — docs changed "
+                f"🔄 [ORCH V1.9] {label} INVALIDATED — docs changed "
                 f"(stored={stored_fp[:8]}... current={current_fp[:8]}...)"
             )
             return False
         return True
+
+    # ────────────────────────────────────────────────────────────────────
+    # V1.9: RUN — vetëm single-document mode
+    # ────────────────────────────────────────────────────────────────────
 
     async def run(
         self,
@@ -166,8 +169,30 @@ class CaseAnalysisOrchestrator:
 
         case = self._load_case(case_id)
         case_title = case.get("title") or case.get("case_name") or "Lënda"
-        is_single_doc = bool(document_ids and len(document_ids) >= 1)
-        scope = "document" if is_single_doc else "case"
+
+        # V1.9: document_ids i detyrueshëm. Router V1.12 e bllokon me 400,
+        # por mbrohemi edhe këtu për thirrje direkte.
+        if not document_ids:
+            logger.error(
+                f"❌ [ORCH V1.9] run() called without document_ids: case={case_id}"
+            )
+            yield {
+                "event": "start",
+                "case_id": str(case_id),
+                "case_title": case_title,
+                "scope": "invalid",
+                "force_reprocess": force_reprocess,
+                "document_ids": None,
+                "is_single_document": False,
+                "docs_fingerprint": "",
+            }
+            yield {
+                "event": "error",
+                "phase": "start",
+                "message": "document_ids required (orchestrator V1.9).",
+            }
+            yield self._final_error(start_time, "start", "document_ids required")
+            return
 
         client_name = self._load_client_name(user_id)
         client_position = self._normalize_client_position(
@@ -176,11 +201,11 @@ class CaseAnalysisOrchestrator:
 
         if client_name:
             logger.info(
-                f"👤 [ORCH V1.8.2] Client: name={client_name}, "
+                f"👤 [ORCH V1.9] Client: name={client_name}, "
                 f"case_position={client_position or '?'}"
             )
         else:
-            logger.warning(f"⚠️ [ORCH V1.8.2] Client name unavailable (user_id={user_id})")
+            logger.warning(f"⚠️ [ORCH V1.9] Client name unavailable (user_id={user_id})")
 
         current_fp = self._compute_docs_fingerprint(case_id)
 
@@ -188,237 +213,26 @@ class CaseAnalysisOrchestrator:
             "event": "start",
             "case_id": str(case_id),
             "case_title": case_title,
-            "scope": scope,
+            "scope": "document",
             "force_reprocess": force_reprocess,
             "document_ids": document_ids,
-            "is_single_document": is_single_doc,
+            "is_single_document": True,
             "docs_fingerprint": current_fp[:8],
         }
 
-        # ═══════════ SINGLE-DOCUMENT MODE ═══════════
-        if is_single_doc:
-            async for evt in self._run_single_document(
-                case_id=case_id,
-                user_id=user_id,
-                client_name=client_name,
-                client_position=client_position,
-                document_ids=document_ids,
-                force_reprocess=force_reprocess,
-                case_title=case_title,
-                start_time=start_time,
-                loop=loop,
-                current_fp=current_fp,
-            ):
-                yield evt
-            return
-
-        # ═══════════ CASE MODE ═══════════
-
-        # PHASE 1 — EXTRACTION
-        try:
-            yield {"event": "phase_started", "phase": "extraction"}
-            extraction_summary: Dict[str, Any] = {}
-
-            async for evt in self.pipeline.run(
-                user_id=user_id,
-                case_id=str(case_id),
-                document_ids=None,
-                force_reprocess=force_reprocess,
-            ):
-                evt_type = evt.get("event", "")
-                if evt_type == "complete":
-                    extraction_summary = evt.get("summary", {})
-                    yield {
-                        "event": "phase_completed",
-                        "phase": "extraction",
-                        "summary": extraction_summary,
-                    }
-                elif evt_type == "error":
-                    yield {
-                        "event": "error",
-                        "phase": "extraction",
-                        "message": evt.get("message", "Unknown error"),
-                    }
-                    yield self._final_error(start_time, "extraction", evt.get("message", "Unknown"))
-                    return
-                else:
-                    yield {"phase": "extraction", **evt}
-
-        except Exception as e:
-            logger.exception(f"❌ [ORCH] Extraction phase failed: {e}")
-            yield {"event": "error", "phase": "extraction", "message": str(e)}
-            yield self._final_error(start_time, "extraction", str(e))
-            return
-
-        # PHASE 2 — CROSS-REFERENCE
-        xref_stats: Dict[str, Any] = {}
-        existing_xref = self._get_existing_xref(case_id)
-        xref_valid = self._is_cache_valid(existing_xref, current_fp, label="xref")
-
-        if existing_xref and xref_valid and not force_reprocess:
-            yield {
-                "event": "phase_skipped",
-                "phase": "cross_reference",
-                "reason": "existing_cross_reference_valid",
-            }
-            xref_stats = existing_xref.get("stats", {})
-        else:
-            try:
-                yield {"event": "phase_started", "phase": "cross_reference"}
-                xref_result = await loop.run_in_executor(
-                    None, lambda: self.xref_service.build(str(case_id)),
-                )
-                xref_stats = xref_result.get("stats", {})
-                try:
-                    self.db[CROSS_REF_COLLECTION].update_one(
-                        {"case_id": str(case_id), "status": "completed"},
-                        {"$set": {"docs_fingerprint": current_fp}},
-                    )
-                except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.8.2] xref fp save failed: {fp_err}")
-                yield {
-                    "event": "phase_completed",
-                    "phase": "cross_reference",
-                    "stats": xref_stats,
-                }
-            except Exception as e:
-                logger.exception(f"❌ [ORCH] Cross-reference phase failed: {e}")
-                yield {"event": "error", "phase": "cross_reference", "message": str(e)}
-
-        # PHASE 3 — SYNTHESIS (case-only)
-        synthesis_stats: Dict[str, Any] = {}
-        synthesis_result_for_markdown: Optional[Dict[str, Any]] = None
-        is_cache_hit = False
-
-        existing_synth = self._get_existing_case_synthesis(case_id)
-        synth_valid = self._is_cache_valid(existing_synth, current_fp, label="synthesis")
-
-        if existing_synth and synth_valid and not force_reprocess:
-            is_cache_hit = True
-            yield {
-                "event": "phase_skipped",
-                "phase": "synthesis",
-                "reason": "existing_synthesis_valid",
-            }
-            synthesis_stats = existing_synth.get("stats", {})
-            synthesis_result_for_markdown = existing_synth
-        else:
-            if existing_synth and not synth_valid:
-                logger.info(f"🔄 [ORCH V1.8.2] Re-generating case synthesis (cache invalidated)")
-
-            try:
-                yield {"event": "phase_started", "phase": "synthesis"}
-                event_queue: asyncio.Queue = asyncio.Queue()
-
-                def _sync_progress(event_type: str, data: Dict[str, Any]) -> None:
-                    try:
-                        evt = {"event": event_type, **data}
-                        loop.call_soon_threadsafe(event_queue.put_nowait, evt)
-                    except Exception as e:
-                        logger.warning(f"⚠️ [ORCH] progress bridge failed: {e}")
-
-                def _sync_stream(section_key: str, chunk: str) -> None:
-                    try:
-                        evt = {
-                            "event": "section_chunk",
-                            "section_key": section_key,
-                            "chunk": chunk,
-                        }
-                        loop.call_soon_threadsafe(event_queue.put_nowait, evt)
-                    except Exception as e:
-                        logger.warning(f"⚠️ [ORCH] stream bridge failed: {e}")
-
-                synth_future = loop.run_in_executor(
-                    None,
-                    lambda: self.synthesis.synthesize(
-                        case_id=str(case_id),
-                        user_id=user_id,
-                        progress_callback=_sync_progress,
-                        section_stream_callback=_sync_stream,
-                    ),
-                )
-
-                while True:
-                    done, _ = await asyncio.wait(
-                        {synth_future}, timeout=QUEUE_POLL_INTERVAL_SEC
-                    )
-                    while not event_queue.empty():
-                        try:
-                            evt = event_queue.get_nowait()
-                            yield {"phase": "synthesis", **evt}
-                        except asyncio.QueueEmpty:
-                            break
-                    if synth_future in done:
-                        while not event_queue.empty():
-                            try:
-                                evt = event_queue.get_nowait()
-                                yield {"phase": "synthesis", **evt}
-                            except asyncio.QueueEmpty:
-                                break
-                        break
-
-                synthesis_result = synth_future.result()
-                synthesis_stats = synthesis_result.get("stats", {})
-                synthesis_result_for_markdown = synthesis_result
-
-                try:
-                    self.db[SYNTHESIS_COLLECTION].update_one(
-                        {"case_id": str(case_id), "status": "completed", "scope": "case"},
-                        {"$set": {"docs_fingerprint": current_fp}},
-                    )
-                    logger.info(
-                        f"💾 [ORCH V1.8.2] Saved docs_fingerprint={current_fp[:8]}... to synthesis cache"
-                    )
-                except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.8.2] synthesis fp save failed: {fp_err}")
-
-                yield {
-                    "event": "phase_completed",
-                    "phase": "synthesis",
-                    "stats": synthesis_stats,
-                }
-
-            except Exception as e:
-                logger.exception(f"❌ [ORCH] Synthesis phase failed: {e}")
-                yield {"event": "error", "phase": "synthesis", "message": str(e)}
-
-        # PHASE 4 — REPORT READY
-        if is_cache_hit:
-            report_markdown = self._build_markdown_from_case_synthesis(
-                synthesis_result_for_markdown
-            )
-            if report_markdown.strip():
-                yield {
-                    "event": "report_ready",
-                    "content": report_markdown,
-                    "content_length": len(report_markdown),
-                    "from_cache": True,
-                    "scope": "case",
-                }
-        else:
-            yield {"event": "report_ready", "from_cache": False, "scope": "case"}
-
-        total_duration = round(time.time() - start_time, 2)
-        final_summary = {
-            "case_id": str(case_id),
-            "case_title": case_title,
-            "scope": "case",
-            "duration_sec": total_duration,
-            "from_cache": is_cache_hit,
-            "is_single_document": False,
-            "document_ids": None,
-            "docs_fingerprint": current_fp[:8],
-            "extraction": extraction_summary,
-            "cross_reference": xref_stats,
-            "synthesis": synthesis_stats,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        logger.info(
-            f"✅ [ORCH V1.8.2] Complete: case={case_id}, scope=case, "
-            f"duration={total_duration}s, from_cache={is_cache_hit}"
-        )
-        yield {"event": "complete", "summary": final_summary}
+        async for evt in self._run_single_document(
+            case_id=case_id,
+            user_id=user_id,
+            client_name=client_name,
+            client_position=client_position,
+            document_ids=document_ids,
+            force_reprocess=force_reprocess,
+            case_title=case_title,
+            start_time=start_time,
+            loop=loop,
+            current_fp=current_fp,
+        ):
+            yield evt
 
     # ────────────────────────────────────────────────────────────────────
     # SINGLE DOCUMENT RUN (Document Review)
@@ -565,7 +379,7 @@ class CaseAnalysisOrchestrator:
                         {"$set": {"docs_fingerprint": doc_fp}},
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.8.2] review fp save failed: {fp_err}")
+                    logger.warning(f"⚠️ [ORCH V1.9] review fp save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -612,47 +426,14 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH V1.8.2] Complete: case={case_id}, scope=document, "
+            f"✅ [ORCH V1.9] Complete: case={case_id}, scope=document, "
             f"doc={document_id}, duration={total_duration}s, from_cache={is_cache_hit}"
         )
         yield {"event": "complete", "summary": final_summary}
 
     # ────────────────────────────────────────────────────────────────────
-    # MARKDOWN BUILDERS
+    # MARKDOWN BUILDER (vetëm document review)
     # ────────────────────────────────────────────────────────────────────
-
-    def _build_markdown_from_case_synthesis(
-        self, synthesis_result: Optional[Dict[str, Any]],
-    ) -> str:
-        if not synthesis_result:
-            return ""
-        sections = synthesis_result.get("sections") or {}
-        if not sections:
-            return ""
-        parts: List[str] = []
-        for key in SECTION_ORDER:
-            section = sections.get(key)
-            if not section:
-                continue
-            title = section.get("title") or key
-            content = section.get("content") or ""
-            if not content.strip():
-                continue
-            parts.append(f"# {title}\n\n{content.strip()}\n\n---\n\n")
-        for key, section in sections.items():
-            if key in SECTION_ORDER:
-                continue
-            if not isinstance(section, dict):
-                continue
-            title = section.get("title") or key
-            content = section.get("content") or ""
-            if not content.strip():
-                continue
-            parts.append(f"# {title}\n\n{content.strip()}\n\n---\n\n")
-        markdown = "".join(parts).rstrip()
-        if markdown.endswith("---"):
-            markdown = markdown[:-3].rstrip()
-        return markdown
 
     def _build_markdown_from_document_review(
         self, review_result: Optional[Dict[str, Any]],
@@ -665,7 +446,7 @@ class CaseAnalysisOrchestrator:
 
         parts: List[str] = []
 
-        # V1.8.2: Rendit sipas DOCUMENT_REVIEW_SECTION_ORDER (tani 7 seksione)
+        # V1.8.2: Rendit sipas DOCUMENT_REVIEW_SECTION_ORDER (7 seksione)
         for key in DOCUMENT_REVIEW_SECTION_ORDER:
             section = sections.get(key)
             if not section:
@@ -704,26 +485,6 @@ class CaseAnalysisOrchestrator:
         except Exception as e:
             logger.warning(f"⚠️ [ORCH] Could not load case: {e}")
             return {}
-
-    def _get_existing_xref(self, case_id: str) -> Optional[Dict[str, Any]]:
-        try:
-            return self.db[CROSS_REF_COLLECTION].find_one(
-                {"case_id": str(case_id), "status": "completed"}
-            )
-        except Exception as e:
-            logger.warning(f"⚠️ [ORCH] xref lookup failed: {e}")
-            return None
-
-    def _get_existing_case_synthesis(self, case_id: str) -> Optional[Dict[str, Any]]:
-        try:
-            return self.db[SYNTHESIS_COLLECTION].find_one({
-                "case_id": str(case_id),
-                "status": "completed",
-                "scope": "case",
-            })
-        except Exception as e:
-            logger.warning(f"⚠️ [ORCH] case synthesis lookup failed: {e}")
-            return None
 
     def _get_existing_document_review(
         self, case_id: str, document_id: str

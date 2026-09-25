@@ -130,3 +130,6 @@ backend/scripts/_reorganize_*.py
 # Backend root runtime
 backend/_reorganize_*.py
 backend/_test_*.py
+__pycache__/
+*.py[cod]
+_legacy/

@@ -1,6 +1,9 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.2.1
-// V6.2.1: HEQUR "Në Fund" button — nuk nevojitet, scrollbar mjafton.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.3
+// V6.3: COLOR UNIFIED — chrome (header, banner, buttons, markdown headings)
+//       kaloi nga emerald → primary-start për konsistencë me aplikacionin.
+//       Semantikët (✅❌⚠️💡 në lista, stat-panel OK/Gabime) mbeten.
+// V6.2.1: HEQUR "Në Fund" button.
 // V6.2: STATS PANEL me gjetje ✅/❌/⚠️/💡.
 // V6.1.5: LAW CITATION LINK.
 
@@ -119,17 +122,17 @@ const FONT_LEVELS = [
 ];
 
 // ───────────────────────────────────────────────────────────────────────────
-// CUSTOM MARKDOWN COMPONENTS
+// CUSTOM MARKDOWN COMPONENTS (V6.3 — primary-start për chrome)
 // ───────────────────────────────────────────────────────────────────────────
 
 const buildReportComponents = () => ({
   h1: ({ children }: any) => {
     const text = String(children);
     return (
-      <div className="mt-2 mb-6 pb-5 border-b-2 border-emerald-500/30">
+      <div className="mt-2 mb-6 pb-5 border-b-2 border-primary-start/30">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-            <ShieldCheck size={22} className="text-emerald-500" />
+          <div className="w-11 h-11 rounded-2xl bg-primary-start/15 border border-primary-start/30 flex items-center justify-center shrink-0">
+            <ShieldCheck size={22} className="text-primary-start" />
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-text-primary tracking-tight">
             {text.replace(/^RAPORT\s*—\s*/, '').replace(/^RAPORT VERIFIKIMI\s*—\s*/, '')}
@@ -148,7 +151,7 @@ const buildReportComponents = () => ({
     if (match) {
       return (
         <h2 className="flex items-center gap-3 mt-8 mb-4 pb-3 border-b border-main">
-          <span className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+          <span className="w-9 h-9 rounded-xl bg-primary-start text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
             {match[1]}
           </span>
           <span className="text-base sm:text-lg font-black text-text-primary tracking-tight uppercase">
@@ -170,9 +173,9 @@ const buildReportComponents = () => ({
     if (match) {
       return (
         <h3 className="flex items-center gap-2.5 mt-5 mb-3">
-          <span className="w-1 h-5 rounded-full bg-emerald-500 shrink-0" />
+          <span className="w-1 h-5 rounded-full bg-primary-start shrink-0" />
           <span className="text-sm sm:text-base font-bold text-text-primary">
-            <span className="text-emerald-500 mr-1">{match[1]}.</span>
+            <span className="text-primary-start mr-1">{match[1]}.</span>
             {match[2]}
           </span>
         </h3>
@@ -180,14 +183,14 @@ const buildReportComponents = () => ({
     }
     return (
       <h3 className="flex items-center gap-2.5 mt-5 mb-3">
-        <span className="w-1 h-5 rounded-full bg-emerald-500 shrink-0" />
+        <span className="w-1 h-5 rounded-full bg-primary-start shrink-0" />
         <span className="text-sm sm:text-base font-bold text-text-primary">{children}</span>
       </h3>
     );
   },
 
   h4: ({ children }: any) => (
-    <h4 className="text-sm font-bold text-text-primary mt-4 mb-2 pl-3 border-l-2 border-emerald-500/40">
+    <h4 className="text-sm font-bold text-text-primary mt-4 mb-2 pl-3 border-l-2 border-primary-start/40">
       {children}
     </h4>
   ),
@@ -210,6 +213,7 @@ const buildReportComponents = () => ({
     </ol>
   ),
 
+  // Semantikët e statusit (✅❌⚠️💡) mbeten
   li: ({ children }: any) => {
     const firstText = Array.isArray(children)
       ? String(children[0] || '')
@@ -270,7 +274,7 @@ const buildReportComponents = () => ({
 
     return (
       <li className="flex items-start gap-2.5 pl-1 text-xs sm:text-sm leading-relaxed text-text-primary">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60 mt-2 shrink-0" />
+        <span className="w-1.5 h-1.5 rounded-full bg-primary-start/60 mt-2 shrink-0" />
         <span className="flex-1">{children}</span>
       </li>
     );
@@ -285,21 +289,21 @@ const buildReportComponents = () => ({
   ),
 
   code: ({ children }: any) => (
-    <code className="px-1.5 py-0.5 rounded bg-canvas border border-main font-mono text-[11px] text-emerald-500 font-semibold">
+    <code className="px-1.5 py-0.5 rounded bg-canvas border border-main font-mono text-[11px] text-primary-start font-semibold">
       {children}
     </code>
   ),
 
   hr: () => (
     <div className="my-7 flex items-center justify-center">
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
-      <div className="mx-3 w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-primary-start/40 to-transparent" />
+      <div className="mx-3 w-1.5 h-1.5 rounded-full bg-primary-start/60" />
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-primary-start/40 to-transparent" />
     </div>
   ),
 
   blockquote: ({ children }: any) => (
-    <blockquote className="my-4 pl-4 py-3 pr-3 border-l-4 border-emerald-500/50 bg-emerald-500/5 rounded-r-lg">
+    <blockquote className="my-4 pl-4 py-3 pr-3 border-l-4 border-primary-start/50 bg-primary-start/5 rounded-r-lg">
       <div className="text-xs sm:text-sm italic text-text-secondary leading-relaxed">
         {children}
       </div>
@@ -540,7 +544,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       })
       .catch((err) => {
         if (fetchAbortRef.current) return;
-        console.warn('[CaseDossierAuditModal V6.2.1] Ngarkimi i raportit të ruajtur dështoi:', err);
+        console.warn('[CaseDossierAuditModal V6.3] Ngarkimi i raportit të ruajtur dështoi:', err);
         setLoadError('Ngarkimi i raportit të ruajtur dështoi.');
       })
       .finally(() => {
@@ -652,10 +656,10 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
               : 'h-[92vh] max-w-5xl max-h-[880px] rounded-2xl sm:rounded-3xl border border-main'
           } p-4 sm:p-6 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
         >
-          {/* HEADER */}
+          {/* HEADER — V6.3: primary-start */}
           <div className="flex items-center justify-between pb-3.5 border-b border-main shrink-0 gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-10 h-10 bg-emerald-500/15 text-emerald-500 rounded-2xl flex items-center justify-center border border-emerald-500/30 shrink-0">
+              <div className="w-10 h-10 bg-primary-start/15 text-primary-start rounded-2xl flex items-center justify-center border border-primary-start/30 shrink-0">
                 {effectiveScope === 'document' ? <ShieldCheck className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
               </div>
               <div className="min-w-0 flex-1">
@@ -681,7 +685,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 >
                   <ZoomOut size={13} />
                 </button>
-                <span className="px-1.5 text-[10px] font-mono font-bold text-emerald-500">
+                <span className="px-1.5 text-[10px] font-mono font-bold text-primary-start">
                   {activeFont.label}
                 </span>
                 <button
@@ -727,12 +731,12 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           </div>
 
-          {/* BANNER */}
+          {/* BANNER — V6.3: primary-start */}
           {showReportBanner && (
-            <div className="mt-3 p-3 sm:p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+            <div className="mt-3 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
               <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <Calendar size={15} className="text-emerald-500" />
+                <div className="w-8 h-8 rounded-lg bg-primary-start/15 flex items-center justify-center shrink-0">
+                  <Calendar size={15} className="text-primary-start" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-bold text-text-primary">
@@ -752,7 +756,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   type="button"
                   onClick={handleRegenerate}
                   disabled={isPurging}
-                  className="h-9 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-500/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
+                  className="h-9 px-4 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
                   title="Rigjenero nga e para"
                 >
                   <RotateCcw size={13} />
@@ -762,7 +766,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           )}
 
-          {/* STATS PANEL */}
+          {/* STATS PANEL — V6.3: SEMANTIK (mbetet me ngjyrat e tij) */}
           {reportContent && hasDerivedStats && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
               <div className="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/25 min-w-0">
@@ -828,12 +832,12 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
             {isLoadingFromServer ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
-                <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+                <Loader2 className="w-10 h-10 animate-spin text-primary-start" />
                 <p className="text-sm text-text-muted">Duke lexuar raportin e ruajtur...</p>
               </div>
             ) : !reportContent ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center">
                   {effectiveScope === 'document' ? <ShieldCheck size={28} /> : <Scale size={28} />}
                 </div>
                 <div>
@@ -850,7 +854,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   <button
                     type="button"
                     onClick={handleRegenerate}
-                    className="mt-2 h-10 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-500/90 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md hover-lift"
+                    className="mt-2 h-10 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md hover-lift"
                   >
                     <Sparkles size={14} />
                     <span>Analizo {effectiveScope === 'document' ? 'Dokumentin' : 'Rastin'}</span>
@@ -869,7 +873,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             )}
           </div>
 
-          {/* FOOTER */}
+          {/* FOOTER — V6.3: primary-start per Kopjo */}
           <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
             {reportContent && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium">
@@ -888,7 +892,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 type="button"
                 onClick={handleCopy}
                 disabled={!reportContent}
-                className="h-9 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-500/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
+                className="h-9 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
               >
                 {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
                 <span>{copied ? 'U Kopjua!' : 'Kopjo për Dokument'}</span>

@@ -1,10 +1,11 @@
 # FILE: backend/app/services/document_review/mongo_verifier.py
-# PHOENIX PROTOCOL - MONGO VERIFIER V2.1 (ABBREV ALIASES)
+# PHOENIX PROTOCOL - MONGO VERIFIER V2.3 (KEYWORD STOPWORDS)
+# V2.3: KEYWORD_MATCH_STOPWORDS — fjalë gjenerike ("republika", "kosova",
+#       "kodi", "ligji") nuk kontribuojnë në overlap. FIX për mis-attribution
+#       ku "Kushtetuta e Republikës së Kosovës" match-on "KODI PENAL
+#       I REPUBLIKËS SË KOSOVËS" përmes dy fjalëve gjenerike.
+# V2.2: EXCLUDES — KPRK nuk match-on "KODI PROCEDURËS PENALE".
 # V2.1: FIX akronime te gabuara — KPPRK/KPPK te trajtohen si KPK.
-#       - LAW_ABBREV_ALIASES: KPPRK → KPK, KPPK → KPK
-#       - KNOWN_ABBREV_KEYWORDS me ROOTS (procedur, jo procedurës)
-#         per shmangur humbjen e match-it ne normalizim ë→e.
-#       - _title_matches_citation provo aliasin perpara hint-it origjinal.
 # V2.0: VERIFIKIM MULTI-LIGJ.
 # V1.9: WORD BOUNDARY në abbrev_match dhe full_name_match.
 
@@ -55,27 +56,76 @@ LAW_ABBREV_ALIASES: Dict[str, str] = {
     "KPK":   "KPK",
     # Kodi Penal (06/L-074) — nuk ka alias
     "KPRK":  "KPRK",
-    "KPRKS": "KPRK",  # variant
+    "KPRKS": "KPRK",
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V1.4 / V2.1: KNOWN_ABBREV_KEYWORDS — ROOTS (jo mbaresa)
 # ═══════════════════════════════════════════════════════════════════════════
-#
-# V2.1: Ndryshuar nga "procedurës" → "procedur" (root), "mbrojtj" (root).
-# Kjo shmang humbjen e match-it kur normalize_albanian nuk konverton ë→e.
 
 KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
     "LMDHF": ["ligj", "mbrojtj", "dhun", "familj"],
-    "LMD":   ["ligj", "marrëdhënie", "detyrim"],  # ose marrdhenie
+    "LMD":   ["ligj", "marrëdhënie", "detyrim"],
     "LPK":   ["ligj", "procedur", "kontestim"],
     "KPRK":  ["kodi", "penal"],
     "KPK":   ["kodi", "procedur", "penal"],
-    "KPPRK": ["kodi", "procedur", "penal"],  # same as KPK
+    "KPPRK": ["kodi", "procedur", "penal"],
     "LFK":   ["ligj", "familj"],
-    "LSHT":  ["ligj", "shoqëri", "tregtar"],  # ose shoqeri
+    "LSHT":  ["ligj", "shoqëri", "tregtar"],
     "KRK":   ["kushtetut"],
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.2: KNOWN_ABBREV_EXCLUDES — keywords që NUK duhet të shfaqen
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Arsyetimi: "Kodi Penal" dhe "Kodi Procedurës Penale" të dy përmbajnë
+# fjalën "penal" (brenda "penale"). Pa excludes, KPRK match-on gabimisht
+# titullin "Kodi Procedurës Penale".
+#
+
+KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
+    # KPRK = Kodi Penal ≠ Kodi Procedurës Penale
+    "KPRK":  ["procedur"],
+    "KPRKS": ["procedur"],
+    # KPK/KPPRK = Kodi Procedurës Penale (nuk ka exclude)
+    "KPK":   [],
+    "KPPRK": [],
+    # Të tjerët — pa exclude
+    "LMDHF": [],
+    "LMD":   [],
+    "LPK":   [],
+    "LFK":   [],
+    "LSHT":  [],
+    "KRK":   [],
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.3: KEYWORD_MATCH_STOPWORDS — fjalë gjenerike që NUK kontribuojnë
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# "republika"/"kosova"/"kodi"/"ligji" shfaqen në shumë tituj ligjesh.
+# Nëse numërohen në overlap, shkaktojnë false-positive.
+#
+# Shembull bug: hint = "Kushtetuta e Republikës së Kosovës" dhe
+# db_title = "KODI PENAL I REPUBLIKËS SË KOSOVËS"
+# Pa stopwords: overlap = {republika, kosova} → 2 match → True (GABIM)
+# Me stopwords: cit_kw = {} → skip keyword match → False (SAKTË)
+#
+
+KEYWORD_MATCH_STOPWORDS: Set[str] = {
+    "republikes", "republike", "republika", "republik",
+    "kosoves", "kosove", "kosova", "kosov",
+    "shtetit", "shteti", "shtet",
+    "kodi", "kodit", "kodet", "kod",
+    "ligji", "ligjit", "ligje", "ligjet", "ligj",
+    "neni", "nenit", "nenet", "nenin", "nen",
+    "kushtetuta", "kushtetutes", "kushtetute",
+    "konventa", "konventes", "konvente",
+    "numri", "numrit", "numer",
 }
 
 
@@ -102,10 +152,6 @@ LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_law_hint_alias(hint: str) -> str:
-    """
-    V2.1: Normalizo aliaset e njohura te akronimeve.
-    KPPRK → KPK, KPPK → KPK.
-    """
     if not hint:
         return hint
     h = hint.strip().upper()
@@ -113,9 +159,6 @@ def _normalize_law_hint_alias(hint: str) -> str:
 
 
 def _variant_hints(hint: str) -> List[str]:
-    """
-    V2.1: Kthen te gjitha variantet e nje hint (origjinal + alias).
-    """
     if not hint:
         return []
     variants: Set[str] = set()
@@ -198,27 +241,50 @@ def _generate_abbreviation_from_title(title: str) -> str:
 
 def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
     """
-    V2.1: Kontrollo akronimin kundrejt mapping-ut zyrtar.
+    V2.2: Kontrollo akronimin kundrejt mapping-ut zyrtar.
     Tani ben fallback me alias nese originali nuk matchon.
+    Plus: excludes check për të shmangur KPRK ≠ KPPRK.
     """
-    # Provo me aliasin e normalizuar
     normalized_cit = _normalize_law_hint_alias(cit_upper)
 
     for candidate in (cit_upper, normalized_cit):
         keywords = KNOWN_ABBREV_KEYWORDS.get(candidate)
         if not keywords:
             continue
+
+        # V2.2: Kontrollo fjalët e ndaluara
+        excludes = KNOWN_ABBREV_EXCLUDES.get(candidate, [])
+
         title_norm = normalize_albanian(db_title)
-        # V2.1: Shmang problemet me ë/ç — provo të dyja variantet
         title_alt = title_norm.replace("ë", "e").replace("ç", "c")
+
+        # V2.2: Nëse ka forbidden keyword → skip candidate
+        exclude_hit = False
+        for ex in excludes:
+            ex_alt = ex.replace("ë", "e").replace("ç", "c")
+            if (ex in title_norm or ex_alt in title_norm
+                    or ex in title_alt or ex_alt in title_alt):
+                exclude_hit = True
+                break
+        if exclude_hit:
+            logger.debug(
+                f"[V2.3] Skip abbrev '{candidate}' — excluded keyword "
+                f"'{ex}' found in title: {db_title[:80]}"
+            )
+            continue
+
+        # Kontrollo që TË GJITHA keywords të jenë të pranishme
+        all_matched = True
         for kw in keywords:
             kw_alt = kw.replace("ë", "e").replace("ç", "c")
             if not (kw in title_norm or kw_alt in title_norm
                     or kw in title_alt or kw_alt in title_alt):
+                all_matched = False
                 break
-        else:
-            # All keywords matched
+
+        if all_matched:
             return True
+
     return False
 
 
@@ -249,7 +315,7 @@ def _reason_priority(reason: str) -> int:
 
 
 def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool, str]:
-    """V2.1: Kontrollo nëse law_title përputhet me law_hint (me aliases)."""
+    """V2.3: Kontrollo nëse law_title përputhet me law_hint (me aliases)."""
     if not db_title or not citation_law_hint:
         return False, "empty"
 
@@ -262,10 +328,9 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
     cit_upper = citation_law_hint.upper().strip()
     is_abbrev_hint = bool(re.match(r'^[A-ZËÇ]{2,6}$', cit_upper))
 
-    # V2.1: Provo me aliases — KPPRK → KPK
+    # V2.2: Provo me aliases — KPPRK → KPK
     if is_abbrev_hint:
         for variant in _variant_hints(cit_upper):
-            # 2. Mapping akronimesh zyrtare
             if _known_abbrev_matches(variant, db_title):
                 tag = "abbrev_known" if variant == cit_upper else f"abbrev_alias:{cit_upper}→{variant}"
                 return True, f"{tag}:{variant}"
@@ -296,13 +361,16 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
         if re.search(pattern, db_upper):
             return True, f"full_name_match:{cit_upper}"
 
-    # 6. Fjalë kyçe
-    db_kw = _extract_keywords(db_title)
-    cit_kw = _extract_keywords(citation_law_hint)
-    overlap = db_kw & cit_kw
-    min_overlap = 1 if len(cit_kw) <= 1 else 2
-    if len(overlap) >= min_overlap:
-        return True, f"keyword_match:{sorted(overlap)[:3]}"
+    # 6. Fjalë kyçe (V2.3: me stopwords filter)
+    db_kw = _extract_keywords(db_title) - KEYWORD_MATCH_STOPWORDS
+    cit_kw = _extract_keywords(citation_law_hint) - KEYWORD_MATCH_STOPWORDS
+
+    # V2.3: Nëse cit_kw është bosh pas filtrit → nuk ka bazë për keyword match
+    if cit_kw:
+        overlap = db_kw & cit_kw
+        min_overlap = 1 if len(cit_kw) <= 1 else 2
+        if len(overlap) >= min_overlap:
+            return True, f"keyword_match:{sorted(overlap)[:3]}"
 
     return False, "no_match"
 
@@ -425,7 +493,7 @@ def _check_exists_in_other_laws(db, article_number: str) -> List[Dict[str, Any]]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY SINGLE ARTICLE — V2.1
+# VERIFY SINGLE ARTICLE — V2.3
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _verify_single_article(
@@ -519,13 +587,11 @@ def _verify_single_article(
             result["match_reason"] = best_reason
             return result
 
-        # Nuk u gjet — strategji alternative
         logger.info(
-            f"🔎 [MULTI-LAW V2.1] Neni {article_number} me hint='{law_hint}' "
+            f"🔎 [MULTI-LAW V2.3] Neni {article_number} me hint='{law_hint}' "
             f"nuk u gjet direkt — provo strategji alternative..."
         )
 
-        # Strategjia 1: Ligji pasardhës
         successor_info = _get_successor_law(law_hint)
         if successor_info:
             successor_result = _try_successor_law(
@@ -534,7 +600,6 @@ def _verify_single_article(
             if successor_result and successor_result.get("exists"):
                 return successor_result
 
-        # Strategjia 2: Raporto ku tjetër ekziston
         other_laws = _check_exists_in_other_laws(db, article_number)
         if other_laws:
             result["match_reason"] = "law_hint_no_match_but_exists_elsewhere"
@@ -605,7 +670,7 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.1] Articles: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.3] Articles: {len(results)} total, "
         f"{verified} verified (including {successor_matches} in successor laws, "
         f"{alias_matches} via alias), "
         f"{alternative_found} exist elsewhere (wrong hint), "
@@ -698,7 +763,7 @@ def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[st
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.1] Laws by number: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.3] Laws by number: {len(results)} total, "
         f"{verified} verified, {replaced} replaced"
     )
     return results
@@ -825,7 +890,7 @@ def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.1] Complete: "
+        f"📚 [MONGO_VERIFIER V2.3] Complete: "
         f"articles {stats['articles_verified']}/{stats['articles_total']} "
         f"(+{stats['articles_in_successor_laws']} in successor laws, "
         f"{stats['articles_via_alias']} via alias), "

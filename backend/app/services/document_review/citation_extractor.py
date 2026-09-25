@@ -1,10 +1,11 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.14
-# V1.14: CASE-NUMBER-PREFIX EXCLUSION — akronimet "PML", "P", "PA1", "Rev",
-#        "CA", "KML" etj. që ndiqen nga ".Nr." / "Nr." NUK janë ligje, janë
-#        prefikse numrash çështjesh. Plus: regjistro "KPRK-së", "KPRK-t" si
-#        akronim (Albanian genitive suffix).
-# V1.13: SUPER CLOSE AFTER — prefiks "të/i/e" midis nenit dhe ligjit.
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.16
+# V1.16: NAMED LAW PATTERNS — njoh Kushtetutën, KEDNJ, Konventa OKB si ligje.
+#        FIX për mis-attribution kur nenet 24, 53, 54, 3, 6, 8, 12, 13, 19
+#        caktoheshin gabimisht në KODI PENAL (fallback i heading-ut të mëparshëm).
+# V1.15: MAX_LAW_DISTANCE 500 → 5000.
+# V1.14: CASE-NUMBER-PREFIX EXCLUSION.
+# V1.13: SUPER CLOSE AFTER — prefiks "të/i/e".
 # V1.12: LEGACY LAW EXTRACTION.
 # V1.11: PRECEDING LAW PRIORITY.
 # V1.10: MAX_LAW_DISTANCE 500.
@@ -38,7 +39,13 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-MAX_LAW_DISTANCE = 500
+# V1.15: U rrit nga 500 → 5000.
+# Arsyetimi:
+#   - Draftet ligjore shqipe kanë seksione me 9-18 nene nën një heading.
+#   - Distanca reale heading → neni i fundit: 500-2000 chars.
+#   - Me 500, fallback-i AFTER merrte ligjin e seksionit pasardhës.
+#   - 5000 mbulon të gjitha rastet reale pa rrezik marrjeje nga TOC.
+MAX_LAW_DISTANCE = 5000
 
 # V1.13: Distanca maksimale për "close after"
 MAX_CLOSE_AFTER_DISTANCE = 35
@@ -58,6 +65,53 @@ CASE_NUMBER_PREFIXES: Set[str] = {
 GENITIVE_SUFFIX_PATTERN = re.compile(
     r'\b([A-ZËÇ]{3,7})[-–](?:së|s|t|të|it|in|ut|ve|vet)\b'
 )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.16: NAMED LAW PATTERNS — ligje pa numër (Kushtetuta, KEDNJ, Konventa)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Pse: Draftet citojnë shpesh "Nenet 24, 53, 54 të Kushtetutës" ose
+# "Nenet 6, 8, 13 të KEDNJ". Pa këto patterns, extractor-i bie fallback në
+# heading-un e mëparshëm (shpesh "KODI PENAL") dhe atribuon gabimisht.
+#
+# Zgjidhja: Regjistro këto si ligje me emër kanonik në law_index.
+#
+
+NAMED_LAW_PATTERNS: List[Tuple[re.Pattern, str]] = [
+    (
+        re.compile(
+            r'\bKushtetut(?:a|ës|ën|e)s?(?:\s+(?:e|të|së)\s+Republikës\s+së\s+Kosovës)?\b',
+            re.IGNORECASE | re.UNICODE,
+        ),
+        'Kushtetuta e Republikës së Kosovës',
+    ),
+    (
+        re.compile(
+            r'\bKonvent(?:a|ës|ën|e)s?\s+Evropiane\s+për\s+të\s+Drejtat\s+e\s+Njeriut\b',
+            re.IGNORECASE | re.UNICODE,
+        ),
+        'Konventa Evropiane për të Drejtat e Njeriut (KEDNJ)',
+    ),
+    (
+        re.compile(r'\bKEDNJ\b', re.UNICODE),
+        'Konventa Evropiane për të Drejtat e Njeriut (KEDNJ)',
+    ),
+    (
+        re.compile(
+            r'\bKonvent(?:a|ës|ën|e)s?\s+(?:e|së)\s+OKB-së\s+për\s+të\s+Drejtat\s+e\s+Fëmijës\b',
+            re.IGNORECASE | re.UNICODE,
+        ),
+        'Konventa e OKB-së për të Drejtat e Fëmijës',
+    ),
+    (
+        re.compile(
+            r'\bKonvent(?:a|ës|ën|e)s?\s+për\s+të\s+Drejtat\s+e\s+Fëmijës\b',
+            re.IGNORECASE | re.UNICODE,
+        ),
+        'Konventa për të Drejtat e Fëmijës',
+    ),
+]
 
 
 def _split_article_numbers(raw: str) -> List[str]:
@@ -153,6 +207,14 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
             continue
         laws.append((match.start(), full_match))
 
+    # V1.16: Emrat e ligjeve të njohura (Kushtetuta, KEDNJ, Konventa)
+    for pattern, canonical_name in NAMED_LAW_PATTERNS:
+        for match in pattern.finditer(text):
+            too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
+            if too_close:
+                continue
+            laws.append((match.start(), canonical_name))
+
     laws.sort(key=lambda x: x[0])
     return laws
 
@@ -164,12 +226,12 @@ def _find_nearest_law(
     text: str = "",
 ) -> str:
     """
-    V1.14: Zgjidh ligjin më të afërt për një nen.
+    V1.15: Zgjidh ligjin më të afërt për një nen.
 
     Radha:
       0. SUPER CLOSE AFTER — ligji menjëherë pas me connector "të/i/e".
-      1. Closest BEFORE (brenda max_distance).
-      2. Closest AFTER (fallback).
+      1. Closest BEFORE (brenda max_distance = 5000).
+      2. Closest AFTER (fallback vetëm nëse BEFORE mungon ose është > 5000).
     """
     if not law_index:
         return ""
@@ -189,10 +251,10 @@ def _find_nearest_law(
     if following_close:
         following_close.sort(key=lambda x: x[0] - position)
         chosen = following_close[0][1]
-        logger.debug(f"[V1.14] Neni@{position}: SUPER CLOSE AFTER → '{chosen}'")
+        logger.debug(f"[V1.15] Neni@{position}: SUPER CLOSE AFTER → '{chosen}'")
         return chosen
 
-    # FAZA 1 — Closest BEFORE
+    # FAZA 1 — Closest BEFORE (me max_distance = 5000)
     preceding: List[Tuple[int, str]] = [
         (pos, name) for pos, name in law_index if pos <= position
     ]
@@ -267,7 +329,7 @@ def _dedupe_articles_by_number(
     removed = len(citations) - len(deduped)
     if removed > 0:
         logger.info(
-            f"🧹 [V1.14 Dedup] Hequr {removed} nene te dyfishuara "
+            f"🧹 [V1.16 Dedup] Hequr {removed} nene te dyfishuara "
             f"({len(citations)} → {len(deduped)})"
         )
     return deduped
@@ -371,7 +433,7 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
         })
 
     logger.info(
-        f"🔬 [V1.14] extract_law_numbers: {len(results)} ligje"
+        f"🔬 [V1.16] extract_law_numbers: {len(results)} ligje"
     )
     return results
 
@@ -465,7 +527,7 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
         context = extract_context(text, position, window=100)
 
         if _looks_like_law_code(normalized, context):
-            logger.debug(f"[V1.14] Skip case_number '{normalized}' — ne fakt kod ligji")
+            logger.debug(f"[V1.16] Skip case_number '{normalized}' — ne fakt kod ligji")
             continue
 
         seen.add(normalized)
@@ -515,7 +577,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR V1.14] Profile built: "
+        f"🔬 [EXTRACTOR V1.16] Profile built: "
         f"articles={stats['total_articles']} "
         f"(with_law_hint={stats['articles_with_law_hint']}, "
         f"with_paragraph={stats['articles_with_paragraph']}), "

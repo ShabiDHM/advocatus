@@ -1,7 +1,10 @@
 // FILE: src/services/caseAnalysisService.ts
-// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.8
-// V1.8: MULTI-DEVICE — shtuar getSavedRewrite() për të lexuar rishkrimin
-//       e ruajtur (i njëjti dokument nga çdo pajisje).
+// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.10
+// V1.10: CLEANUP — hequr streamDraftAiImprove() + tipet AiImprove* +
+//        AI_IMPROVE_TIMEOUT_MS (funksionaliteti u hoq për të shmangur
+//        rrezikun e halucinacioneve semantike).
+// V1.9: AI IMPROVE (u hoq).
+// V1.8: MULTI-DEVICE — getSavedRewrite().
 // V1.7: REWRITE VALIDATION.
 
 import { tokenManager, API_V1_URL, apiClient } from './apiClient';
@@ -407,7 +410,7 @@ export class CaseAnalysisService {
       if (err?.response?.status === 404) {
         return { has_verification: false };
       }
-      console.warn('[CaseAnalysisService V1.8] getDraftVerification failed:', err);
+      console.warn('[CaseAnalysisService V1.10] getDraftVerification failed:', err);
       throw err;
     }
   }
@@ -422,7 +425,7 @@ export class CaseAnalysisService {
       );
       return data;
     } catch (err: any) {
-      console.error('[CaseAnalysisService V1.8] clearDraftVerification failed:', err);
+      console.error('[CaseAnalysisService V1.10] clearDraftVerification failed:', err);
       throw err;
     }
   }
@@ -449,7 +452,7 @@ export class CaseAnalysisService {
       if (err?.response?.status === 404) {
         return { has_rewrite: false };
       }
-      console.warn('[CaseAnalysisService V1.8] getSavedRewrite failed:', err);
+      console.warn('[CaseAnalysisService V1.10] getSavedRewrite failed:', err);
       throw err;
     }
   }
