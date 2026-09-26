@@ -1,16 +1,17 @@
 # FILE: backend/app/services/document_review/prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V4.15
-# V4.15: DOCUMENT HEADER + CONTEXT MAP FIX —
-#        - _block_document_header() tani aplikohet edhe për
-#          "drafting_quality" dhe "errors_corrections" (vlerësojnë formën
-#          dhe gabimet procedurale → duan fillim/fund të dokumentit).
-#        - Shtuar "deadlines" në SECTION_CONTEXT_MAP["document_summary"]
-#          (prompt-i e referonte "[AFAT]" por blloku nuk ofrohej).
-# V4.14: RIGOROUS ANALYSIS — shtuar seksione per analize te thelle:
-#        - document_summary: "Shenja te fshehta" + "Modele"
-#        - errors_corrections: "Vulnerabilitete strategjike"
-#        - action_steps: "Veprime kritike qe mund te mungojne"
-#        - NEW section "analiza_e_thelluar" (7-seksione)
+# PHOENIX PROTOCOL - SECTION PROMPTS V4.16
+# V4.16: FIX-E B.4, B.5, B.6, B.7 —
+#        - B.4: supreme_court_precedents njeh [LENDE] tag [CITIM] dhe i trajton
+#          numrat e cituar si precedentë të vlefshëm të dokumentit (jo halluzinim).
+#          _block_case_numbers ripërcaktuar — [OWN]/[OK]/[CITIM] me shpjegim.
+#        - B.5: drafting_quality nuk penalizon mungesë përmbledhjeje/konkluzioni
+#          për KALLËZIM PENAL, PADI, ANKESË (aktet procedurale).
+#        - B.6: _block_suspects() i ri + [PERSONA] regjistruar në SECTION_CONTEXT_MAP
+#          dhe ALL_CONTEXT_BLOCKS; referuar në document_summary & analiza_e_thelluar.
+#        - B.7: _block_contradictions rrit kontekst (250 chars × 4 shembuj);
+#          kërkon citimin e burimit (dispozitiv/arsyetim/propozim).
+# V4.15: DOCUMENT HEADER + CONTEXT MAP FIX.
+# V4.14: RIGOROUS ANALYSIS.
 # V4.13: CLIENT POSITION.
 # V4.12: CLIENT CONTEXT.
 
@@ -59,6 +60,9 @@ STRUKTURA E DETYRUAR:
 - Diagnoza mjekesore (me ICD)
 - Denime te meparshme
 - Teste mjekesore
+- **Persona te dyshuar** — NESE blloku [PERSONA] ekziston, listo numrin total
+  dhe grupet kryesore (p.sh. "13 persona të dyshuar të organizuar në 5 grupe").
+  Ky është informacion KRITIK për kallëzimet penale.
 
 5. Niveli i auditimit
 - Sa nene u verifikuan
@@ -75,7 +79,7 @@ STRUKTURA E DETYRUAR:
 - Zgjedhje gjyqesore qe tregojne paragjykim
 
 RREGULLA:
-- Perdor VETEM faktet ne blloqet "[KLIENT]", "[DOK]", "[PALE]", "[NENE]", "[AFAT]"
+- Perdor VETEM faktet ne blloqet "[KLIENT]", "[DOK]", "[PALE]", "[PERSONA]", "[NENE]", "[AFAT]"
 - Nese s'ka shenja → "Nuk u identifikuan"
 - NUK shpik data, leshues, role""",
     },
@@ -114,7 +118,7 @@ STRUKTURA FUNDIT:
 - Nene per verifikim manual: Z""",
     },
 
-    # 3. PRECEDENTET
+    # 3. PRECEDENTET (V4.16 - B.4 fix)
     "supreme_court_precedents": {
         "title": "PRECEDENTET E GJYKATES SUPREME",
         "max_tokens": 3500,
@@ -123,11 +127,22 @@ STRUKTURA FUNDIT:
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
 RREGULL ABSOLUT:
-- Blloku "🏛️ PRECEDENTE RELEVANTE" permban precedentet e VERTETE.
-- NUK LEJOHET te shpikesh numra precedentet, faqe, ose burime.
-- NESE blloku thote "Nuk u identifikuan" → shkruaj SAKTESISHT ate fraze.
+- Blloku "🏛️ PRECEDENTE RELEVANTE" përmban precedentët e VËRTETË nga KB.
+- Blloku "[LENDE]" përmban numrat e cituar NË DOKUMENTIN ORIGJINAL.
+- NUK LEJOHET te shpikesh numra precedentësh, faqe, ose burime.
+- NESE blloku "🏛️ PRECEDENTE RELEVANTE" thote "Nuk u identifikuan" →
+  shkruaj SAKTESISHT ate fraze për atë bllok.
 
-SHENIM: Precedentet jane nga BAZA GLOBALE E GJYKATES SUPREME. NUK thuaj "sipas dokumentit".
+📌 KUPTIMI I TAG-ËVE NË BLLOKUN [LENDE]:
+  * [OWN]   → numri i lëndës së VETË dokumentit. NUK është precedent.
+  * [OK]    → precedent real, verifikuar në KB.
+  * [CITIM] → precedent i CITUAR NË DOKUMENT (numri shfaqet në tekstin
+              origjinal, dokumenti e referon si precedent). NUK është
+              halluzinim — është citim real nga dokumenti.
+
+⚠️ NUK thuaj "Nuk u identifikuan precedentë të drejtpërdrejtë" nëse blloku
+   [LENDE] përmban numra me tag [CITIM]. Këta JANË referenca reale të
+   dokumentit — përfshiji në seksionin A.
 
 RREGULL RELEVANCE (3 NIVELET):
 ▶ NIVELI 1 — TEME IDENTIKE → "Ka lidhje të drejtpërdrejtë."
@@ -136,11 +151,17 @@ RREGULL RELEVANCE (3 NIVELET):
 
 STRUKTURA:
 ### A. Numrat e Cituar ne Dokument
+Nga blloku [LENDE], listo TË GJITHË numrat me tag [CITIM] ose [OK].
+Këto janë referencat e VËRTETA të dokumentit — mos i shpik, mos i anashkalo.
+
 ### B. Precedentë Relevante
-### C. Rendesia Praktike""",
+Nga blloku "🏛️ PRECEDENTE RELEVANTE" (KB) — sipas nivelit të relevancës.
+
+### C. Rendesia Praktike
+Përshkruaj ndikimin praktik të precedentëve për këtë lëndë.""",
     },
 
-    # 4. ANALIZA E CILESISE
+    # 4. ANALIZA E CILESISE (V4.16 - B.5 fix)
     "drafting_quality": {
         "title": "ANALIZA E CILESISE SE HARTIMIT",
         "max_tokens": 2400,
@@ -149,11 +170,32 @@ STRUKTURA:
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
 STRUKTURA:
+
 ### A. Struktura formale
+
+⚠️ KONTEKST I DETYRUAR:
+Nëse lloji i dokumentit është **KALLËZIM PENAL, PADI, ANKESË, KËRKESËPADI,
+APEL ose AKT PROCEDURAL TJETËR** (jo vendim gjyqësor):
+  - **NUK kërkohet** seksion "Përmbledhje Ekzekutive" ose "Konkluzione".
+  - Struktura me seksione I-VIII dhe nënseksione A-G konsiderohet **E PLOTË**.
+  - **NUK penalizo** mungesën e përmbledhjes/konkluzionit.
+  - Këto akte janë shkresa operative, jo dokumente analitike.
+
+**VETËM** për VENDIME/AKTGJYKIME/AKTVENDIME kërkohet struktura e plotë
+me konkluzione.
+
+Përdor VETËM faktet e bllokut "[!]".
+
 ### B. Terminologjia juridike
+
 ### C. Arsyetimi juridik
+
 ### D. Konsistenca e brendshme
-Perdor VETEM bllokun "[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT".
+Përdor VETËM bllokun "[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT".
+Për secilën kontradiktë, cito BURIMIN specifik:
+  - "X në [dispozitiv / arsyetim / propozim] kundrejt Y në [zonë tjetër]".
+  - VENDNDODHJA (dispozitiv / arsyetim / propozim) është thelbësore.
+
 ### E. Vleresimi perfundimtar
 Note 1-5 me arsyetim.
 
@@ -182,11 +224,13 @@ Per cdo nen qe NUK u verifikua:
 
 ### B. Kontradikta te brendshme
 VETEM bllokun "[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT".
+Per secilen kontradikte, cito BURIMIN (dispozitiv / arsyetim / propozim).
 
 ### C. Gabime procedurale
+
 ### D. Korrigjime te rekomanduara
 
-### E. **Vulnerabilitete Strategjike** (E RE)
+### E. **Vulnerabilitete Strategjike**
 Ku mund te godase pala kundërshtare?
 - Cilat pika te arsyetimit jane te dobëta?
 - Çfarë do të bënte nje avokat i kundërshtarit me këtë dokument?
@@ -210,10 +254,15 @@ RREGULLA:
 STRUKTURA:
 
 ### A. Vleresimi i Situates
+
 ### B. Hapat e Menjehershem (1-7 dite)
+
 ### C. Hapat Afatgjate (1-3 muaj)
+
 ### D. Mundesite Procedurale
+
 ### E. Rreziqet
+
 ### F. Referencat Konkrete
 
 RREGULLA PER AFATET:
@@ -221,7 +270,7 @@ RREGULLA PER AFATET:
 - NESE NUK permend → "Afati ligjor nuk u identifikua — kerkohet verifikim."
 - NUK LEJOHET te shkruash afate qe nuk shfaqen ne bllokun [AFAT].
 
-### G. **Veprime Kritike qe Mund te Mungojne** (E RE)
+### G. **Veprime Kritike qe Mund te Mungojne**
 Veprime qe avokati DUHET te ndermarre, por qe mund t'i harroje:
 - Kerkesa procedurale te zakonshme per kete lloj ceshtjeje
 - Mbrojtje ligjore qe nuk eshte ngritur
@@ -234,7 +283,7 @@ Listo 2-3 veprime ME BAZE NE FAKTE.
 RREGULLA: CDO veprim me baze ne fakte, CDO ligj ne fakte.""",
     },
 
-    # 7. ANALIZA E THELLUAR (I RI)
+    # 7. ANALIZA E THELLUAR
     "analiza_e_thelluar": {
         "title": "ANALIZA E THELLUAR",
         "max_tokens": 3500,
@@ -293,12 +342,16 @@ RREGULLA:
 }
 
 
-# V4.15: "deadlines" shtuar në document_summary (përputhet me prompt-in [AFAT])
+# ═══════════════════════════════════════════════════════════════════════════
+# V4.16: SECTION_CONTEXT_MAP — shtuar "suspects" në document_summary + analiza
+# ═══════════════════════════════════════════════════════════════════════════
+
 SECTION_CONTEXT_MAP: Dict[str, List[str]] = {
     "document_summary": [
         "client", "meta", "parties", "dispositive", "medical", "tests",
         "convictions", "judge_court", "contradictions", "articles", "laws",
-        "deadlines",   # V4.15: prompt-i referon "[AFAT]"
+        "deadlines",
+        "suspects",   # V4.16: B.6 — persona të dyshuar
     ],
     "article_verification": ["articles", "laws"],
     "supreme_court_precedents": ["case_numbers", "meta", "precedents"],
@@ -314,12 +367,12 @@ SECTION_CONTEXT_MAP: Dict[str, List[str]] = {
         "client", "meta", "parties", "dates", "deadlines", "case_numbers",
         "dispositive", "judge_court",
     ],
-    # V4.14: Analiza e thelluar — kontekst i plotë
     "analiza_e_thelluar": [
         "client", "meta", "parties", "dispositive", "articles", "laws",
         "case_numbers", "contradictions", "reported_contradictions",
         "medical", "tests", "convictions", "judge_court",
         "dates", "deadlines",
+        "suspects",   # V4.16: B.6
     ],
 }
 
@@ -327,12 +380,13 @@ ALL_CONTEXT_BLOCKS = [
     "client", "meta", "articles", "laws", "case_numbers", "parties", "dates",
     "deadlines", "dispositive", "medical", "tests", "convictions",
     "judge_court", "contradictions", "reported_contradictions", "precedents",
+    "suspects",   # V4.16: B.6
 ]
 
 
-# ===========================================================
+# ═══════════════════════════════════════════════════════════════════════════
 # CONTEXT BLOCK BUILDERS
-# ===========================================================
+# ═══════════════════════════════════════════════════════════════════════════
 
 def _block_client_context(
     client_name: Optional[str],
@@ -719,6 +773,10 @@ def _block_laws(verification_report: Dict[str, Any]) -> List[str]:
 
 
 def _block_case_numbers(verification_report: Dict[str, Any]) -> List[str]:
+    """
+    V4.16 (B.4): Ripërcaktuar tag-et — [CITIM] = precedent i cituar në dokument,
+    jo halluzinim. Shpjegim i qartë për LLM.
+    """
     lines = []
     cases = verification_report.get("case_numbers", [])
     if not cases:
@@ -726,16 +784,22 @@ def _block_case_numbers(verification_report: Dict[str, Any]) -> List[str]:
     lines.append("=" * 70)
     lines.append(f"[LENDE] NUMRAT E LENDEVE ({len(cases)})")
     lines.append("=" * 70)
+    lines.append("KUPTIMI I TAG-ËVE:")
+    lines.append("  * [OWN]   — numri i lëndës së VETË dokumentit (NUK është precedent)")
+    lines.append("  * [OK]    — precedent real, verifikuar në KB të Gjykatës Supreme")
+    lines.append("  * [CITIM] — precedent i CITUAR NË DOKUMENT (referencë e vlefshme,")
+    lines.append("              jo halluzinim! Numri shfaqet në tekstin origjinal)")
+    lines.append("")
     for c in cases:
         if c["is_likely_own"]:
-            tag = "[OWN] I KETIJ DOKUMENTI"
+            tag = "[OWN]   I KETIJ DOKUMENTI"
         elif c["is_precedent"]:
-            tag = "[OK] PRECEDENT REAL"
+            tag = "[OK]    PRECEDENT REAL (nga KB)"
         else:
-            tag = "[!] I CITUAR, POR I PAVERIFIKUAR"
-        lines.append(f"* {c['case_number']} - {tag}")
+            tag = "[CITIM] PRECEDENT I CITUAR NË DOKUMENT"
+        lines.append(f"* {c['case_number']} — {tag}")
         if c.get("context"):
-            lines.append(f"  Konteksti: {c['context'][:200]}")
+            lines.append(f"    Konteksti: {c['context'][:200]}")
     lines.append("")
     return lines
 
@@ -750,6 +814,31 @@ def _block_parties(fact_profile: Dict[str, Any]) -> List[str]:
     lines.append("=" * 70)
     for p in parties:
         lines.append(f"  * {p['role']}: {p['name']}")
+    lines.append("")
+    return lines
+
+
+def _block_suspects(fact_profile: Dict[str, Any]) -> List[str]:
+    """
+    V4.16 (B.6): Nxjerr listën e personave të dyshuar nga strukturat e
+    dokumentit (kallëzime penale me GRUPI I/II/III).
+    """
+    lines = []
+    suspects = fact_profile.get("suspects", [])
+    if not suspects:
+        return lines
+    lines.append("=" * 70)
+    lines.append(f"[PERSONA] PERSONA TE DYSHUAR NE DOKUMENT ({len(suspects)})")
+    lines.append("=" * 70)
+    lines.append("⚠️ Lista e personave që dokumenti identifikon si të dyshuar.")
+    lines.append("⚠️ Përfshin emrin + pozicionin/rolin e tyre në dokument.")
+    lines.append("")
+    current_group = ""
+    for s in suspects:
+        if s.get("group") and s["group"] != current_group:
+            current_group = s["group"]
+            lines.append(f"── {current_group} ──")
+        lines.append(f"  {s['index']}. **{s['name']}** — {s['position_hint']}")
     lines.append("")
     return lines
 
@@ -787,6 +876,10 @@ def _block_deadlines(fact_profile: Dict[str, Any]) -> List[str]:
 
 
 def _block_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
+    """
+    V4.16 (B.7): Kontekst më i plotë (250 chars × 4 shembuj) + kërkon
+    citimin e burimit (dispozitiv/arsyetim/propozim).
+    """
     lines = []
     contradictions = fact_profile.get("contradictions", [])
     if not contradictions:
@@ -796,6 +889,9 @@ def _block_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
     lines.append("=" * 70)
     lines.append("[!] KETO JANE FAKTE KRITIKE - DUHET LISTUAR NE RAPORT!")
     lines.append("[!] KETO JANE KONTRADIKTA TE DOKUMENTIT TONE (INTERNE).")
+    lines.append("[!] Per secilen kontradikte, cito BURIMIN specifik:")
+    lines.append("    - Kush është në DISPOZITIV? Kush është në ARSYETIM?")
+    lines.append("    - Kush është në PROPOZIM/KËRKESË? Kush është në Fakte?")
     lines.append("")
     for c in contradictions:
         values = " vs ".join(str(v) for v in c.get("values", []))
@@ -803,7 +899,7 @@ def _block_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
         zone_suffix = f" (zona: {zone_label})" if zone_label else ""
         lines.append(f"* Lloji: {c['type']}{zone_suffix}")
         lines.append(f"  Vlerat kontradiktore: **{values} {c.get('unit', '')}**")
-        for ex in c.get("examples", [])[:2]:
+        for ex in c.get("examples", [])[:4]:
             lines.append(f"  Shembull: {ex}")
         lines.append("")
     return lines
@@ -862,14 +958,12 @@ def build_verified_context(
     if "client" in blocks_needed or client_name:
         lines.extend(_block_client_context(client_name, client_position))
 
-    # V4.15: _block_document_header aplikohet edhe për drafting_quality
-    # dhe errors_corrections (vlerësojnë formën dhe gabimet procedurale)
     if section_key in (
         "document_summary",
         "action_steps",
         "analiza_e_thelluar",
-        "drafting_quality",       # V4.15
-        "errors_corrections",     # V4.15
+        "drafting_quality",
+        "errors_corrections",
     ) and doc_text:
         lines.extend(_block_document_header(doc_text))
 
@@ -907,6 +1001,9 @@ def build_verified_context(
 
     if "parties" in blocks_needed:
         lines.extend(_block_parties(fact_profile))
+
+    if "suspects" in blocks_needed:
+        lines.extend(_block_suspects(fact_profile))
 
     if "dates" in blocks_needed:
         lines.extend(_block_dates(fact_profile))

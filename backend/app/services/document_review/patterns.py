@@ -1,13 +1,12 @@
 # FILE: backend/app/services/document_review/patterns.py
-# PHOENIX PROTOCOL - REGEX PATTERNS V2.8
-# V2.8: LOW CLEANUP —
-#       - DATE_ALBANIAN_PATTERN: presje opsionale pas muajit ("5 janarit, 2024").
-#       - DISPOSITIVE_POINT_PATTERN: kap romakët I-XXX (jo "IIV"/"IIIV").
-#       - JUDGE_NAME_PATTERN: alternativë all-caps ("FATMIR KRASNIQI").
-#       - PRIOR_CONVICTION_PATTERN: renditje specific→general (backtracking).
-# V2.7: CASE_NUMBER_PATTERN EXPANDED — shtuar prefikse reale të Kosovës.
-# V2.6: LAW_NUMBER_LEGACY_PATTERN — "Ligji Nr. 2004/32".
-# V2.5: ARTICLE_PATTERN — listat me presje.
+# PHOENIX PROTOCOL - REGEX PATTERNS V2.9
+# V2.9: SUSPECT PATTERNS — shtuar SUSPECT_PATTERN + GROUP_HEADER_PATTERN
+#       për të nxjerrë persona të dyshuar nga kallëzimet penale të
+#       strukturuara me "GRUPI I/II/III" + numërim + emër CAPS.
+# V2.8: LOW CLEANUP (DATE_ALBANIAN, DISPOSITIVE, JUDGE, CONVICTION).
+# V2.7: CASE_NUMBER_PATTERN EXPANDED.
+# V2.6: LAW_NUMBER_LEGACY_PATTERN.
+# V2.5: ARTICLE_PATTERN listat me presje.
 
 import re
 
@@ -59,7 +58,6 @@ LAW_NAME_PATTERN = re.compile(
 
 ABBREV_PATTERN = re.compile(r'\b([A-ZËÇ]{2,6})\b')
 
-# V2.7: CASE_NUMBER_PATTERN — prefikse të plota, longest-first
 CASE_NUMBER_PATTERN = re.compile(
     r'\b('
     r'PP\.II|PP\.I|'
@@ -85,7 +83,6 @@ ALBANIAN_MONTHS = [
     'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor',
 ]
 
-# V2.8: Presje opsionale pas muajit ("5 janarit, 2024" ose "5 janarit 2024")
 DATE_ALBANIAN_PATTERN = re.compile(
     r'(?<!\w)(\d{1,2})\s+(' + '|'.join(ALBANIAN_MONTHS) + r')(?:it|i|t)?,?\s+(\d{2,4})(?!\w)',
     re.IGNORECASE | re.UNICODE,
@@ -115,8 +112,6 @@ PARTY_LABEL_PATTERN = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
-# V2.8: Fix bug romak — "IIV" dhe "IIIV" ishin të pranuara gabimisht.
-# Renditja: IV para I{1,3}, shtuar XI-XIX-XX-XXX.
 DISPOSITIVE_POINT_PATTERN = re.compile(
     r'^\s*('
     r'IV|V|VI{0,3}|IX|'
@@ -153,8 +148,6 @@ NEGATIVE_RESULT_KEYWORDS = [
     "nuk e kanë konstatuar", "nuk e kane konstatuar",
 ]
 
-# V2.8: Renditje specific→general për të shmangur backtracking të panevojshëm.
-# "Dënuar me kusht" para "Dënuar" (specific para general).
 PRIOR_CONVICTION_PATTERN = re.compile(
     r'(?:Aktgjykim(?:i)?|Vendim(?:i)?|'
     r'Dënuar\s+me\s+kusht|Denuar\s+me\s+kusht|'
@@ -171,13 +164,12 @@ CONVICTION_KEYWORDS = [
     "aktgjykim", "aktgjykimi", "është dënuar", "eshte denuar",
 ]
 
-# V2.8: Alternativë për all-caps — "GJYQTARI FATMIR KRASNIQI"
 JUDGE_NAME_PATTERN = re.compile(
     r'(?:gjyqtar(?:in|i)?|gjyqtarja)\s+'
     r'('
-    r'[A-ZËÇ][a-zëç]+(?:\s+[A-ZËÇ][a-zëç]+){1,3}'        # Normal Case
+    r'[A-ZËÇ][a-zëç]+(?:\s+[A-ZËÇ][a-zëç]+){1,3}'
     r'|'
-    r'[A-ZËÇ]{2,}(?:\s+[A-ZËÇ]{2,}){1,3}'                # ALL CAPS
+    r'[A-ZËÇ]{2,}(?:\s+[A-ZËÇ]{2,}){1,3}'
     r')',
     re.IGNORECASE | re.UNICODE,
 )
@@ -212,5 +204,36 @@ DISTANCE_PATTERN = re.compile(
 
 AMOUNT_PATTERN = re.compile(
     r'\b(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(EUR|€|Euro|euro)\b',
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.9: SUSPECT PATTERNS — për kallëzime penale të strukturuara
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Header i grupit: "GRUPI I:", "GRUPI II:", "GRUPI V — PALËT PRIVATE"
+GROUP_HEADER_PATTERN = re.compile(
+    r'^\s*(GRUPI\s+(?:[IVX]+))\s*[:\-—]?\s*([^\n]{0,120})$',
+    re.MULTILINE,
+)
+
+# Rresht i personit: "1. NAZLIE BALA — Zyrtare e Lartë në Kabinetin..."
+# Emri mund të jetë ALL CAPS ose Title Case, me hapësira dhe shenja.
+SUSPECT_PATTERN = re.compile(
+    r'^\s*(\d+)\.\s+'
+    r'([A-ZËÇ][A-Za-zëçËÇ\.\-]{2,60}'
+    r'(?:\s+[A-ZËÇ][A-Za-zëçËÇ\.\-]{2,60}){1,4})'
+    r'\s*[—–\-:]\s*'
+    r'([^\n]{5,200})$',
+    re.MULTILINE,
+)
+
+# Fusha e pozitës: "Zyrtare e Lartë në Kabinetin e Ministrisë së Drejtësisë"
+# zakonisht del pas em-dash në rreshtin e personit.
+
+# "Kualifikimi Ligjor Penal:" — për të identifikuar blloqet e personave
+QUALIFICATION_HEADER_PATTERN = re.compile(
+    r'Kualifikimi\s+Ligjor\s+Penal\s*[:\-]',
     re.IGNORECASE | re.UNICODE,
 )

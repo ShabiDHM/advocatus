@@ -1,18 +1,16 @@
 # FILE: backend/app/services/document_review/mongo_verifier.py
-# PHOENIX PROTOCOL - MONGO VERIFIER V2.4 (CONTEXT FIELD UNIFIED)
-# V2.4: CONTEXT FIELD UNIFIED — verify_articles() tani eksporton `context`
-#       dhe `sentence` (jo `citation_context`/`citation_sentence`) për t'u
-#       lexuar nga verify_prompts._block_cited_articles dhe
-#       document_review.prompts._block_articles. Fix për bug-un ku konteksti
-#       i citimit nuk shfaqej në asnjë prompt.
-# V2.3: KEYWORD_MATCH_STOPWORDS — fjalë gjenerike ("republika", "kosova",
-#       "kodi", "ligji") nuk kontribuojnë në overlap. FIX për mis-attribution
-#       ku "Kushtetuta e Republikës së Kosovës" match-on "KODI PENAL
-#       I REPUBLIKËS SË KOSOVËS" përmes dy fjalëve gjenerike.
+# PHOENIX PROTOCOL - MONGO VERIFIER V2.5 (INTERNATIONAL TREATIES)
+# V2.5: INTERNATIONAL TREATIES — Konventat ndërkombëtare (KEDNJ, Konventa
+#       e OKB-së për të Drejtat e Fëmijës) njihen si pjesë e rendit
+#       kushtetues sipas Nenit 22 të Kushtetutës. Trajtohen si "verified"
+#       me match_reason="international_treaty_constitutional" para DB lookup.
+#       Fix për false-negative ku Nenet 3, 6, 8, 9, 12, 13, 19 raportoheshin
+#       si "NUK U GJET" edhe pse janë të vlefshme në Kosovë.
+# V2.4: CONTEXT FIELD UNIFIED.
+# V2.3: KEYWORD_MATCH_STOPWORDS.
 # V2.2: EXCLUDES — KPRK nuk match-on "KODI PROCEDURËS PENALE".
-# V2.1: FIX akronime te gabuara — KPPRK/KPPK te trajtohen si KPK.
+# V2.1: FIX akronime te gabuara.
 # V2.0: VERIFIKIM MULTI-LIGJ.
-# V1.9: WORD BOUNDARY në abbrev_match dhe full_name_match.
 
 import re
 import logging
@@ -55,18 +53,16 @@ ABBREV_SKIP_WORDS = {
 # ═══════════════════════════════════════════════════════════════════════════
 
 LAW_ABBREV_ALIASES: Dict[str, str] = {
-    # Kodi i Procedurës Penale (08/L-032) — të njëjtin ligj, akronime të ndryshme
-    "KPPRK": "KPK",   # Kodi i Procedurës Penale i Republikës së Kosovës
-    "KPPK":  "KPK",   # variant typo
+    "KPPRK": "KPK",
+    "KPPK":  "KPK",
     "KPK":   "KPK",
-    # Kodi Penal (06/L-074) — nuk ka alias
     "KPRK":  "KPRK",
     "KPRKS": "KPRK",
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.4 / V2.1: KNOWN_ABBREV_KEYWORDS — ROOTS (jo mbaresa)
+# V1.4 / V2.1: KNOWN_ABBREV_KEYWORDS
 # ═══════════════════════════════════════════════════════════════════════════
 
 KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
@@ -82,18 +78,11 @@ KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V2.2: KNOWN_ABBREV_EXCLUDES — keywords që NUK duhet të shfaqen
-# ═══════════════════════════════════════════════════════════════════════════
-
 KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
-    # KPRK = Kodi Penal ≠ Kodi Procedurës Penale
     "KPRK":  ["procedur"],
     "KPRKS": ["procedur"],
-    # KPK/KPPRK = Kodi Procedurës Penale (nuk ka exclude)
     "KPK":   [],
     "KPPRK": [],
-    # Të tjerët — pa exclude
     "LMDHF": [],
     "LMD":   [],
     "LPK":   [],
@@ -102,10 +91,6 @@ KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
     "KRK":   [],
 }
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# V2.3: KEYWORD_MATCH_STOPWORDS — fjalë gjenerike që NUK kontribuojnë
-# ═══════════════════════════════════════════════════════════════════════════
 
 KEYWORD_MATCH_STOPWORDS: Set[str] = {
     "republikes", "republike", "republika", "republik",
@@ -118,6 +103,61 @@ KEYWORD_MATCH_STOPWORDS: Set[str] = {
     "konventa", "konventes", "konvente",
     "numri", "numrit", "numer",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.5: INTERNATIONAL TREATIES
+# ═══════════════════════════════════════════════════════════════════════════
+# Konventat ndërkombëtare janë pjesë e rendit kushtetues të Republikës së
+# Kosovës sipas Nenit 22 të Kushtetutës, me prioritet mbi ligjet vendore.
+# NUK janë në legal_knowledge_base (nuk janë ligje të miratuara nga Kuvendi).
+# Verifikohen si "international_treaty_constitutional" me bazë kushtetuese.
+# ═══════════════════════════════════════════════════════════════════════════
+
+INTERNATIONAL_TREATIES: Dict[str, Dict[str, str]] = {
+    "KEDNJ": {
+        "canonical_name": "Konventa Evropiane për të Drejtat e Njeriut (KEDNJ)",
+        "constitutional_basis": "Neni 22 i Kushtetutës së Republikës së Kosovës",
+        "note": (
+            "Konventa është pjesë e rendit kushtetues të Kosovës, "
+            "me prioritet mbi ligjet vendore (Neni 22 i Kushtetutës)."
+        ),
+    },
+    "OKB_FEMIJES": {
+        "canonical_name": "Konventa e OKB-së për të Drejtat e Fëmijës",
+        "constitutional_basis": "Neni 22 i Kushtetutës së Republikës së Kosovës",
+        "note": (
+            "Konventa është pjesë e rendit kushtetues të Kosovës, "
+            "me prioritet mbi ligjet vendore (Neni 22 i Kushtetutës)."
+        ),
+    },
+}
+
+
+def _check_if_international_treaty(law_hint: str) -> Optional[Dict[str, str]]:
+    """V2.5: Kontrollon nëse law_hint referon konventë ndërkombëtare."""
+    if not law_hint:
+        return None
+    h = normalize_albanian(law_hint)
+
+    # KEDNJ — Konventa Evropiane për të Drejtat e Njeriut
+    if (
+        "kednj" in h
+        or "konventa evropiane" in h
+        or "konventa e evropiane" in h
+    ):
+        return INTERNATIONAL_TREATIES["KEDNJ"]
+
+    # Konventa e OKB-së për të Drejtat e Fëmijës
+    if (
+        ("okb" in h and ("femij" in h or "fëmij" in h))
+        or "konventa e okb" in h
+        or "konventa per te drejtat e femijes" in h
+        or "konventa për të drejtat e fëmijës" in h
+    ):
+        return INTERNATIONAL_TREATIES["OKB_FEMIJES"]
+
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -231,11 +271,6 @@ def _generate_abbreviation_from_title(title: str) -> str:
 
 
 def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
-    """
-    V2.2: Kontrollo akronimin kundrejt mapping-ut zyrtar.
-    Tani ben fallback me alias nese originali nuk matchon.
-    Plus: excludes check për të shmangur KPRK ≠ KPPRK.
-    """
     normalized_cit = _normalize_law_hint_alias(cit_upper)
 
     for candidate in (cit_upper, normalized_cit):
@@ -243,13 +278,11 @@ def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
         if not keywords:
             continue
 
-        # V2.2: Kontrollo fjalët e ndaluara
         excludes = KNOWN_ABBREV_EXCLUDES.get(candidate, [])
 
         title_norm = normalize_albanian(db_title)
         title_alt = title_norm.replace("ë", "e").replace("ç", "c")
 
-        # V2.2: Nëse ka forbidden keyword → skip candidate
         exclude_hit = False
         for ex in excludes:
             ex_alt = ex.replace("ë", "e").replace("ç", "c")
@@ -259,12 +292,11 @@ def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
                 break
         if exclude_hit:
             logger.debug(
-                f"[V2.4] Skip abbrev '{candidate}' — excluded keyword "
+                f"[V2.5] Skip abbrev '{candidate}' — excluded keyword "
                 f"'{ex}' found in title: {db_title[:80]}"
             )
             continue
 
-        # Kontrollo që TË GJITHA keywords të jenë të pranishme
         all_matched = True
         for kw in keywords:
             kw_alt = kw.replace("ë", "e").replace("ç", "c")
@@ -284,6 +316,8 @@ def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _reason_priority(reason: str) -> int:
+    if reason.startswith("international_treaty"):
+        return 110
     if reason.startswith("number_match"):
         return 100
     if reason.startswith("full_name_match"):
@@ -306,11 +340,9 @@ def _reason_priority(reason: str) -> int:
 
 
 def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool, str]:
-    """V2.3: Kontrollo nëse law_title përputhet me law_hint (me aliases)."""
     if not db_title or not citation_law_hint:
         return False, "empty"
 
-    # 1. Numër ligji
     db_num = _extract_law_number_from_text(db_title)
     cit_num = _extract_law_number_from_text(citation_law_hint)
     if db_num and cit_num and db_num == cit_num:
@@ -319,14 +351,12 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
     cit_upper = citation_law_hint.upper().strip()
     is_abbrev_hint = bool(re.match(r'^[A-ZËÇ]{2,6}$', cit_upper))
 
-    # V2.2: Provo me aliases — KPPRK → KPK
     if is_abbrev_hint:
         for variant in _variant_hints(cit_upper):
             if _known_abbrev_matches(variant, db_title):
                 tag = "abbrev_known" if variant == cit_upper else f"abbrev_alias:{cit_upper}→{variant}"
                 return True, f"{tag}:{variant}"
 
-    # 3. Gjenerim dinamik akronimi
     if is_abbrev_hint:
         generated = _generate_abbreviation_from_title(db_title)
         if generated:
@@ -336,7 +366,6 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
                 if abs(len(cit_upper) - len(generated)) <= 1 and generated.startswith(cit_upper):
                     return True, f"abbrev_generated_prefix:{cit_upper}~{generated}"
 
-    # 4. Akronim direkt në titull
     if is_abbrev_hint:
         db_upper = db_title.upper()
         for variant in _variant_hints(cit_upper):
@@ -345,18 +374,15 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
                 tag = "abbrev_match" if variant == cit_upper else f"abbrev_match_alias:{cit_upper}→{variant}"
                 return True, f"{tag}:{variant}"
 
-    # 5. FULL_NAME_MATCH
     if not is_abbrev_hint and len(cit_upper) >= 5:
         db_upper = db_title.upper()
         pattern = r'\b' + re.escape(cit_upper) + r'\b'
         if re.search(pattern, db_upper):
             return True, f"full_name_match:{cit_upper}"
 
-    # 6. Fjalë kyçe (V2.3: me stopwords filter)
     db_kw = _extract_keywords(db_title) - KEYWORD_MATCH_STOPWORDS
     cit_kw = _extract_keywords(citation_law_hint) - KEYWORD_MATCH_STOPWORDS
 
-    # V2.3: Nëse cit_kw është bosh pas filtrit → nuk ka bazë për keyword match
     if cit_kw:
         overlap = db_kw & cit_kw
         min_overlap = 1 if len(cit_kw) <= 1 else 2
@@ -484,7 +510,7 @@ def _check_exists_in_other_laws(db, article_number: str) -> List[Dict[str, Any]]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY SINGLE ARTICLE — V2.3
+# VERIFY SINGLE ARTICLE — V2.5
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _verify_single_article(
@@ -503,6 +529,23 @@ def _verify_single_article(
         "candidates_checked": 0,
         "toc_filtered": 0,
     }
+
+    # V2.5: Kontrollo nëse është konventë ndërkombëtare (para DB lookup)
+    treaty = _check_if_international_treaty(law_hint)
+    if treaty:
+        result["exists"] = True
+        result["match_reason"] = "international_treaty_constitutional"
+        result["matched_doc"] = {
+            "law_title": treaty["canonical_name"],
+            "article_number": article_number,
+            "source": treaty["constitutional_basis"],
+            "text_excerpt": treaty["note"],
+            "text_truncated": False,
+            "text_full_length": len(treaty["note"]),
+            "page": None,
+        }
+        return result
+
     if db is None:
         result["match_reason"] = "no_db"
         return result
@@ -579,7 +622,7 @@ def _verify_single_article(
             return result
 
         logger.info(
-            f"🔎 [MULTI-LAW V2.3] Neni {article_number} me hint='{law_hint}' "
+            f"🔎 [MULTI-LAW V2.5] Neni {article_number} me hint='{law_hint}' "
             f"nuk u gjet direkt — provo strategji alternative..."
         )
 
@@ -642,8 +685,6 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             db, article["number"], article.get("paragraph"),
             article.get("law_hint", ""),
         )
-        # V2.4: Fusha të unifikuara — `context` dhe `sentence` lexohen
-        # nga verify_prompts._block_cited_articles dhe document_review.prompts._block_articles
         verification["context"] = article.get("context", "")
         verification["sentence"] = article.get("sentence", "")
         results.append(verification)
@@ -657,15 +698,19 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         1 for r in results
         if "abbrev_alias" in r.get("match_reason", "") or "abbrev_match_alias" in r.get("match_reason", "")
     )
+    treaty_matches = sum(
+        1 for r in results
+        if r.get("match_reason") == "international_treaty_constitutional"
+    )
     alternative_found = sum(
         1 for r in results
         if r.get("match_reason") == "law_hint_no_match_but_exists_elsewhere"
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.4] Articles: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.5] Articles: {len(results)} total, "
         f"{verified} verified (including {successor_matches} in successor laws, "
-        f"{alias_matches} via alias), "
+        f"{alias_matches} via alias, {treaty_matches} international treaties), "
         f"{alternative_found} exist elsewhere (wrong hint), "
         f"{len(results) - verified - alternative_found} not found"
     )
@@ -756,7 +801,7 @@ def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[st
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.4] Laws by number: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.5] Laws by number: {len(results)} total, "
         f"{verified} verified, {replaced} replaced"
     )
     return results
@@ -833,7 +878,7 @@ def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str
     precedents = sum(1 for r in results if r["is_precedent"])
     cited = sum(1 for r in results if not r["is_likely_own"])
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.4] Case numbers: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.5] Case numbers: {len(results)} total, "
         f"{cited} cited, {precedents} real precedents"
     )
     return results
@@ -867,6 +912,10 @@ def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
             if "abbrev_alias" in a.get("match_reason", "")
             or "abbrev_match_alias" in a.get("match_reason", "")
         ),
+        "articles_via_international_treaty": sum(
+            1 for a in articles
+            if a.get("match_reason") == "international_treaty_constitutional"
+        ),
         "articles_exist_elsewhere": sum(
             1 for a in articles
             if a.get("match_reason") == "law_hint_no_match_but_exists_elsewhere"
@@ -883,10 +932,11 @@ def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.4] Complete: "
+        f"📚 [MONGO_VERIFIER V2.5] Complete: "
         f"articles {stats['articles_verified']}/{stats['articles_total']} "
         f"(+{stats['articles_in_successor_laws']} in successor laws, "
-        f"{stats['articles_via_alias']} via alias), "
+        f"{stats['articles_via_alias']} via alias, "
+        f"{stats['articles_via_international_treaty']} via international treaties), "
         f"laws {stats['laws_verified']}/{stats['laws_total']} "
         f"({stats['laws_replaced']} replaced), "
         f"precedents {stats['precedents_verified']}/{stats['case_numbers_cited']}"

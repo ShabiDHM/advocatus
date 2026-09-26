@@ -1,13 +1,14 @@
 # FILE: backend/app/services/document_review/fact_extractor.py
-# PHOENIX PROTOCOL - FACT EXTRACTOR V3.5
-# V3.5: UNUSED IMPORT REMOVED — Hequr AMOUNT_PATTERN nga importet
-#       (importohej por nuk përdorej askund). Zero ndryshim funksional.
-# V3.4: MEDICAL_TESTS DEDUPE — refactor 2-fazë.
-# V3.3: REPORTED CONTEXT UNIFIED — deadlines me flag `is_reported`.
-# V3.2: FIX KONTRADIKTA EKSTERNE.
-# V3.1: SOURCE DOCUMENT.
-# V3.0: ZONES.
-# V2.1: Normalize unit + medical_tests kontekst i gjere + dedupe.
+# PHOENIX PROTOCOL - FACT EXTRACTOR V3.6
+# V3.6: SUSPECTS + CONTRADICTION CONTEXT —
+#       - extract_suspects(): nxerr persona të dyshuar nga kallëzimet penale
+#         me strukturë "GRUPI I/II/III" + "1. EMRI CAPS — Pozita".
+#         Shton stats.total_suspects.
+#       - detect_contradictions(): rrit examples 200 → 250 chars dhe 3 → 4
+#         për kontekst më të plotë (B.7: 6 vs 12 muaj pa kontekst).
+# V3.5: UNUSED IMPORT REMOVED.
+# V3.4: MEDICAL_TESTS DEDUPE.
+# V3.3: REPORTED CONTEXT UNIFIED.
 
 import re
 import logging
@@ -32,6 +33,10 @@ from .patterns import (
     APPEAL_DEADLINE_PATTERN,
     PERIOD_PATTERN,
     DISTANCE_PATTERN,
+    # V3.6
+    GROUP_HEADER_PATTERN,
+    SUSPECT_PATTERN,
+    QUALIFICATION_HEADER_PATTERN,
 )
 from .helpers import (
     parse_date,
@@ -56,10 +61,6 @@ ZONE_ANCHORS: List[Tuple[str, str]] = [
 ZONE_UNKNOWN = "unknown"
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V3.2: REPORTED CONTEXT DETECTION
-# ═══════════════════════════════════════════════════════════════════════════
-
 _REPORTING_REF_PATTERN = re.compile(
     r'(?:'
     r'në\s+Aktvendimin|në\s+Aktgjykimin|në\s+Vendimin|në\s+Aktin|'
@@ -78,7 +79,6 @@ _REPORTED_CONTEXT_WINDOW = 400
 
 
 def _is_reported_context(text: str, position: int, window: int = _REPORTED_CONTEXT_WINDOW) -> bool:
-    """V3.2: Kontrollon nëse pozicioni shfaqet brenda kontekstit të raportimit."""
     if not text:
         return False
     start = max(0, position - window)
@@ -88,7 +88,6 @@ def _is_reported_context(text: str, position: int, window: int = _REPORTED_CONTE
 
 
 def _classify_zone_anchors(text: str) -> List[Tuple[int, str]]:
-    """V3.0: Gjen te gjithe anchorat e zonave ne tekst."""
     if not text:
         return []
     anchors: List[Tuple[int, str]] = []
@@ -100,7 +99,6 @@ def _classify_zone_anchors(text: str) -> List[Tuple[int, str]]:
 
 
 def _zone_at(anchors: List[Tuple[int, str]], position: int) -> str:
-    """V3.0: Kthen zonen e fundit te hapur perpara pozicionit."""
     current = ZONE_UNKNOWN
     for pos, zone in anchors:
         if pos > position:
@@ -110,7 +108,6 @@ def _zone_at(anchors: List[Tuple[int, str]], position: int) -> str:
 
 
 def _zone_label(zone: str) -> str:
-    """Etikete e lexueshme per zonen."""
     return {
         "facts": "Fakte",
         "reasoning": "Arsyetim",
@@ -121,12 +118,7 @@ def _zone_label(zone: str) -> str:
     }.get(zone, zone)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V2.1: UNIT NORMALIZER
-# ═══════════════════════════════════════════════════════════════════════════
-
 def _normalize_unit(unit_raw: str) -> str:
-    """V2.1: Normalizon shumesin shqip ne forme baze."""
     u = unit_raw.lower().strip()
     if u.startswith("dit"):
         return "ditë"
@@ -144,7 +136,6 @@ def _normalize_unit(unit_raw: str) -> str:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_dates(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr te gjitha datat (numerike + shqip)."""
     if not text:
         return []
 
@@ -207,14 +198,13 @@ def extract_dates(text: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT DEADLINES — V3.3 me is_reported
+# EXTRACT DEADLINES
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_deadlines(
     text: str,
     source_document: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """V3.3: Nxjerr afatet procedurale + `source_document` + `is_reported`."""
     if not text:
         return []
 
@@ -248,7 +238,6 @@ def extract_deadlines(
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_parties(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr palet me role."""
     if not text:
         return []
 
@@ -275,11 +264,79 @@ def extract_parties(text: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# V3.6: EXTRACT SUSPECTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def extract_suspects(text: str) -> List[Dict[str, Any]]:
+    """
+    V3.6: Nxjerr persona të dyshuar nga struktura tipike e kallëzimeve penale:
+
+        GRUPI I: ...
+        1. NAZLIE BALA — Zyrtare e Lartë në Kabinetin e MD-së
+        • Kualifikimi Ligjor Penal: ...
+
+        GRUPI II: ...
+        1. BUJAR DOBËRDOLANI — Gjyqtar në Gjykatën Themelore
+
+    Kthen listë me: {index, name, position_hint, group, context}.
+    """
+    if not text:
+        return []
+
+    results: List[Dict[str, Any]] = []
+    seen_names: Set[str] = set()
+
+    # Ndërto indeksin e grupeve
+    group_positions: List[Tuple[int, str]] = []
+    for m in GROUP_HEADER_PATTERN.finditer(text):
+        group_label = m.group(1).strip()
+        group_positions.append((m.start(), group_label))
+
+    def _group_for(pos: int) -> str:
+        current = ""
+        for gpos, glabel in group_positions:
+            if gpos > pos:
+                break
+            current = glabel
+        return current
+
+    for m in SUSPECT_PATTERN.finditer(text):
+        idx = m.group(1)
+        name = m.group(2).strip()
+        position_hint = m.group(3).strip()[:200]
+
+        # Sanity: emri duhet të ketë të paktën 2 fjalë
+        if len(name.split()) < 2:
+            continue
+
+        # Sanity: emri NUK duhet të përmbajë fjalë kodi ligjor
+        name_lower = name.lower()
+        if any(kw in name_lower for kw in ["neni", "ligji", "kodi", "nën", "par."]):
+            continue
+
+        # Dedupe sipas emrit
+        key = name.lower()
+        if key in seen_names:
+            continue
+        seen_names.add(key)
+
+        results.append({
+            "index": int(idx),
+            "name": name,
+            "position_hint": position_hint,
+            "group": _group_for(m.start()),
+            "context": extract_context(text, m.start(), window=200),
+            "position": m.start(),
+        })
+
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # EXTRACT DISPOSITIVE POINTS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_dispositive_points(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr pikat e dispozitivit (I, II, III, IV, V, VI, VII)."""
     if not text:
         return []
 
@@ -301,11 +358,10 @@ def extract_dispositive_points(text: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT MEDICAL FINDINGS — V2.1
+# EXTRACT MEDICAL FINDINGS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_medical_findings(text: str) -> List[Dict[str, Any]]:
-    """V2.1: Nxjerr gjetjet mjekesore me dedupe."""
     if not text:
         return []
 
@@ -360,16 +416,10 @@ def extract_medical_findings(text: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT MEDICAL TESTS — V3.4
+# EXTRACT MEDICAL TESTS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_medical_tests(text: str) -> List[Dict[str, Any]]:
-    """
-    V3.4: Nxjerr testet mjekesore + rezultatin.
-
-    Dedup me 2 faza: (1) skano për mbivendosje, (2) apliko heqjet në fund.
-    Nuk muton listën gjatë iterimit.
-    """
     if not text:
         return []
 
@@ -405,7 +455,6 @@ def extract_medical_tests(text: str) -> List[Dict[str, Any]]:
                 "context_full": context,
             })
 
-    # V3.4: Dedup me 2 faza (nuk muton gjatë iterimit)
     to_remove: Set[int] = set()
     for i, r in enumerate(results):
         if i in to_remove:
@@ -432,7 +481,6 @@ def extract_medical_tests(text: str) -> List[Dict[str, Any]]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_prior_convictions(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr denimet e meparshme penale."""
     if not text:
         return []
 
@@ -471,7 +519,6 @@ def extract_judge_and_court(
     text: str,
     source_document: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Nxjerr gjyqtarin, gjykaten dhe afatin e ankeses."""
     result: Dict[str, Any] = {
         "judge_name": None,
         "court_name": None,
@@ -502,14 +549,13 @@ def extract_judge_and_court(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CONTRADICTIONS — V3.3 (ZONE-AWARE + REPORTED CONTEXT)
+# CONTRADICTIONS — V3.6 (CONTEXT ENRICHED)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_all_periods(
     text: str,
     exclude_positions: Optional[Set[int]] = None,
 ) -> List[Dict[str, Any]]:
-    """V3.2: Nxjerr periudhat + flag `is_reported`."""
     if not text:
         return []
     exclude = exclude_positions or set()
@@ -531,7 +577,6 @@ def _extract_all_periods(
 
 
 def _extract_all_distances(text: str) -> List[Dict[str, Any]]:
-    """Nxjerr te gjitha distancat (per kontradikta)."""
     if not text:
         return []
     results = []
@@ -555,7 +600,10 @@ def detect_contradictions(
     distances: Optional[List[Dict[str, Any]]] = None,
     text: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """V3.3: Kontradikta zone-aware + reported context."""
+    """
+    V3.6: Kontradikta zone-aware + kontekst i plotë (250 chars × 4 shembuj)
+    për të dhënë më shumë material LLM-it (B.7: "6 vs 12 muaj" pa kontekst).
+    """
     contradictions: List[Dict[str, Any]] = []
 
     zone_anchors: List[Tuple[int, str]] = []
@@ -569,6 +617,10 @@ def detect_contradictions(
             return
         for it in items:
             it["zone"] = _zone_at(zone_anchors, it.get("position", 0))
+
+    # V3.6: kontekst i plotë për shembujt
+    EXAMPLE_CHARS = 250
+    EXAMPLE_LIMIT = 4
 
     # 1. Deadlines
     _annotate(deadlines)
@@ -594,7 +646,7 @@ def detect_contradictions(
                 "unit": unit,
                 "values": sorted(unique_nums),
                 "count": len(items),
-                "examples": [item["context"][:150] for item in items[:3]],
+                "examples": [item["context"][:EXAMPLE_CHARS] for item in items[:EXAMPLE_LIMIT]],
             })
 
     # 2. Periods
@@ -621,7 +673,7 @@ def detect_contradictions(
                 "unit": unit,
                 "values": sorted(unique_nums),
                 "count": len(items),
-                "examples": [item["context"][:200] for item in items[:3]],
+                "examples": [item["context"][:EXAMPLE_CHARS] for item in items[:EXAMPLE_LIMIT]],
             })
 
     # 3. Distances
@@ -644,27 +696,27 @@ def detect_contradictions(
                     "unit": "metra",
                     "values": sorted(unique_distances),
                     "count": len(items),
-                    "examples": [d["context"][:150] for d in items[:3]],
+                    "examples": [d["context"][:EXAMPLE_CHARS] for d in items[:EXAMPLE_LIMIT]],
                 })
 
     return contradictions
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BUILD FACT PROFILE — V3.5
+# BUILD FACT PROFILE — V3.6
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_fact_profile(
     text: str,
     source_document: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """V3.5: Nderton profilin e plote te fakteve + source_document."""
     if not text:
         return {
             "dates": [],
             "deadlines": [],
             "legal_deadlines": [],
             "parties": [],
+            "suspects": [],
             "contradictions": [],
             "reported_contradictions": [],
             "dispositive_points": [],
@@ -679,6 +731,7 @@ def build_fact_profile(
     dates = extract_dates(text)
     deadlines = extract_deadlines(text, source_document=source_document)
     parties = extract_parties(text)
+    suspects = extract_suspects(text)   # V3.6
     dispositive_points = extract_dispositive_points(text)
     medical_findings = extract_medical_findings(text)
     medical_tests = extract_medical_tests(text)
@@ -705,6 +758,7 @@ def build_fact_profile(
         "total_deadlines": len(deadlines),
         "legal_deadlines": len(legal_deadlines),
         "total_parties": len(parties),
+        "total_suspects": len(suspects),   # V3.6
         "total_contradictions": len(contradictions),
         "internal_contradictions": len(internal_contradictions),
         "reported_contradictions": len(reported_contradictions),
@@ -718,10 +772,11 @@ def build_fact_profile(
     }
 
     logger.info(
-        f"🔬 [FACT_EXTRACTOR V3.5] dates={stats['total_dates']}, "
+        f"🔬 [FACT_EXTRACTOR V3.6] dates={stats['total_dates']}, "
         f"deadlines={stats['total_deadlines']} "
         f"(legal={stats['legal_deadlines']}), "
         f"parties={stats['total_parties']}, "
+        f"suspects={stats['total_suspects']}, "
         f"contradictions={stats['total_contradictions']} "
         f"(internal={stats['internal_contradictions']}, "
         f"reported={stats['reported_contradictions']}), "
@@ -735,6 +790,7 @@ def build_fact_profile(
         "deadlines": deadlines,
         "legal_deadlines": legal_deadlines,
         "parties": parties,
+        "suspects": suspects,   # V3.6
         "contradictions": internal_contradictions,
         "reported_contradictions": reported_contradictions,
         "dispositive_points": dispositive_points,
