@@ -1,5 +1,11 @@
 # FILE: backend/app/services/rag/context_builder.py
-# PHOENIX PROTOCOL - CONTEXT BUILDER V6.10 (JUDICIAL-DOCS WHITELIST)
+# PHOENIX PROTOCOL - CONTEXT BUILDER V6.11 (JUDICIAL-DOCS WHITELIST)
+# V6.11: FIX KRITIK UTF-8 — Rikthyer të gjitha karakteret e prishura (mojibake):
+#        - Regex-et _ARTICLE_RE / _ARTICLE_ABBREV_RE / _ARTICLE_LAWNUM_RE
+#          (Nenët, ë, –) — më parë nuk matchonin nenet në shumës.
+#        - LEGAL_DOC_KEYWORDS (urdhër, kërkesë, kallëzim, ankësë, ...) —
+#          më parë _is_judicial_document nuk i njihte.
+#        - Emoji + diakritika në _format_whitelist dhe log.
 # V6.10: OPTIMIZIM — MAX_CONTEXT_CHARS 450K → 80K, MAX_DOC_CHARS_IN_CONTEXT
 #        6K → 3K. Impakti: kontekst 33K → ~20K chars, llm_first_token 9s → 6s.
 # V6.9: (1) MAX_DOC_CHARS_IN_CONTEXT 10K → 6K (shpejtësi LLM).
@@ -92,7 +98,8 @@ _ARTICLE_LAWNUM_RE = re.compile(
 
 class ContextBuilder:
     """
-    Ndërtuesi Qendror i Kontekstit Juridik (V6.10):
+    Ndërtuesi Qendror i Kontekstit Juridik (V6.11):
+    - V6.11: FIX KRITIK UTF-8 — regex + keywords + string-e.
     - V6.10: MAX_CONTEXT_CHARS 450K → 80K; MAX_DOC_CHARS_IN_CONTEXT 6K → 3K.
     - V6.9: Context_documents opsional (whitelist nga të gjitha, konteksti nga subset).
     - V6.8: Limit tekstin e shkresave në kontekst (10K chars/dok).
@@ -303,7 +310,7 @@ class ContextBuilder:
         lines.append("   • Të citosh LIGJE që nuk shfaqen në listën e mësipërme.")
         lines.append("   • Të zëvendësosh një ligj me numër (p.sh. 03/L-182) me një version tjetër (08/L-185) pa përmendur burimin.")
         lines.append("   • Të shpikësh numra neni që nuk janë më lart.")
-        lines.append("   • Të përziesh KPK me KPRK, LPK me KPPRK, LMDHF me LFK, etj.")
+        lines.append("   • Të përzihesh KPK me KPRK, LPK me KPPRK, LMDHF me LFK, etj.")
         lines.append("")
         lines.append("🔒" * 35 + "\n")
 
@@ -397,7 +404,7 @@ class ContextBuilder:
         total_docs_count = len(db_documents or [])
 
         logger.info(
-            f"📊 [ContextBuilder V6.10] Kontekst: {len(final_context)} chars | "
+            f"📊 [ContextBuilder V6.11] Kontekst: {len(final_context)} chars | "
             f"whitelist ({whitelist.get('source_filter')}): "
             f"{len(whitelist['articles'])} nene ({len(whitelist['articles_display'])} display), "
             f"{len(whitelist['laws_abbrev'])} akronime, "

@@ -1,9 +1,9 @@
 # FILE: backend/app/services/rag/timeline_builder.py
-# PHOENIX PROTOCOL - TIMELINE BUILDER V1.0
-# Qëllimi: kur user kërkon kronologji, ekstrakto datat + kontekstin nga
-# dokumentet dhe ndërto timeline të renditur.
-#
-# Triggers: "kronologji", "timeline", "kur ka ndodhur", "data".
+# PHOENIX PROTOCOL - TIMELINE BUILDER V1.1
+# V1.1: FIX — Dedup key (fname, iso, context[:80]) në vend të (fname, iso).
+#       Më parë ngjarje të shumta në të njëjtën datë brenda të njëjtit dokument
+#       humbnin. Tani ruhen të gjitha nëse konteksti ndryshon.
+# V1.0: Krijim fillestar.
 
 import re
 import logging
@@ -15,12 +15,10 @@ logger = logging.getLogger(__name__)
 # DATE PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Numeric: 16.02.2024, 16/02/2024
 _NUMERIC_DATE_RE = re.compile(
     r'\b(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{4})\b',
 )
 
-# Written month: 16 shkurt 2024
 _MONTH_NAMES = {
     "janar": "01", "janarit": "01",
     "shkurt": "02", "shkurtit": "02",
@@ -50,12 +48,10 @@ TIMELINE_TRIGGERS = [
 
 
 def user_wants_timeline(query_lower: str) -> bool:
-    """V1.0: Kontrollo nëse përdoruesi kërkon kronologji."""
     return any(t in query_lower for t in TIMELINE_TRIGGERS)
 
 
 def _get_doc_text(doc: Dict[str, Any]) -> str:
-    """Nxjerr tekstin më të plotë nga dokumenti."""
     candidates = [
         doc.get("content") or "",
         doc.get("extracted_text") or "",
@@ -69,10 +65,8 @@ def _get_doc_text(doc: Dict[str, Any]) -> str:
 
 
 def _find_all_dates(text: str) -> List[Dict[str, Any]]:
-    """Kthen listë me datat e gjetura: {iso, position, raw}."""
     results: List[Dict[str, Any]] = []
 
-    # Numeric dates
     for m in _NUMERIC_DATE_RE.finditer(text):
         d, mo, y = m.group(1), m.group(2), m.group(3)
         d_int = int(d)
@@ -86,7 +80,6 @@ def _find_all_dates(text: str) -> List[Dict[str, Any]]:
                 "raw": m.group(0),
             })
 
-    # Written month dates
     for m in _WRITTEN_DATE_RE.finditer(text):
         d, month_name, y = m.group(1), m.group(2).lower(), m.group(3)
         mo = _MONTH_NAMES.get(month_name, "01")
@@ -105,8 +98,8 @@ def extract_events(
     max_per_doc: int = 15,
 ) -> List[Dict[str, Any]]:
     """
-    V1.0: Nxjerr ngjarjet (data + kontekst + burim).
-    Kthen listë të renditur kronologjikisht.
+    V1.1: Nxjerr ngjarjet (data + kontekst + burim).
+    Dedup key përfshin kontekstin → ruhen ngjarje të ndryshme në të njëjtën ditë.
     """
     events: List[Dict[str, Any]] = []
     seen: set = set()
@@ -124,19 +117,17 @@ def extract_events(
             if per_doc_count >= max_per_doc:
                 break
 
-            # Dedupe: një datë unike per dokument
-            key = (fname, dm["iso"])
-            if key in seen:
-                continue
-            seen.add(key)
-
-            # Konteksti rreth datës
             pos = dm["position"]
             start = max(0, pos - 100)
             end = min(len(text), pos + 200)
             context = text[start:end].replace("\n", " ").strip()
-            # Heq hapësirat e tepërta
             context = re.sub(r'\s+', ' ', context)
+
+            # V1.1: Dedup key përfshin kontekstin (jo vetëm datën)
+            dedup_key = (fname, dm["iso"], context[:80])
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
 
             events.append({
                 "iso": dm["iso"],
@@ -151,9 +142,6 @@ def extract_events(
 
 
 def build_timeline(events: List[Dict[str, Any]], max_events: int = 25) -> str:
-    """
-    V1.0: Ndërton timeline markdown për LLM.
-    """
     if not events:
         return ""
 
@@ -177,6 +165,6 @@ def build_timeline(events: List[Dict[str, Any]], max_events: int = 25) -> str:
     )
     lines.append("")
 
-    logger.info(f"📅 [Timeline V1.0] {len(events)} ngjarje të ekstraktuara")
+    logger.info(f"📅 [Timeline V1.1] {len(events)} ngjarje të ekstraktuara")
 
     return "\n".join(lines)

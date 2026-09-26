@@ -1,5 +1,7 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.1
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.2
+# V98.2: Hequr 4 dead items: LLM_TIMEOUT, OPENROUTER_BASE_URL,
+#        OPENROUTER_HEADERS, import AsyncOpenAI, _get_api_key, self.api_key.
 # V98.1: CLAUDE OVERRIDE REMOVED — Hequr override-i silent "claude"→"deepseek"
 #        në _get_target_model() (i njëjti fix si llm_client.py V88.0).
 #        Claude nuk përdoret më; model-i i ENV respektohet verbatim.
@@ -10,28 +12,18 @@
 import logging
 import asyncio
 import os
-import re
 from typing import Optional, List, Dict, Any, AsyncGenerator
-from openai import AsyncOpenAI
+
 from app.core.config import settings
 
 from app.services.llm.llm_client import (
-    _get_api_key,
     _get_async_client
 )
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
-LLM_TIMEOUT = 300
 MAX_RETRIES = 3
 MAX_SINGLE_PASS_CHARS = 1_500_000
-
-OPENROUTER_HEADERS = {
-    "HTTP-Referer": "https://juristi.tech",
-    "X-Title": "Juristi AI - Kosova Legal Tech Orchestrator"
-}
 
 
 def _get_target_model() -> str:
@@ -60,7 +52,7 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
 
 class ResponseGenerator:
     """
-    Gjeneruesi Qendror i Përgjigjeve (V98.1):
+    Gjeneruesi Qendror i Përgjigjeve (V98.2):
     - Motor i vetëm me parametër opsional `model`:
         * Chat-i i klientit → FAST_SEARCH_MODEL (gpt-4o-mini)
         * Law Audit / other → default DEEP_ANALYSIS_MODEL (deepseek)
@@ -68,7 +60,6 @@ class ResponseGenerator:
     """
 
     def __init__(self):
-        self.api_key = _get_api_key()
         self.client = _get_async_client()
 
     async def _call_with_retry(

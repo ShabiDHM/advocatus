@@ -1,10 +1,11 @@
 # FILE: backend/app/services/pillars/hallucination_filter.py
-# PHOENIX PROTOCOL - SUPREME COURT PRECEDENT & CITATION FILTER V10.0
+# PHOENIX PROTOCOL - SUPREME COURT PRECEDENT & CITATION FILTER V10.1
+# V10.1: (1) FIX — normalize_precedent() tani kanonizon "nr"/"."/",",
+#           duke trajtuar "PML nr 123/2024" = "PML.nr.123/2024" = "PML 123/2024"
+#           si të njëjtin precedent. Më parë jepnin false-positive hallucinim.
+#       (2) FIX — SIGNATURE_PATTERN hequr re.DOTALL; ".*$" tani ndalon në
+#           fund të rreshtit (MULTILINE), nuk gllabëron tekstin pas nënshkrimit.
 # V10.0: Real precedent validation + filtering against context.
-#   - filter_precedents() now ACTUALLY filters hallucinated case numbers
-#   - validate_precedents() returns structured validation result
-#   - KOSOVO_CASE_NUMBER_REGEX is now USED, not just defined
-#   - Safety guard: skip filtering when no context provided
 
 import re
 import logging
@@ -43,14 +44,16 @@ PLACEHOLDER_PATTERNS = [
     r'\[Referenca\]',
 ]
 
+# V10.1: Hequr re.DOTALL — ".*$" tani përfundon në fund të rreshtit (MULTILINE).
+#        [A-Za-zëç\s] zëvendësuar me [A-Za-zëçËÇ \t] që të mos kalojë rreshta.
 SIGNATURE_PATTERN = re.compile(
-    r'(?i)\n*\s*(?:'
+    r'(?i)\n*[ \t]*(?:'
     r'Nënshkruar nga|'
     r'Nënshkrimi i|'
     r'Avokati mbrojtës|'
-    r'Me respekt,?\s*[A-Za-zëç\s]+'
-    r')\s*:\s*.*$',
-    re.MULTILINE | re.DOTALL,
+    r'Me respekt,?[ \t]*[A-Za-zëçËÇ \t]+'
+    r')[ \t]*:?.*$',
+    re.MULTILINE,
 )
 
 
@@ -60,7 +63,7 @@ SIGNATURE_PATTERN = re.compile(
 
 class HallucinationFilter:
     """
-    V10.0 — Filtri Real i Precedentëve dhe Nënshkrimeve Fiktive:
+    V10.1 — Filtri Real i Precedentëve dhe Nënshkrimeve Fiktive:
 
     1. clean_response()       — Heq nënshkrimet fiktive dhe placeholder-at
     2. find_all_precedents()  — Nxjerr të gjithë numrat e lëndëve nga teksti
@@ -78,10 +81,33 @@ class HallucinationFilter:
 
     @staticmethod
     def normalize_precedent(text: str) -> str:
-        """Normalizon një numër lënde për krahasim (uppercase, whitespace)."""
+        """
+        V10.1: Kanonizon një numër lënde për krahasim.
+
+        Shembuj:
+          "PML nr 123/2024"    → "PML 123/2024"
+          "PML.nr.123/2024"    → "PML 123/2024"
+          "PML 123 / 2024"     → "PML 123/2024"
+          "Rev. 45/2023"       → "REV 45/2023"
+        """
         if not text:
             return ""
-        return re.sub(r'\s+', ' ', text).strip().upper()
+
+        t = text.upper().strip()
+
+        # Pika dhe presje → hapësirë (ndaj "PML.nr." → "PML NR")
+        t = re.sub(r'[.,]', ' ', t)
+
+        # Heq tokenin "NR" / "Nr" / "nr" (i vetëm)
+        t = re.sub(r'\bNR\b', ' ', t)
+
+        # Normalizo hapësirat rreth "/"
+        t = re.sub(r'\s*/\s*', '/', t)
+
+        # Kolapso hapësirat
+        t = re.sub(r'\s+', ' ', t).strip()
+
+        return t or text.upper().strip()
 
     @staticmethod
     def find_all_precedents(text: str) -> Set[str]:
@@ -136,22 +162,6 @@ class HallucinationFilter:
         rag_context: str = "",
         known_case_numbers: Optional[Set[str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Validon precedentët në output kundrejt context / KB.
-
-        Args:
-            text: Output i LLM
-            rag_context: Teksti i KB që u dha si kontekst
-            known_case_numbers: Set opsional me numra lënde të njohur
-
-        Returns:
-            {
-                "all_cited": set(),       # Të gjithë numrat në output
-                "valid": set(),           # Ata që ekzistojnë në context/KB
-                "hallucinated": set(),    # Ata që nuk ekzistojnë
-                "has_context": bool,      # A u dha context për verifikim
-            }
-        """
         cited = HallucinationFilter.find_all_precedents(text)
         if not cited:
             return {
@@ -161,7 +171,6 @@ class HallucinationFilter:
                 "has_context": bool(rag_context or known_case_numbers),
             }
 
-        # Mblidh numrat e njohur nga context
         known = set()
         if known_case_numbers:
             for cn in known_case_numbers:
@@ -171,7 +180,6 @@ class HallucinationFilter:
             for c in HallucinationFilter.find_all_precedents(rag_context):
                 known.add(HallucinationFilter.normalize_precedent(c))
 
-        # Normalizo cited
         cited_normalized = {
             HallucinationFilter.normalize_precedent(c) for c in cited
         }
@@ -192,23 +200,9 @@ class HallucinationFilter:
 
     @staticmethod
     def filter_precedents(text: str, context_text: str = "") -> str:
-        """
-        V10.0 — Heq nga teksti precedentët që NUK gjenden në context.
-
-        Safety guard: Nëse context_text është bosh, kthen tekstin si është
-        (pa filtër) — sepse nuk mund të verifikojmë.
-
-        Args:
-            text: Teksti për filtrim
-            context_text: Context burimor (KB) për verifikim
-
-        Returns:
-            Teksti me precedentë të vlefshëm vetëm
-        """
         if not text:
             return text
 
-        # SAFETY: Pa context, nuk filtrojmë
         if not context_text:
             logger.debug(
                 "[HALLUCINATION FILTER] No context provided — "
@@ -216,7 +210,6 @@ class HallucinationFilter:
             )
             return text
 
-        # Mblidh numrat e njohur nga context
         known_raw = HallucinationFilter.find_all_precedents(context_text)
         known_normalized = {
             HallucinationFilter.normalize_precedent(k) for k in known_raw
@@ -229,7 +222,6 @@ class HallucinationFilter:
             )
             return text
 
-        # Numërues për statistikat
         removed_count = [0]
 
         def replace_match(match: re.Match) -> str:
@@ -239,10 +231,8 @@ class HallucinationFilter:
             )
 
             if matched_normalized in known_normalized:
-                # Valid precedent → keep
                 return matched_text
 
-            # Hallucinated → remove
             removed_count[0] += 1
             logger.warning(
                 f"🚨 [HALLUCINATION FILTER] Removed hallucinated precedent: "
@@ -253,7 +243,6 @@ class HallucinationFilter:
         cleaned = KOSOVO_CASE_NUMBER_REGEX.sub(replace_match, text)
 
         if removed_count[0] > 0:
-            # Pastro hapësira të tepërta pas heqjes
             cleaned = re.sub(r'[ \t]{2,}', ' ', cleaned)
             cleaned = re.sub(r'\s+([.,;:])', r'\1', cleaned)
             cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
@@ -274,31 +263,15 @@ class HallucinationFilter:
         rag_context: str = "",
         known_case_numbers: Optional[Set[str]] = None,
     ) -> str:
-        """
-        Pipeline i plotë:
-        1. Heq nënshkrimet fiktive + placeholder-at
-        2. Filtron precedentët e hallucinuar (vetëm nëse ka context)
-
-        Args:
-            response_text: Output i LLM
-            rag_context: Context për verifikim precedentësh
-            known_case_numbers: Set alternativ me numra lënde të njohur
-
-        Returns:
-            Teksti i pastruar
-        """
         if not response_text:
             return response_text
 
-        # Step 1: signatures + placeholders
         cleaned = HallucinationFilter.clean_response(
             response_text, rag_context=rag_context
         )
 
-        # Step 2: precedent filtering (vetëm nëse ka context)
         context_for_verification = rag_context
         if not context_for_verification and known_case_numbers:
-            # Nëse vetëm known_case_numbers jepet, ndërto context artificial
             context_for_verification = " ".join(known_case_numbers)
 
         cleaned = HallucinationFilter.filter_precedents(

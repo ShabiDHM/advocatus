@@ -1,10 +1,10 @@
 # FILE: backend/app/services/law_library/service.py
-# PHOENIX PROTOCOL - LAW LIBRARY SERVICE V5.0
-# Orkestrimi: Python verifikon → LLM shpjegon.
+# PHOENIX PROTOCOL - LAW LIBRARY SERVICE V5.1
+# V5.1: Hequr dead imports: time, AsyncGenerator, Callable.
+# V5.0: Orkestrimi: Python verifikon → LLM shpjegon.
 
-import time
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator, Callable
+from typing import Dict, Any, Optional
 
 from .article_fetcher import fetch_article_from_db
 from .prompts import build_sokrati_prompt, build_auditor_prompt
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class LawLibraryService:
     """
-    V5.0 — Shërbim i Bibliotekës Ligjore.
+    V5.1 — Shërbim i Bibliotekës Ligjore.
     Arkitekturë: DB-ja jep tekstin → LLM shpjegon → Post-check.
     """
 

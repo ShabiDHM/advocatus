@@ -1,7 +1,10 @@
 # FILE: backend/app/services/rag/intent_detector.py
-# PHOENIX PROTOCOL - INTENT DETECTOR V6.0 (QUERY DEPTH CLASSIFIER)
+# PHOENIX PROTOCOL - INTENT DETECTOR V6.1 (QUERY DEPTH CLASSIFIER)
+# V6.1: Hequr fjalët e vetmuara "sa" dhe "ku" nga FACTUAL_KEYWORDS —
+#       shkaktonin false-positive në "masat", "kushtet", "kujdestaria",
+#       "kundërshton", "kufizim" etj. Fraza "sa faqe", "kush është", "kur"
+#       mbulojnë të njëjtat raste pa false-positive.
 # V6.0: Shtuar QueryDepthDetector — klasifikon pyetjet faktike vs analitike.
-#       Përdoret për të vendosur nëse duhet shtuar konteksti ligjor global.
 # V5.0: Hequr intenti FORENSIC_AUDIT.
 
 import re
@@ -11,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# QUERY DEPTH DETECTOR (V6.0)
+# QUERY DEPTH DETECTOR (V6.1)
 # ═══════════════════════════════════════════════════════════════════════════
 
 class QueryDepthDetector:
@@ -29,7 +32,7 @@ class QueryDepthDetector:
     FACTUAL_KEYWORDS = [
         # Pyetësorë bazë
         "kush", "çfarë", "cfare", "çka", "cka",
-        "sa", "kur", "ku",
+        "kur",
         "cila", "cili", "cilat", "cilet", "cilët",
         # Veprime ekstraktimi
         "përmbledh", "permbledh", "përmblidh", "permbli",

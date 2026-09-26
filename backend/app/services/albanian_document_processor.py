@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_document_processor.py
-# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V36.0 (UNIVERSAL ZERO-DISCARD CHUNKER FOR CASE EVIDENCE & STATUTES)
+# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V36.1 (UNIVERSAL ZERO-DISCARD CHUNKER FOR CASE EVIDENCE & STATUTES)
+# V36.1: Hequr import uuid (i papërdorur).
 
 import re
-import uuid
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -76,7 +76,7 @@ class EnhancedDocumentProcessor:
                         "page": page_num, 
                         "chunk_index": global_chunk_index,
                         "language": language, 
-                        "processor_version": "V36.0-CASE-EVIDENCE",
+                        "processor_version": "V36.1-CASE-EVIDENCE",
                         "article_number": f"Faqja {page_num}", 
                         "is_article": False,
                         "char_count": len(cleaned_chunk)
@@ -104,7 +104,7 @@ class EnhancedDocumentProcessor:
                         "page": page_num, 
                         "chunk_index": global_chunk_index,
                         "language": language, 
-                        "processor_version": "V36.0-STATUTORY",
+                        "processor_version": "V36.1-STATUTORY",
                         "article_number": art_num or f"Pjesa {global_chunk_index + 1}", 
                         "is_article": bool(art_num),
                         "char_count": len(cleaned_art)

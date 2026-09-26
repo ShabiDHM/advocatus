@@ -1,7 +1,8 @@
 # FILE: backend/app/services/rag/cross_doc_comparator.py
-# PHOENIX PROTOCOL - CROSS-DOCUMENT COMPARATOR V1.1
-# V1.1: (1) Normalizim "Neni 1.2" → "1" (bazë), për të shmangur duplikim
-#           "Neni 1. Neni 1" në output.
+# PHOENIX PROTOCOL - CROSS-DOCUMENT COMPARATOR V1.2
+# V1.2: FIX — sort_key kthen gjithmonë tuple me 3 elemente (0/1, int, str).
+#       Më parë tuple me 2 elemente vs 3 → TypeError në përzierje.
+# V1.1: (1) Normalizim "Neni 1.2" → "1" (bazë), për të shmangur duplikim.
 #       (2) Dedup i neneve pas normalizimit.
 # V1.0: Krijim fillestar.
 
@@ -11,13 +12,11 @@ from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
-# Regex për nene — kap formatet "Neni X", "Neni X.Y", "Neni X/Y"
 _ARTICLE_RE = re.compile(
     r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)',
     re.IGNORECASE | re.UNICODE,
 )
 
-# Regex për ligje me numër
 _LAW_NUMBER_RE = re.compile(
     r'\bLigj(?:it|i|ji|in)?\s+(?:Nr\.?\s*)?(\d{2}\s*\/\s*[A-Za-z]\s*[-–]?\s*\d{2,4})\b',
     re.IGNORECASE | re.UNICODE,
@@ -33,18 +32,10 @@ COMPARISON_TRIGGERS = [
 
 
 def user_wants_comparison(query_lower: str) -> bool:
-    """V1.0: Kontrollo nëse përdoruesi kërkon krahasim."""
     return any(t in query_lower for t in COMPARISON_TRIGGERS)
 
 
 def _normalize_article(num: str) -> str:
-    """
-    V1.1: Normalizo "1.2" → "1" (vetëm numri bazë i nenit).
-    Neni 1, par. 2 → neni bazë është 1.
-    "1" → "1"
-    "1.2" → "1"
-    "5/2" → "5"
-    """
     if not num:
         return num
     base = num.split(".")[0].split("/")[0].strip()
@@ -52,7 +43,6 @@ def _normalize_article(num: str) -> str:
 
 
 def _get_doc_text(doc: Dict[str, Any]) -> str:
-    """Nxjerr tekstin më të plotë nga dokumenti."""
     candidates = [
         doc.get("content") or "",
         doc.get("extracted_text") or "",
@@ -66,10 +56,6 @@ def _get_doc_text(doc: Dict[str, Any]) -> str:
 
 
 def extract_articles_per_document(documents: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """
-    V1.1: Nxjerr nenet + ligjet e citara për secilin dokument.
-    Nenet normalizohen (1.2 → 1) dhe dedup.
-    """
     result: Dict[str, Dict[str, Any]] = {}
 
     for doc in documents:
@@ -79,7 +65,6 @@ def extract_articles_per_document(documents: List[Dict[str, Any]]) -> Dict[str, 
             continue
 
         raw_articles = _ARTICLE_RE.findall(text)
-        # V1.1: Normalizim + dedup
         normalized = sorted(set(_normalize_article(a) for a in raw_articles))
 
         laws = sorted(set(
@@ -96,10 +81,6 @@ def extract_articles_per_document(documents: List[Dict[str, Any]]) -> Dict[str, 
 
 
 def build_comparison_table(documents: List[Dict[str, Any]]) -> str:
-    """
-    V1.1: Ndërton tabelë markdown për krahasim.
-    Vetëm dokumentet e dhëna — të filtrohen nga thirrësi përpara.
-    """
     per_doc = extract_articles_per_document(documents)
     if not per_doc:
         return ""
@@ -112,10 +93,11 @@ def build_comparison_table(documents: List[Dict[str, Any]]) -> str:
         return ""
 
     def sort_key(x: str):
+        # V1.2: Tuple uniforme me 3 elemente gjithmonë
         try:
-            return (0, int(x))
-        except ValueError:
-            return (1, 0, x)
+            return (0, int(x), "")
+        except (ValueError, TypeError):
+            return (1, 0, str(x))
 
     sorted_articles = sorted(all_articles, key=sort_key)
     doc_names = list(per_doc.keys())
@@ -126,12 +108,10 @@ def build_comparison_table(documents: List[Dict[str, Any]]) -> str:
     lines.append(f"📊 Krahasim midis: {', '.join(doc_names)}\n")
     lines.append("")
 
-    # Header
     header = "| Neni | " + " | ".join(doc_names) + " |"
     lines.append(header)
     lines.append("|" + "---|" * (len(doc_names) + 1))
 
-    # Rows
     for art in sorted_articles:
         cells = [f"Neni {art}"]
         for doc_name in doc_names:
@@ -143,7 +123,6 @@ def build_comparison_table(documents: List[Dict[str, Any]]) -> str:
 
     lines.append("")
 
-    # Ligjet per dokument
     all_laws = set()
     for data in per_doc.values():
         all_laws.update(data["laws"])
@@ -162,7 +141,7 @@ def build_comparison_table(documents: List[Dict[str, Any]]) -> str:
     lines.append("")
 
     logger.info(
-        f"📊 [Comparator V1.1] Tabelë e krijuar: "
+        f"📊 [Comparator V1.2] Tabelë e krijuar: "
         f"{len(sorted_articles)} nene × {len(doc_names)} dokumente"
     )
 

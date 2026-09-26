@@ -1,8 +1,8 @@
 # FILE: backend/app/services/law_library/post_processor.py
-# PHOENIX PROTOCOL - POST PROCESSOR V1.1
-# V1.1: FIX — Normalizim i plotë i numrave të ligjeve (heq të gjithë ndarësit).
-#       "03 L 182", "03 L-182", "03/L-182", "03-L-182", "03_L-182" → "03L182".
-#       Kjo eliminon false positive nga ndryshime formatimi.
+# PHOENIX PROTOCOL - POST PROCESSOR V1.2
+# V1.2: FIX — _LAW_NUMBER_RE pranon edhe format "2004/32" (vit/law për ligjet
+#       e vjetra si Ligji i Familjes Nr. 2004/32). Më parë vetëm "XX/L-NNN".
+# V1.1: Normalizim i plotë i numrave të ligjeve (heq të gjithë ndarësit).
 # V1.0: Verifikon që output-i i LLM-it nuk ka halluzinim.
 
 import re
@@ -21,26 +21,29 @@ _ARTICLE_RE = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
+# V1.2: Dy formate — "XX/L-NNN" dhe "YYYY/NN"
 _LAW_NUMBER_RE = re.compile(
-    r'\b(\d{2}\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*\d{2,4})\b',
+    r'\b('
+    r'\d{2}\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*\d{2,4}'
+    r'|'
+    r'\d{4}\s*\/\s*\d{1,4}'
+    r')\b',
     re.IGNORECASE,
 )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.1: NORMALIZIM
+# NORMALIZIM
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_law_number(num: str) -> str:
     """
-    V1.1: Heq TË GJITHË ndarësit dhe normalizon në format "XXLYYY".
+    Heq TË GJITHË ndarësit dhe normalizon në format uniform.
 
     Shembuj:
     - "03 L 182"   → "03L182"
-    - "03 L-182"   → "03L182"
     - "03/L-182"   → "03L182"
-    - "03-L-182"   → "03L182"
-    - "03_L_182"   → "03L182"
+    - "2004/32"    → "200432"
     """
     if not num:
         return ""
@@ -62,7 +65,7 @@ def verify_explanation_output(
       1. Nuk citon nene të reja që nuk janë në tekstin origjinal
       2. Nuk shpik numra ligjesh që nuk janë në titullin origjinal
 
-    V1.1: Numrat e ligjeve normalizohen plotësisht para krahasimit.
+    V1.2: Numrat e ligjeve normalizohen plotësisht para krahasimit.
     """
     if not output_text:
         return {
@@ -72,25 +75,21 @@ def verify_explanation_output(
             "correction_note": "",
         }
 
-    # Nenet e lejuara = ato që shfaqen në tekstin origjinal + neni aktual
     allowed_articles: Set[str] = set()
     for m in _ARTICLE_RE.finditer(source_text):
         allowed_articles.add(m.group(1))
     allowed_articles.add(source_article)
 
-    # V1.1: Numrat e ligjit të lejuar — NORMALIZO
     allowed_law_numbers: Set[str] = set()
     for m in _LAW_NUMBER_RE.finditer(source_law_title):
         allowed_law_numbers.add(_normalize_law_number(m.group(1)))
 
-    # Gjej nenet e reja në output
     extra_articles: Set[str] = set()
     for m in _ARTICLE_RE.finditer(output_text):
         art = m.group(1)
         if art not in allowed_articles:
             extra_articles.add(art)
 
-    # V1.1: Gjej numrat e ligjeve të reja — NORMALIZO
     extra_law_numbers: Set[str] = set()
     for m in _LAW_NUMBER_RE.finditer(output_text):
         num_normalized = _normalize_law_number(m.group(1))
@@ -99,7 +98,6 @@ def verify_explanation_output(
 
     is_clean = not extra_articles and not extra_law_numbers
 
-    # Ndërto shënimin e korrigjimit
     correction_note = ""
     if not is_clean:
         lines = ["\n\n---\n", "## ⚠️ VËREJTJE AUTOMATIKE\n"]

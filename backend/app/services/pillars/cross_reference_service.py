@@ -1,14 +1,17 @@
 # FILE: backend/app/services/pillars/cross_reference_service.py
-# PHOENIX PROTOCOL - CROSS-REFERENCE SERVICE V1.0
-# Builds relationships between documents in a legal case.
-# Reads from case_extractions, persists to case_cross_references.
+# PHOENIX PROTOCOL - CROSS-REFERENCE SERVICE V1.1
+# V1.1: (1) Hequr dead imports: Counter, Tuple, ObjectId.
+#       (2) FIX — _build_document_references përdor VETËM entitetet e tekstit
+#           (CASE_NUMBER) për mentioned_cns. Më parë përfshinte edhe
+#           metadata.case_number të vetë dokumentit, duke krijuar lidhje
+#           N×(N-1) të rreme për dokumente me të njëjtin case_number.
+# V1.0: Builds relationships between documents in a legal case.
 
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Tuple
-from collections import defaultdict, Counter
-from bson import ObjectId
+from typing import Dict, Any, List, Optional
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +31,6 @@ class CrossReferenceService:
     - statute_citations:    {statute: [doc_ids]}
     - date_alignment:       docs me data të njëjta/të afërta
     - chronological_chain:  renditje kohore e ngjarjeve
-
-    Output: Dict që ruhet në `case_cross_references`.
     """
 
     def __init__(self, db):
@@ -40,7 +41,6 @@ class CrossReferenceService:
     # ────────────────────────────────────────────────────────────────────
 
     def build(self, case_id: str) -> Dict[str, Any]:
-        """Ndërton cross-references për një lëndë."""
         start = time.time()
 
         extractions = self._load_extractions(case_id)
@@ -51,7 +51,6 @@ class CrossReferenceService:
             e["document_id"]: e for e in extractions
         }
 
-        # Ndërto lidhjet
         case_number_chain = self._build_case_number_chain(extractions)
         party_appearances = self._build_party_appearances(extractions)
         statute_citations = self._build_statute_citations(extractions)
@@ -109,7 +108,6 @@ class CrossReferenceService:
     # ────────────────────────────────────────────────────────────────────
 
     def _load_extractions(self, case_id: str) -> List[Dict[str, Any]]:
-        """Lexon ekstraktimet e Modulit 2."""
         try:
             cursor = self.db[EXTRACTION_COLLECTION].find({
                 "case_id": str(case_id),
@@ -148,24 +146,18 @@ class CrossReferenceService:
         self,
         extractions: List[Dict[str, Any]]
     ) -> Dict[str, List[str]]:
-        """
-        {case_number: [document_id, ...]} — cilat dokumente përmendin të njëjtin numër lënde.
-        Kombinon entity CASE_NUMBER + metadata.case_number.
-        """
         chain: Dict[str, List[str]] = defaultdict(list)
 
         for ext in extractions:
             doc_id = ext["document_id"]
             seen_in_doc = set()
 
-            # Nga entities
             for e in ext.get("entities_by_type", {}).get("CASE_NUMBER", []):
                 text = (e.get("text") or "").strip()
                 if text and text not in seen_in_doc:
                     chain[text].append(doc_id)
                     seen_in_doc.add(text)
 
-            # Nga metadata
             meta_cn = (ext.get("metadata") or {}).get("case_number")
             if meta_cn and meta_cn not in seen_in_doc:
                 chain[meta_cn].append(doc_id)
@@ -181,14 +173,12 @@ class CrossReferenceService:
         self,
         extractions: List[Dict[str, Any]]
     ) -> Dict[str, List[str]]:
-        """{party_name: [document_id, ...]} — ku shfaqet i njëjti person/organizatë."""
         appearances: Dict[str, List[str]] = defaultdict(list)
 
         for ext in extractions:
             doc_id = ext["document_id"]
             seen_in_doc = set()
 
-            # Nga entities
             for label in ["PARTY", "JUDGE", "PROSECUTOR", "LAWYER", "WITNESS"]:
                 for e in ext.get("entities_by_type", {}).get(label, []):
                     name = (e.get("text") or "").strip()
@@ -203,7 +193,6 @@ class CrossReferenceService:
                     })
                     seen_in_doc.add(key)
 
-            # Nga metadata.parties
             for p in (ext.get("metadata") or {}).get("parties", []):
                 if not isinstance(p, dict):
                     continue
@@ -221,7 +210,6 @@ class CrossReferenceService:
                 })
                 seen_in_doc.add(key)
 
-        # Konverto në format më të lexueshëm (vetëm doc_ids)
         result: Dict[str, List[str]] = {}
         for name, items in appearances.items():
             result[name] = sorted(set(i["document_id"] for i in items))
@@ -236,25 +224,21 @@ class CrossReferenceService:
         self,
         extractions: List[Dict[str, Any]]
     ) -> Dict[str, List[str]]:
-        """{statute_or_article: [document_id, ...]} — cilat dokumente citojnë të njëjtat ligje/nene."""
         citations: Dict[str, List[str]] = defaultdict(list)
 
         for ext in extractions:
             doc_id = ext["document_id"]
 
-            # Statutet
             for e in ext.get("entities_by_type", {}).get("STATUTE", []):
                 text = (e.get("text") or "").strip()
                 if text:
                     citations[text].append(doc_id)
 
-            # Nenet
             for e in ext.get("entities_by_type", {}).get("ARTICLE", []):
                 text = (e.get("text") or "").strip()
                 if text:
                     citations[text].append(doc_id)
 
-            # Nga metadata
             for st in (ext.get("metadata") or {}).get("statute", []):
                 if st:
                     citations[str(st).strip()].append(doc_id)
@@ -262,7 +246,6 @@ class CrossReferenceService:
                 if art:
                     citations[str(art).strip()].append(doc_id)
 
-        # Dedupe brenda çdo liste
         result: Dict[str, List[str]] = {}
         for key, docs in citations.items():
             result[key] = sorted(set(docs))
@@ -277,7 +260,6 @@ class CrossReferenceService:
         self,
         extractions: List[Dict[str, Any]]
     ) -> Dict[str, List[str]]:
-        """{date_str: [document_id, ...]} — cilat dokumente përmendin të njëjtat data."""
         alignment: Dict[str, List[str]] = defaultdict(list)
 
         for ext in extractions:
@@ -294,7 +276,6 @@ class CrossReferenceService:
             if meta_date and meta_date not in seen_in_doc:
                 alignment[meta_date].append(doc_id)
 
-        # Filtro vetëm datat që shfaqen në >1 dokument (të përbashkëta)
         result: Dict[str, List[str]] = {}
         for key, docs in alignment.items():
             unique_docs = sorted(set(docs))
@@ -311,10 +292,6 @@ class CrossReferenceService:
         self,
         extractions: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Renditje kohore e dokumenteve sipas datës së tyre.
-        Kthen listë me (date, document_id, file_name, document_type).
-        """
         items: List[Dict[str, Any]] = []
 
         for ext in extractions:
@@ -328,10 +305,8 @@ class CrossReferenceService:
                 "entities_count": ext.get("stats", {}).get("total_entities", 0),
             })
 
-        # Sort: përpiqemi të parsojmë datën, përndryshe e lëmë pas
         def _sort_key(item):
             d = item.get("date") or ""
-            # Provo parse format DD.MM.YYYY
             parts = d.split(".")
             if len(parts) == 3:
                 try:
@@ -354,13 +329,13 @@ class CrossReferenceService:
         docs_by_id: Dict[str, Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """
-        Lidhjet dokument→dokument kur një dokument përmend numrin e lëndës së një tjetri.
+        Lidhjet dokument→dokument kur një dokument PËRMEND (në tekst)
+        numrin e lëndës së një tjetri.
 
-        Shembull:
-          doc_A përmend "C.nr. 385/2024" → nëse doc_B ka case_number=385/2024,
-          krijohet lidhja A → B (A refers to B).
+        V1.1: NUK përfshihet metadata.case_number i dokumentit burim —
+              ajo është identifikuesi i vetë dokumentit, nuk është "përmendje".
+              Kjo eliminon lidhjet N×(N-1) për dokumente me të njëjtin case_number.
         """
-        # Invert index: case_number → primary owner doc(s)
         cn_to_primary: Dict[str, List[str]] = defaultdict(list)
         for ext in extractions:
             doc_id = ext["document_id"]
@@ -375,18 +350,12 @@ class CrossReferenceService:
             source_doc = ext["document_id"]
             source_name = ext.get("file_name")
 
+            # V1.1: VETËM entitetet e tekstit — jo metadata
             mentioned_cns = set()
-
-            # Nga entities
             for e in ext.get("entities_by_type", {}).get("CASE_NUMBER", []):
                 text = (e.get("text") or "").strip()
                 if text:
                     mentioned_cns.add(text)
-
-            # Nga metadata
-            meta_cn = (ext.get("metadata") or {}).get("case_number")
-            if meta_cn:
-                mentioned_cns.add(meta_cn)
 
             for cn in mentioned_cns:
                 targets = cn_to_primary.get(cn, [])
@@ -413,7 +382,6 @@ class CrossReferenceService:
     # ────────────────────────────────────────────────────────────────────
 
     def _persist(self, result: Dict[str, Any]) -> None:
-        """Upsert sipas case_id."""
         try:
             self.db[CROSS_REF_COLLECTION].update_one(
                 {"case_id": result["case_id"]},
@@ -429,7 +397,6 @@ class CrossReferenceService:
     # ────────────────────────────────────────────────────────────────────
 
     def load(self, case_id: str) -> Optional[Dict[str, Any]]:
-        """Lexon cross-references ekzistuese."""
         try:
             return self.db[CROSS_REF_COLLECTION].find_one({"case_id": str(case_id)})
         except Exception as e:
@@ -442,5 +409,4 @@ class CrossReferenceService:
 # ────────────────────────────────────────────────────────────────────────────
 
 def get_cross_reference_service(db: Any) -> CrossReferenceService:
-    """Factory — injekton db në service."""
     return CrossReferenceService(db)

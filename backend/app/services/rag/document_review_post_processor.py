@@ -1,11 +1,12 @@
 # FILE: backend/app/services/rag/document_review_post_processor.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW POST-PROCESSOR V1.0
-# Kontroll deterministik pas generimit të LLM-it për dokument review.
-#   - Kontrollon ligjet e cituara kundrejt atyre që shfaqen në dokument
-#   - Kontrollon nenet e cituara kundrejt atyre që shfaqen në dokument
-#   - Zbulon format "Neni X.Y" → duhet "Neni X, par. Y"
-#   - Zbulon kode të përziera (KPK vs KPRK, LMDHF vs KDMM)
-#   - Shton seksion "KORRIGJIME DHE VËREJTJE" në fund
+# PHOENIX PROTOCOL - DOCUMENT REVIEW POST-PROCESSOR V1.1
+# V1.1: (1) FIX — whitelist regex pranon format "2004/32" (4-shifror),
+#           përveç "08/L-185".
+#       (2) FIX — _find_fake_precedents flagon VETËM kur numri i lëndës
+#           shfaqet në kontekst "precedent/referuar/sipas/bazuar/ngjashëm",
+#           jo kudo në output (eliminon false-positive kur LLM citon lëndën
+#           aktuale).
+# V1.0: Krijim fillestar.
 
 import re
 import logging
@@ -27,23 +28,30 @@ _ARTICLE_OUTPUT_RE = re.compile(
     re.IGNORECASE | re.UNICODE
 )
 
-# Format i gabuar: "Neni X.Y" (duhet të jetë "Neni X, par. Y")
 _BAD_ARTICLE_FORMAT_RE = re.compile(
     r'\bNen(?:i|it|in|ët)\s+(\d+)\.(\d+)\b',
     re.IGNORECASE | re.UNICODE
 )
 
-# Kodet e shkurtra të ligjeve që shpesh përzihen
 _LAW_ABBREV_OUTPUT_RE = re.compile(
     r'\b(KPPRK|KPRK|KPK|LPK|LMDHF|LMD|LFK|LSHT|LPP|KDMM|KDPM|LPTS|PSRK)\b',
     re.IGNORECASE
 )
 
-# Numrat e lëndëve (për të detektuar "falso precedenta")
 _CASE_NUMBER_RE = re.compile(
     r'\b(?:PML|Rev|KMLP|ANR|A\.NR|PZR|PA1|PKR|C|P|CA|PN|KP|KE)\.?\s*(?:[Nn]r\.?)?\s*\d+[/\-\d]*\b',
     re.IGNORECASE
 )
+
+# V1.1: Regex i zgjeruar për whitelist — pranon "XX/L-NNN" dhe "YYYY/NN"
+_LAW_NUMBER_WHITELIST_RE = re.compile(r'^\d{2,4}(?:/[A-Z])?-?\d+$')
+
+# V1.1: Fjalë që tregojnë se numri i lëndës trajtohet si PRECEDENT
+_PRECEDENT_CLAIM_WORDS = [
+    "precedent", "precedenti", "precedentë",
+    "referuar", "referohet", "sipas",
+    "bazuar", "ngjashëm", "ngjashem", "analog",
+]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -55,7 +63,6 @@ def _normalize_law_number(raw: str) -> str:
 
 
 def _extract_case_numbers(text: str) -> Set[str]:
-    """Nxjerr numrat e lëndëve nga teksti."""
     found = _CASE_NUMBER_RE.findall(text)
     return set(n.upper().replace(' ', '') for n in found)
 
@@ -65,10 +72,9 @@ def _extract_case_numbers(text: str) -> Set[str]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _find_wrong_law_numbers(output_text: str, verified_citations: Dict[str, Any]) -> List[str]:
-    """Ligjet me numër që NUK shfaqen në dokument."""
     whitelist_numbers = set(verified_citations.get("laws", []))
-    # Hiq vetëm ata që janë me numër (XX/L-YYY format)
-    whitelist_numbers = {n for n in whitelist_numbers if re.match(r'^\d{2}/[A-Z]-\d+$', n)}
+    # V1.1: Regex i zgjeruar — pranon "2004/32" dhe "08/L-185"
+    whitelist_numbers = {n for n in whitelist_numbers if _LAW_NUMBER_WHITELIST_RE.match(n)}
 
     found = _LAW_NUMBER_OUTPUT_RE.findall(output_text)
     normalized_found = set(_normalize_law_number(f) for f in found)
@@ -81,7 +87,6 @@ def _find_wrong_law_numbers(output_text: str, verified_citations: Dict[str, Any]
 
 
 def _find_missing_articles(output_text: str, verified_citations: Dict[str, Any]) -> List[str]:
-    """Nenet që NUK shfaqen në dokument."""
     doc_articles = set(str(a["number"]) for a in verified_citations.get("articles", []))
 
     found = _ARTICLE_OUTPUT_RE.findall(output_text)
@@ -95,17 +100,11 @@ def _find_missing_articles(output_text: str, verified_citations: Dict[str, Any])
 
 
 def _find_bad_article_format(output_text: str) -> List[Tuple[str, str]]:
-    """Gjen format 'Neni X.Y' që duhet të jenë 'Neni X, par. Y'."""
     matches = _BAD_ARTICLE_FORMAT_RE.findall(output_text)
     return list(set(matches))
 
 
 def _find_abbreviation_mismatches(output_text: str, verified_citations: Dict[str, Any]) -> List[str]:
-    """
-    Gjen kodet e shkurtra të ligjeve që NUK shfaqen në dokument.
-    P.sh. nëse dokumenti citon LMDHF por output-i citon KDMM.
-    """
-    # Nxjerr akronimet që shfaqen në dokument
     doc_text_citations = verified_citations.get("laws", [])
     doc_abbrevs = set()
     for law in doc_text_citations:
@@ -117,26 +116,47 @@ def _find_abbreviation_mismatches(output_text: str, verified_citations: Dict[str
     if not doc_abbrevs:
         return sorted(found_abbrevs)
 
-    # Kthe akronimet që janë në output por jo në dokument
     extra = [a for a in found_abbrevs if a not in doc_abbrevs]
     return sorted(extra)
 
 
 def _find_fake_precedents(output_text: str, doc_case_numbers: Set[str]) -> List[str]:
     """
-    Gjen numra lënde që trajtohen si precedentë, por që janë nga vetë dokumenti.
-    Ky është hallucinim i rëndë logjik (dokumenti nuk mund të jetë precedent i vetes).
+    V1.1: Flagon numrin e lëndës vetëm nëse shfaqet në kontekst 'precedent'
+    (brenda 250 chars pas fjalës trigger). Jo kudo në output.
     """
-    # Në output-in e seksionit precedentësh, gjej numrat
-    fake = []
+    if not doc_case_numbers:
+        return []
+
+    output_lower = output_text.lower()
+    output_nospace = output_lower.replace(' ', '')
+
+    fake: List[str] = []
     for cn in doc_case_numbers:
-        if cn in output_text.upper().replace(' ', ''):
+        cn_clean = cn.replace(' ', '').lower()
+        if cn_clean not in output_nospace:
+            continue
+
+        near_precedent = False
+        for word in _PRECEDENT_CLAIM_WORDS:
+            idx = output_lower.find(word)
+            while idx != -1:
+                window = output_lower[idx:idx + 250].replace(' ', '')
+                if cn_clean in window:
+                    near_precedent = True
+                    break
+                idx = output_lower.find(word, idx + 1)
+            if near_precedent:
+                break
+
+        if near_precedent:
             fake.append(cn)
-    return sorted(fake)
+
+    return sorted(set(fake))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PUBLIC — build correction section
+# PUBLIC
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_review_correction_section(
@@ -145,16 +165,11 @@ def build_review_correction_section(
     doc_text: str,
     section_key: str = "",
 ) -> str:
-    """
-    Ndërton seksionin e korrigjimeve për një section të document review.
-    Kthen string bosh nëse nuk ka probleme.
-    """
     wrong_laws = _find_wrong_law_numbers(output_text, verified_citations)
     missing_articles = _find_missing_articles(output_text, verified_citations)
     bad_formats = _find_bad_article_format(output_text)
     abbrev_mismatches = _find_abbreviation_mismatches(output_text, verified_citations)
 
-    # Fake precedents — vetëm për section precedentsh
     fake_precedents: List[str] = []
     if section_key == "supreme_court_precedents":
         doc_cases = _extract_case_numbers(doc_text[:5000])
@@ -173,25 +188,22 @@ def build_review_correction_section(
     parts.append("## ⚠️ KORRIGJIME DHE VËREJTJE AUTOMATIKE\n\n")
     parts.append("*Ky seksion kontrollohet automatikisht — bazuar në citimet që shfaqen në dokumentin origjinal.*\n")
 
-    # ═══ Ligjet e gabuara ═══
     if wrong_laws:
         parts.append("\n### 🔴 Ligje që nuk shfaqen në dokument\n\n")
         for law in wrong_laws:
             parts.append(f"- ❌ **Ligji Nr. {law}** — nuk citohet në këtë dokument.\n")
-        whitelist = [n for n in verified_citations.get("laws", []) if re.match(r'^\d{2}/[A-Z]-\d+$', n)]
+        whitelist = [n for n in verified_citations.get("laws", []) if _LAW_NUMBER_WHITELIST_RE.match(n)]
         if whitelist:
             parts.append("\n✅ **Ligji/ligjet që shfaqen vërtet në dokument:**\n\n")
             for n in whitelist:
                 parts.append(f"- **Ligji Nr. {n}**\n")
 
-    # ═══ Akronimet e gabuara (KPK vs KPRK, LMDHF vs KDMM) ═══
     if abbrev_mismatches:
         parts.append("\n### 🔴 Kode ligjesh që nuk shfaqen në dokument\n\n")
         parts.append("Përgjigja citon kode ligjesh që **nuk shfaqen në dokumentin origjinal**:\n\n")
         for abbr in abbrev_mismatches:
             parts.append(f"- ❌ **{abbr}** — nuk citohet në këtë dokument.\n")
 
-    # ═══ Nenet e gabuara ═══
     if missing_articles:
         parts.append("\n### 🔴 Nene që nuk shfaqen në dokument\n\n")
         for art in missing_articles[:10]:
@@ -206,14 +218,12 @@ def build_review_correction_section(
                 par = f", par. {a['paragraph']}" if a.get("paragraph") else ""
                 parts.append(f"- **Neni {a['number']}{par}**\n")
 
-    # ═══ Formati "Neni X.Y" ═══
     if bad_formats:
         parts.append("\n### 🟡 Format i gabuar i citimit\n\n")
         parts.append("Format i saktë është **\"Neni X, par. Y\"** — jo **\"Neni X.Y\"**:\n\n")
         for major, minor in bad_formats[:10]:
             parts.append(f"- ⚠️ `Neni {major}.{minor}` → **Neni {major}, par. {minor}**\n")
 
-    # ═══ Fake precedents ═══
     if fake_precedents:
         parts.append("\n### 🔴 Numra lënde të trajtuar gabimisht si precedentë\n\n")
         parts.append("Këta numra **i përkasin dokumentit origjinal** — nuk janë precedentë:\n\n")

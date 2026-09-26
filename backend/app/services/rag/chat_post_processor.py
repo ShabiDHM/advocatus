@@ -1,13 +1,9 @@
 # FILE: backend/app/services/rag/chat_post_processor.py
-# PHOENIX PROTOCOL - CHAT POST-PROCESSOR V2.3
+# PHOENIX PROTOCOL - CHAT POST-PROCESSOR V2.4
+# V2.4: FIX — _DATE_LIKE_ARTICLE_SEQUENCE_RE kufizohet në vlera reale datë
+#       (ditë 1-31, muaj 1-12, vit 1900-2099). Më parë hiqte çdo sekuencë
+#       "Neni X. Neni Y. Neni ZZZZ" edhe kur ishte legjitime.
 # V2.3: FIX — Filter validiteti për nenet e ekstraktuara nga output-i i LLM.
-#       Shkaku: ingestion i dobët i PDF-ve transformon datat "31.05.2024" në
-#       "Neni 31. Neni 05. Neni 2024", të cilat post-processor i flag-on si
-#       false positives.
-#       Tani filtrohen:
-#         - Numrat që fillojnë me '0' (Neni 05 — nuk ekziston)
-#         - Numrat me 4+ shifra (Neni 2024 — nuk është nen)
-#         - Numrat me kontekst date "Neni X. Neni Y. Neni ZZZZ"
 # V2.2: FIX — _find_missing_articles normalizon "Neni 1.2" -> "1".
 # V2.1: Shtuar vërejtje pozitive për "dy ligje të vlefshme" me burim dokumenti.
 # V2.0: Hequr kontradiktat. Vetëm citime ligjesh + nenesh.
@@ -38,9 +34,11 @@ _ARTICLE_OUTPUT_RE = re.compile(
     re.IGNORECASE | re.UNICODE
 )
 
-# V2.3: Pattern për të detektuar sekuencën e datës "Neni X. Neni Y. Neni ZZZZ"
+# V2.4: Vetëm sekuenca me vlera datë reale (ditë 1-31, muaj 1-12, vit 1900-2099)
 _DATE_LIKE_ARTICLE_SEQUENCE_RE = re.compile(
-    r'Nen(?:i|it|in|ët)\s+(\d{1,2})[\s\.\n]+Nen(?:i|it|in|ët)\s+(\d{1,2})[\s\.\n]+Nen(?:i|it|in|ët)\s+(\d{4})',
+    r'Nen(?:i|it|in|ët)\s+(?:0?[1-9]|[12]\d|3[01])[\s\.\n,;]+'
+    r'Nen(?:i|it|in|ët)\s+(?:0?[1-9]|1[0-2])[\s\.\n,;]+'
+    r'Nen(?:i|it|in|ët)\s+(?:19|20)\d{2}',
     re.IGNORECASE | re.UNICODE
 )
 
@@ -54,12 +52,6 @@ def _normalize_law_number(raw: str) -> str:
 
 
 def _normalize_article_str(raw: str) -> str:
-    """
-    V2.2: Normalizon nje string artikulli sipas konventes ligjore shqipe.
-    "1.2" -> "1"   (neni 1, par. 2)
-    "1"   -> "1"
-    "5/2" -> "5/2" (formë e pazakonshme, lihet)
-    """
     if not raw:
         return raw
     art, _ = _normalize_article_number(raw, None)
@@ -67,54 +59,26 @@ def _normalize_article_str(raw: str) -> str:
 
 
 def _is_valid_article_number(raw: str) -> bool:
-    """
-    V2.3: Kontrollo nëse një numër mund të jetë nen i vërtetë.
-
-    Rregullat:
-      - NUK fillon me '0' (Neni 05 është invalid — numrat e neneve nuk fillojnë me 0)
-      - NUK është 4+ shifra (Neni 2024 është vit, jo nen; max nen në KPRK ~ 400)
-      - NUK është 0
-
-    Shembuj valid:  1, 2, 34, 248, 350
-    Shembuj invalid: 0, 05, 06, 2024, 12345
-    """
     if not raw:
         return False
-
-    # Marrim pjesën bazë para pikës/virgules (për "1.2" → "1")
     base = raw.split('.')[0].split('/')[0].strip()
-
     if not base.isdigit():
         return False
-
-    # 0 ose fillon me 0
     if base.startswith('0'):
         return False
-
-    # 4+ shifra → vit ose numer tjetër, jo nen
     if len(base) > 3:
         return False
-
-    # Kontroll shtesë: vlera int duhet > 0
     try:
         if int(base) <= 0:
             return False
     except ValueError:
         return False
-
     return True
 
 
 def _extract_articles_normalized(output_text: str) -> List[str]:
-    """
-    V2.3: Nxjerr nenet nga output-i i LLM dhe i normalizon.
-    Filtro numrat invalide (fillojnë me 0, 4+ shifra).
-    Kthen liste me numra nenesh unik (pa paragraph).
-    """
     found: List[str] = []
 
-    # V2.3: Së pari, gjej dhe hiq sekuencat e datës "Neni X. Neni Y. Neni ZZZZ"
-    # që vijnë nga ingestion i dobët i PDF-ve
     cleaned_text = _DATE_LIKE_ARTICLE_SEQUENCE_RE.sub('', output_text)
 
     for m in _ARTICLE_OUTPUT_RE.finditer(cleaned_text):
@@ -146,9 +110,6 @@ def _find_wrong_law_numbers(output_text: str, whitelist: Dict[str, Any]) -> List
 
 
 def _find_missing_articles(output_text: str, whitelist: Dict[str, Any]) -> List[str]:
-    """
-    V2.3: Krahason nenet (të normalizuara + të filtruara për validitet) me whitelist.
-    """
     whitelist_articles = set(
         _normalize_article_str(a) for a in whitelist.get("articles", [])
     )
@@ -163,14 +124,10 @@ def _find_missing_articles(output_text: str, whitelist: Dict[str, Any]) -> List[
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.1: DUAL LAW NOTE (vërejtje pozitive)
+# V2.1: DUAL LAW NOTE
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_dual_law_note(whitelist: Dict[str, Any]) -> str:
-    """
-    Nëse dokumentet gjyqësore citojnë DY OSE MË SHUMË ligje të ndryshme,
-    shto një vërejtje pozitive që tregon cilat ligje dhe në cilat dokumente.
-    """
     laws_by_file = whitelist.get("laws_by_file", {})
     all_laws = whitelist.get("laws_number", [])
 
@@ -198,7 +155,7 @@ def _build_dual_law_note(whitelist: Dict[str, Any]) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PUBLIC — build correction section
+# PUBLIC
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_correction_section(
@@ -222,7 +179,6 @@ def build_correction_section(
     else:
         parts.append("*Ky seksion kontrollohet automatikisht — bazuar në citimet që shfaqen në shkresat e fashkullit.*\n")
 
-    # ═══ Ligjet e gabuara ═══
     if wrong_laws:
         parts.append("\n### 🔴 Ligje që nuk shfaqen në shkresat gjyqësore\n\n")
         parts.append("Përgjigja më sipër citon ligje që **nuk shfaqen në asnjë dokument gjyqësore të kësaj lënde**:\n\n")
@@ -234,7 +190,6 @@ def build_correction_section(
             for n in whitelist_nums:
                 parts.append(f"- **Ligji Nr. {n}**\n")
 
-    # ═══ Nenet e gabuara ═══
     if missing_articles:
         parts.append("\n### 🔴 Nene që nuk shfaqen në shkresat gjyqësore\n\n")
         parts.append("Përgjigja më sipër citon nene që **nuk ekzistojnë në shkresat gjyqësore të kësaj lënde**:\n\n")
@@ -256,7 +211,6 @@ def build_correction_section(
                     f"\n*... dhe {len(correct_all) - len(correct_to_show)} nene të tjera në shkresat gjyqësore.*\n"
                 )
 
-    # ═══ Vërejtje pozitive: dy ligje ═══
     if dual_law_note:
         parts.append(dual_law_note)
 

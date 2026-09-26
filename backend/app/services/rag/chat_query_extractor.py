@@ -1,7 +1,8 @@
 # FILE: backend/app/services/rag/chat_query_extractor.py
-# PHOENIX PROTOCOL - CHAT QUERY EXTRACTOR V1.2
+# PHOENIX PROTOCOL - CHAT QUERY EXTRACTOR V1.3
+# V1.3: FIX — Multi-word pranon edhe Title Case ("Kodi Penal", "Kodi i Procedurës"),
+#       jo vetëm ALL CAPS ("KODI PENAL"). Më parë "Kodi Penal" kthehej si "Kodi".
 # V1.2: Fallback multi-word (KODI PENAL → "KODI PENAL", jo vetëm "PENAL").
-#       Override-on edhe kur citation_extractor ka kapur vetëm fjalën e fundit.
 # V1.1: Fallback për emra ligjesh standalone (KUSHTETUTA, KODI PENAL, ...).
 # V1.0: Ekstraktim deterministik i query-t për pre-verifikim.
 
@@ -17,10 +18,6 @@ from ..document_review.citation_extractor import (
 
 logger = logging.getLogger(__name__)
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# FJALË KYÇE
-# ═══════════════════════════════════════════════════════════════════════════
 
 LEGAL_QUERY_KEYWORDS = {
     "neni", "nenit", "nenin", "nenet", "nenët", "nen",
@@ -44,30 +41,24 @@ GENERAL_QUERY_KEYWORDS = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V1.2: STANDALONE LAW NAME EXTRACTION (multi-word)
-# ═══════════════════════════════════════════════════════════════════════════
-
 _LAW_NAME_BLACKLIST = {
     "kjo", "ky", "ai", "ajo", "nje", "një", "ketij", "këtij", "kesaj", "kësaj",
     "cili", "cila", "cilit", "cilat",
     "dhe", "ose", "por", "nëse", "ndërsa", "ndersa",
 }
 
-# Fjalë që NUK duan të lidhen me fjalën para tyre (ndajnë emrin)
 _LAW_NAME_STOP_CONNECTORS = {
     "dhe", "ose", "por", "nëse", "ndersa", "ndërsa",
     "kur", "ku", "nga", "për", "per", "me",
+    "ka", "kanë", "kane", "ishte", "është", "eshte",
 }
 
 
 def _extract_law_name_after_article(query: str) -> str:
     """
-    V1.2: Nxjerr emrin e ligjit pas 'Neni X i/të/e ...'.
-    Kap edhe emra shumë-fjalësh ('KODI PENAL', 'KODI I PROCEDURËS PENALE').
-    Dinamik — pa listë ligjesh.
+    V1.3: Nxjerr emrin e ligjit pas 'Neni X i/të/e ...'.
+    Pranon edhe Title Case ("Kodi Penal") edhe ALL CAPS ("KODI PENAL").
     """
-    # Kap fjalën e parë pas "Neni X i/e/të" — 4+ shkronja
     m = re.search(
         r'\bNeni\s+\d+[\w\.\/]*\s+(?:i|të|te|e)\s+([A-Za-zËÇëç]{4,})',
         query,
@@ -80,24 +71,20 @@ def _extract_law_name_after_article(query: str) -> str:
     if first_word.lower() in _LAW_NAME_BLACKLIST:
         return ""
 
-    # V1.2: Provo të zgjeroj me fjalën pasardhëse (KODI PENAL, KODI NR)
     after_match = query[m.end():].strip()
 
-    # Nëse fjala tjetër është gjithashtu ALL CAPS ose fjalë e madhe (ligj)
     m2 = re.match(r'^([A-Za-zËÇëç]{3,})', after_match)
     if m2:
         second_word = m2.group(1).strip()
         if second_word.lower() not in _LAW_NAME_STOP_CONNECTORS:
-            # Vetëm nëse të dyja fjalët janë kapitalizuar ose ALL CAPS (emër ligji)
-            if first_word.isupper() and second_word.isupper():
+            # V1.3: Prano Title Case OSE ALL CAPS (të dyja fjalët kapitalizuara)
+            first_cap = first_word[:1].isupper()
+            second_cap = second_word[:1].isupper()
+            if first_cap and second_cap:
                 return f"{first_word} {second_word}"
 
     return first_word
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# HELPERS
-# ═══════════════════════════════════════════════════════════════════════════
 
 def _is_legal_query(
     query_lower: str,
@@ -105,7 +92,6 @@ def _is_legal_query(
     laws: List[Dict[str, Any]],
     abbrs: List[str],
 ) -> bool:
-    """Përcakto nëse query është pyetje ligjore."""
     if articles or laws or abbrs:
         return True
     words = set(query_lower.split())
@@ -115,31 +101,13 @@ def _is_legal_query(
 
 
 def _has_general_query(query_lower: str) -> bool:
-    """Përcakto nëse query ka pjesë të pavarur nga neni specifik."""
     for kw in GENERAL_QUERY_KEYWORDS:
         if kw in query_lower:
             return True
     return False
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════════════════
-
 def extract_legal_query(query: str) -> Dict[str, Any]:
-    """
-    Nxjerr informacion ligjor nga një query chat-i.
-
-    Kthen:
-        {
-            "articles": [{number, paragraph, law_hint, context, sentence}, ...],
-            "laws": [{number, name, context}, ...],
-            "abbreviations": ["LPK", "LMDHF", ...],
-            "is_legal_query": bool,
-            "has_general_query": bool,
-            "original_query": str,
-        }
-    """
     result: Dict[str, Any] = {
         "articles": [],
         "laws": [],
@@ -160,17 +128,11 @@ def extract_legal_query(query: str) -> Dict[str, Any]:
         logger.warning(f"⚠️ [CHAT_QUERY_EXTRACTOR] Extract error: {e}")
         return result
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # V1.2: FALLBACK — gjithmonë provo standalone, OVERRIDE nëse më specifik
-    # ═══════════════════════════════════════════════════════════════════════
     if articles:
         standalone_law = _extract_law_name_after_article(query)
         if standalone_law:
             for art in articles:
                 current_hint = art.get("law_hint", "").strip()
-                # V1.2: Override nëse:
-                #   - hint bosh, OSE
-                #   - hint-i është vetëm 1 fjalë e emrit të plotë (p.sh. "PENAL" ⊂ "KODI PENAL")
                 should_override = (
                     not current_hint
                     or (
@@ -181,7 +143,7 @@ def extract_legal_query(query: str) -> Dict[str, Any]:
                 if should_override:
                     art["law_hint"] = standalone_law
                     logger.info(
-                        f"🔧 [CHAT_QUERY_EXTRACTOR V1.2] Override law_hint='{standalone_law}' "
+                        f"🔧 [CHAT_QUERY_EXTRACTOR V1.3] Override law_hint='{standalone_law}' "
                         f"(ishte '{current_hint}') për Neni {art.get('number')}"
                     )
 
@@ -194,7 +156,7 @@ def extract_legal_query(query: str) -> Dict[str, Any]:
     result["has_general_query"] = _has_general_query(query_lower)
 
     logger.info(
-        f"🔎 [CHAT_QUERY_EXTRACTOR V1.2] articles={len(articles)} "
+        f"🔎 [CHAT_QUERY_EXTRACTOR V1.3] articles={len(articles)} "
         f"laws={len(laws)} abbrs={len(abbrs)} "
         f"is_legal={result['is_legal_query']} "
         f"has_general={result['has_general_query']}"

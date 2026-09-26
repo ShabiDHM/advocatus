@@ -1,7 +1,9 @@
 # FILE: backend/app/services/law_library/article_fetcher.py
-# PHOENIX PROTOCOL - ARTICLE FETCHER V1.0
-# Gjen tekstin e saktë të një neni nga MongoDB.
-# Zero LLM — 100% deterministik.
+# PHOENIX PROTOCOL - ARTICLE FETCHER V1.1
+# V1.1: FIX — Akronimi nxirret VETËM nga kllapa "(KPK)" ose "(LMD)".
+#       Më parë `re.sub(r'[^A-Z]', '', clean.upper())` krijonte pattern-e
+#       false-positive si "LNL", "KPKNRL" nga tituj normalë me numra.
+# V1.0: Gjen tekstin e saktë të një neni nga MongoDB.
 
 import re
 import logging
@@ -42,9 +44,9 @@ def _build_title_patterns(law_title: str) -> List[str]:
         patterns.append(rf"\b{part1}\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*{part2}\b")
         patterns.append(rf"\b{part1}\s+L\s+{part2}\b")
 
-    # Shto akronimin si pattern
-    abbrev = re.sub(r'[^A-Z]', '', clean.upper())
-    if 3 <= len(abbrev) <= 6:
+    # V1.1: Akronimi VETËM nga kllapa — p.sh. "(KPK)", "(LMD)"
+    # Nuk përdorim më re.sub(r'[^A-Z]', '', ...) sepse krijonte false-positive.
+    for abbrev in set(re.findall(r'\(([A-Z]{2,6})\)', clean)):
         patterns.append(rf"\b{re.escape(abbrev)}\b")
 
     return patterns
@@ -92,7 +94,6 @@ def fetch_article_from_db(
 
     title_patterns = _build_title_patterns(law_title)
 
-    # Provo secilin pattern
     for pattern in title_patterns:
         query = {
             "is_article": True,
@@ -111,7 +112,6 @@ def fetch_article_from_db(
         }).sort("chunk_index", 1).limit(20))
 
         if docs:
-            # Bashko tekstin e të gjitha chunks (nëse neni është i ndarë)
             full_text = "\n\n".join(
                 d.get("text", "") for d in docs if d.get("text")
             ).strip()
