@@ -1,11 +1,10 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V110.6
-// V110.6: VERIFY DRAFT PROGRESS — state + handler + passthrough:
-//         - State: isVerifyGenerating, verifyProgressPercent,
-//                  verifyPhaseLabel, verifyStartTime.
-//         - Callback: handleVerifyProgress (nga modal).
-//         - ChatPanel merr të gjitha props e reja.
-//         - DraftVerificationModal merr onProgressChange.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V110.7
+// V110.7: SYNTHESIS/CROSS_REF REMOVED — Hequr kontrollat dead-code që
+//         kontrollonin 'synthesis' dhe 'cross_reference' nga AnalysisPhase
+//         (u hoqën në caseAnalysisService V1.11). Fix për TS2367:
+//         "types 'AnalysisPhase' and '"synthesis"' have no overlap".
+// V110.6: VERIFY DRAFT PROGRESS.
 // V110.5: VERIFY DRAFT — integrim i DraftVerificationModal.
 // V110.4: force_reprocess=true.
 // V110.3: Modal lexon raportin E BLLOKUAR nga DB pas analizës.
@@ -194,7 +193,7 @@ const CaseViewPage: React.FC = () => {
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V110.6] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V110.7] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
@@ -450,20 +449,15 @@ const CaseViewPage: React.FC = () => {
 
         if (evtType === 'phase_started') {
           currentPhase = evt.phase || '';
+          // V110.7: Vetëm 'extraction' dhe 'document_review' — synthesis u hoq.
           const phaseLabels: Record<string, string> = {
             extraction: isDocMode ? 'Ekstraktimi i dokumentit' : 'Ekstraktimi i shkresave',
-            cross_reference: 'Gjetja e lidhjeve',
-            synthesis: 'Hartimi i doktrinës',
             document_review: 'Verifikimi ligjor',
           };
           setAuditPhaseLabel(phaseLabels[currentPhase] || currentPhase);
 
           if (currentPhase === 'extraction') {
             setAuditProgressPercent(5);
-          } else if (currentPhase === 'cross_reference') {
-            setAuditProgressPercent(60);
-          } else if (currentPhase === 'synthesis') {
-            setAuditProgressPercent(70);
           } else if (currentPhase === 'document_review') {
             setAuditProgressPercent(35);
           }
@@ -471,7 +465,8 @@ const CaseViewPage: React.FC = () => {
         }
 
         if (evtType === 'phase_skipped') {
-          if (evt.phase === 'synthesis' || evt.phase === 'document_review') {
+          // V110.7: Vetëm 'document_review' — synthesis u hoq.
+          if (evt.phase === 'document_review') {
             detectedSource = 'cache';
           }
           continue;
@@ -540,10 +535,8 @@ const CaseViewPage: React.FC = () => {
 
         if (evtType === 'section_completed') {
           sectionsCompleted++;
-          if (currentPhase === 'synthesis') {
-            const pct = 70 + (sectionsCompleted / SECTIONS_TOTAL) * 25;
-            setAuditProgressPercent(Math.round(pct));
-          } else if (currentPhase === 'document_review') {
+          // V110.7: Vetëm 'document_review' — synthesis u hoq.
+          if (currentPhase === 'document_review') {
             const pct = 35 + (sectionsCompleted / SECTIONS_TOTAL) * 60;
             setAuditProgressPercent(Math.round(pct));
           }
@@ -584,7 +577,7 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit V110.6] Accumulated content is empty!', {
+        console.error('[Background Audit V110.7] Accumulated content is empty!', {
           isDocMode, docsTotal, sectionsStarted, sectionsCompleted,
           chunksReceived, sectionOrderLength: sectionOrder.length,
           currentPhase, detectedSource
@@ -608,7 +601,7 @@ const CaseViewPage: React.FC = () => {
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error V110.6]', err);
+      console.error('[Background Audit Error V110.7]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {
