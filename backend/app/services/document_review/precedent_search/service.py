@@ -1,9 +1,8 @@
 # FILE: backend/app/services/document_review/precedent_search/service.py
-# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.7
-# V2.7: TIMING INSTRUMENTED — Shtuar matje të detajuara për secilën fazë të
-#       search_relevant_precedents: embedding, Atlas, Mongo text, RRF,
-#       pre-filter, RERANK, format, total. Për diagnostikim të bottleneck-ut
-#       (65.88s në supreme_court_precedents). Zero ndryshim funksional.
+# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.8
+# V2.8: LOG CLEANUP — timing breakdown WARNING → INFO. Timing informativ
+#       nuk është problem; warning duhet rezervuar për dështime reale.
+# V2.7: TIMING INSTRUMENTED — Shtuar matje të detajuara për secilën fazë.
 # V2.6: RERANK SCALE CLARITY — _resolve_rerank_min_score().
 # V2.5: CACHE CONSISTENCY FIX.
 # V2.4: PERFORMANCE — pre-filter para rerank + cache.
@@ -108,7 +107,7 @@ def _get_cache(query_text: str, top_k: int) -> Optional[List[Dict[str, Any]]]:
             return data
         return None
     except Exception as e:
-        logger.warning(f"⚠️ [PRECEDENT CACHE] Get failed: {e}")
+        logger.info(f"[PRECEDENT CACHE] Get skipped (fail-open): {e}")
         return None
 
 
@@ -136,7 +135,7 @@ def _set_cache(query_text: str, top_k: int, results: List[Dict[str, Any]]) -> No
         client.close()
         logger.info(f"💾 [PRECEDENT CACHE] SAVE — {len(results)} rezultate (key={key})")
     except Exception as e:
-        logger.warning(f"⚠️ [PRECEDENT CACHE] Set failed: {e}")
+        logger.info(f"[PRECEDENT CACHE] Set skipped (fail-open): {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -150,7 +149,7 @@ def search_relevant_precedents(
     threshold: float = PRECEDENT_SIMILARITY_THRESHOLD,
 ) -> List[Dict[str, Any]]:
     """
-    V2.7: Hybrid (Atlas + MongoDB text + RRF) + Reranker, ME TIMING.
+    V2.8: Hybrid (Atlas + MongoDB text + RRF) + Reranker, ME TIMING.
 
     Rrjedha:
       1. CACHE check
@@ -202,7 +201,7 @@ def search_relevant_precedents(
     _phase("cache_get", _t)
     if cached is not None:
         logger.info(
-            f"⏱️ [PRECEDENT TIMING V2.7] CACHE HIT — total={time.time() - _t_total:.3f}s"
+            f"⏱️ [PRECEDENT TIMING V2.8] CACHE HIT — total={time.time() - _t_total:.3f}s"
         )
         return cached
 
@@ -343,7 +342,7 @@ def search_relevant_precedents(
     _phase("pre_filter", _t)
 
     logger.info(
-        f"⚡ [PRECEDENT V2.7] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
+        f"⚡ [PRECEDENT V2.8] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
         f"kandidatë për rerank (limit={pre_filter_limit})"
     )
 
@@ -401,9 +400,9 @@ def search_relevant_precedents(
     # ─── 10. Log ───
     total_time = round(time.time() - _t_total, 3)
 
-    # V2.7: Timing breakdown — domosdoshmërisht i dukshëm
-    logger.warning(
-        f"⏱️ [PRECEDENT TIMING V2.7] TOTAL={total_time}s | "
+    # V2.8: Timing breakdown — INFO (timing nuk është warning)
+    logger.info(
+        f"⏱️ [PRECEDENT TIMING V2.8] TOTAL={total_time}s | "
         f"embedding={timing['embedding']}s | "
         f"atlas={timing['atlas_search']}s | "
         f"mongo_text={timing['mongo_text_search']}s | "
@@ -419,7 +418,7 @@ def search_relevant_precedents(
     )
 
     logger.info(
-        f"🏛️ [PRECEDENT V2.7] Strategjia={strategy}, "
+        f"🏛️ [PRECEDENT V2.8] Strategjia={strategy}, "
         f"reranker={PRECEDENT_RERANKER}, "
         f"reranked={reranked}, "
         f"kandidate={len(candidates)}, "
@@ -470,7 +469,7 @@ def _cli_test():
     )
 
     print(f"\n{'=' * 70}")
-    print(f"TEST V2.7 - Query: '{test_query}'")
+    print(f"TEST V2.8 - Query: '{test_query}'")
     print(f"Hybrid: {PRECEDENT_USE_HYBRID}, Reranker: {PRECEDENT_RERANKER}")
     print(f"Threshold: {PRECEDENT_SIMILARITY_THRESHOLD}, Top-K: {PRECEDENT_TOP_K}")
     print(f"Pre-filter top N: {PRECEDENT_RERANK_PRE_FILTER_TOP_N}")
