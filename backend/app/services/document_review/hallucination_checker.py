@@ -1,16 +1,16 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.12
-# V1.12: LEGACY LAW PATTERN FIX —
-#        - Importuar LAW_NUMBER_LEGACY_PATTERN nga patterns.py (kërkon
-#          "Ligj"/"Kodi" para YYYY/N → shmang false positives për
-#          numra lëndësh/kontratash).
-#        - Hequr definicioni lokal pa kontekst.
-#        - Forcuar kontrollin kontekstual në _extract_law_numbers_from_title_strict:
-#          hiqur "nr."/"nr " (shumë të dobët) → mbahen VETËM "ligj"/"kodi".
-# V1.11: STRICT OUTPUT VALIDATION — _safe_normalize_law valido outputin me regex:
-#        outputi DUHET te permbaje 'L-' ose '/' + numra. Refuzon tituj si 'LMDHF'
-#        ose 'Ligjit për Familjen'. Heq `name` dhe `title` nga skanimi.
-# V1.10: UNCONDITIONAL LAW SCAN (garbage).
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.13
+# V1.13: EXTRA_ALLOWED_DATES + DATE CHECK FIX —
+#        - Shtuar parametri `extra_allowed_dates` në HallucinationChecker
+#          dhe check_all_sections. Datat nga excerpt e precedentëve
+#          (Python-generated, trusted) kalojnë si "allowed" — eliminohet
+#          false positive ku date reale nga vendimet e Gjykatës Supreme
+#          flag-ohen si halluzinim sepse nuk shfaqen në draftin e userit.
+#        - `_extract_dates_iso` bëhet funksion publik (importable nga
+#          draft_verifier.py për të nxjerrë datat nga precedent excerpts).
+# V1.12: LEGACY LAW PATTERN FIX — LAW_NUMBER_LEGACY_PATTERN me kontekst.
+# V1.11: STRICT OUTPUT VALIDATION.
+# V1.10: UNCONDITIONAL LAW SCAN.
 # V1.9: STRICT LAW_TITLE SCAN.
 # V1.8: CONSERVATIVE SUCCESSOR LAWS.
 
@@ -23,7 +23,7 @@ from .patterns import (
     DATE_ALBANIAN_PATTERN,
     ARTICLE_PATTERN,
     LAW_NUMBER_PATTERN,
-    LAW_NUMBER_LEGACY_PATTERN,       # V1.12: i importuar (jo lokal)
+    LAW_NUMBER_LEGACY_PATTERN,
     LAW_NUMBER_WITH_NAME_PATTERN,
     CASE_NUMBER_PATTERN,
     ABBREV_PATTERN,
@@ -51,9 +51,6 @@ CASE_NUMBER_PREFIXES: Set[str] = {
 # V1.11: STRICT LAW VALIDATOR
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Output-i duhet te jete:
-#   - XX/L-XXX format (p.sh. "08/L-185", "03/L-182")
-#   - ose 4-digit/2-digit (p.sh. "2004/32")
 _STRICT_LAW_OUTPUT_PATTERN = re.compile(
     r'^(\d{2}/L-\d+|\d{4}/\d{1,4})$'
 )
@@ -77,20 +74,20 @@ def _safe_normalize_law(raw_value: str) -> Optional[str]:
     if not s:
         return None
 
-    # 1. Provo normalize_law_number, por valido output-in
     n = normalize_law_number(s)
     if n and _is_valid_law_output(n):
         return n
 
-    # 2. XX/L-XXX brenda tekstit
     m = LAW_NUMBER_PATTERN.search(s)
     if m:
         n2 = normalize_law_number(m.group(0))
         if n2 and _is_valid_law_output(n2):
             return n2
 
-    # 3. Legacy 4-digit/2-digit
-    stripped = re.sub(r'^(ligj(?:it|i|ji)?|kodi)\s*(?:nr\.?\s*)?', '', s, flags=re.IGNORECASE).strip()
+    stripped = re.sub(
+        r'^(ligj(?:it|i|ji)?|kodi)\s*(?:nr\.?\s*)?', '',
+        s, flags=re.IGNORECASE,
+    ).strip()
     m = LAW_NUMBER_LEGACY_PATTERN.match(stripped)
     if m:
         candidate = f"{m.group(1)}/{m.group(2)}"
@@ -101,14 +98,11 @@ def _safe_normalize_law(raw_value: str) -> Optional[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# STRICT TITLE SCAN (output gjithashtu i validuar)
+# STRICT TITLE SCAN
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_law_numbers_from_title_strict(title: str) -> Set[str]:
-    """
-    V1.12: Nxjerr numra ligjesh VETEM ne formatet strikte.
-    Kontrolli kontekstual tani kërkon VETËM "ligj" ose "kodi" (jo "nr.").
-    """
+    """V1.12: Nxjerr numra ligjesh VETEM ne formatet strikte."""
     found: Set[str] = set()
     if not title:
         return found
@@ -124,7 +118,6 @@ def _extract_law_numbers_from_title_strict(title: str) -> Set[str]:
     for m in LAW_NUMBER_LEGACY_PATTERN.finditer(s):
         start = max(0, m.start() - 100)
         ctx = lower[start:m.start() + 10]
-        # V1.12: VETEM "ligj" ose "kodi" — "nr."/"nr " hiqen (shume te dobët)
         if any(k in ctx for k in ("ligj", "kodi")):
             candidate = f"{m.group(1)}/{m.group(2)}"
             if _is_valid_law_output(candidate):
@@ -172,7 +165,6 @@ _EXPLICIT_LAW_NUMBER_FIELDS = (
     "new_law",
 )
 
-# V1.11: vetem fushat specifike per title
 _LAW_TITLE_FIELDS = (
     "law_title",
     "law_name",
@@ -207,7 +199,6 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
     if not verification_report:
         return successors
 
-    # 1. Top-level successor_laws
     top_level = verification_report.get("successor_laws") or []
     for idx, s in enumerate(top_level):
         if isinstance(s, dict):
@@ -218,14 +209,12 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
                 successors.add(n)
             successors.update(_extract_law_numbers_from_title_strict(s))
 
-    # 2. Article-level
     for idx, a in enumerate(verification_report.get("articles", []) or []):
         if not isinstance(a, dict):
             continue
 
         art_num = a.get("article_number", "?")
 
-        # 2a. law_hint
         law_hint = a.get("law_hint")
         if law_hint:
             n = _safe_normalize_law(str(law_hint))
@@ -233,34 +222,30 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
                 successors.add(n)
             successors.update(_extract_law_numbers_from_title_strict(str(law_hint)))
 
-        # 2b. suggested_replacement
         sr = a.get("suggested_replacement")
         if isinstance(sr, dict):
             successors.update(_scan_dict_for_laws(sr, f"art{art_num}.sr"))
 
-        # 2c. matched_doc
         matched_doc = a.get("matched_doc")
         if isinstance(matched_doc, dict):
             successors.update(_scan_dict_for_laws(matched_doc, f"art{art_num}.md"))
 
-        # 2d. alternative_laws
         alts = a.get("alternative_laws")
         if isinstance(alts, list):
             for alt_idx, alt in enumerate(alts):
                 if isinstance(alt, dict):
                     successors.update(_scan_dict_for_laws(alt, f"art{art_num}.alt{alt_idx}"))
 
-        # 2e. matched_document (fallback)
         alt_matched = a.get("matched_document")
         if isinstance(alt_matched, dict):
             successors.update(_scan_dict_for_laws(alt_matched, f"art{art_num}.md2"))
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.12] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.13] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.12] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.13] No successor laws collected.")
 
     return successors
 
@@ -270,6 +255,11 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_dates_iso(text: str) -> Set[str]:
+    """
+    V1.13: Funksion publik — nxerr datat ISO nga tekst.
+    Përdoret edhe nga draft_verifier.py për të nxjerrë datat nga
+    precedent excerpts (trusted sources).
+    """
     found: Set[str] = set()
     if not text:
         return found
@@ -324,8 +314,6 @@ def _extract_laws(text: str) -> Set[str]:
         if n and _is_valid_law_output(n):
             found.add(n)
 
-    # V1.12: LAW_NUMBER_LEGACY_PATTERN tani kërkon "Ligj"/"Kodi" para numrit.
-    # Nuk kap "Vendimi Nr. 2024/25" — false positive i shmangur.
     for m in LAW_NUMBER_LEGACY_PATTERN.finditer(text):
         candidate = f"{m.group(1)}/{m.group(2)}"
         if _is_valid_law_output(candidate):
@@ -395,15 +383,17 @@ class HallucinationChecker:
         fact_profile: Dict[str, Any],
         verification_report: Dict[str, Any],
         extra_allowed_cases: Optional[Set[str]] = None,
+        extra_allowed_dates: Optional[Set[str]] = None,   # V1.13
     ):
         self.allowed = self._build_allowed(
             citation_profile,
             fact_profile,
             verification_report,
             extra_allowed_cases=extra_allowed_cases,
+            extra_allowed_dates=extra_allowed_dates,
         )
         logger.info(
-            f"[HALLUCINATION V1.12] Allowed values: "
+            f"[HALLUCINATION V1.13] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
@@ -417,11 +407,18 @@ class HallucinationChecker:
         fact_profile: Dict[str, Any],
         verification_report: Dict[str, Any],
         extra_allowed_cases: Optional[Set[str]] = None,
+        extra_allowed_dates: Optional[Set[str]] = None,
     ) -> Dict[str, Set[str]]:
         dates_iso: Set[str] = set()
         for d in fact_profile.get("dates", []) or []:
             if d.get("iso"):
                 dates_iso.add(d["iso"])
+
+        # V1.13: Datat nga excerpts e precedentëve (trusted, Python-generated)
+        if extra_allowed_dates:
+            for d in extra_allowed_dates:
+                if d:
+                    dates_iso.add(str(d))
 
         laws: Set[str] = set()
 
@@ -443,7 +440,7 @@ class HallucinationChecker:
         laws.update(successors)
 
         logger.info(
-            f"[HALLUCINATION V1.12] Laws: base={len(base_laws)}, "
+            f"[HALLUCINATION V1.13] Laws: base={len(base_laws)}, "
             f"successors={len(successors)}, total={len(laws)}"
         )
 
@@ -607,10 +604,12 @@ def check_all_sections(
     fact_profile: Dict[str, Any],
     verification_report: Dict[str, Any],
     extra_allowed_cases: Optional[Set[str]] = None,
+    extra_allowed_dates: Optional[Set[str]] = None,   # V1.13
 ) -> Dict[str, Any]:
     checker = HallucinationChecker(
         citation_profile, fact_profile, verification_report,
         extra_allowed_cases=extra_allowed_cases,
+        extra_allowed_dates=extra_allowed_dates,
     )
 
     per_section: Dict[str, Any] = {}
@@ -638,7 +637,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.12] Status={global_status}, "
+        f"[HALLUCINATION V1.13] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

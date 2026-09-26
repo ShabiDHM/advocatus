@@ -1,11 +1,21 @@
 # FILE: backend/app/services/document_review/draft_verifier.py
-# PHOENIX PROTOCOL - DRAFT VERIFIER V1.9
+# PHOENIX PROTOCOL - DRAFT VERIFIER V1.11
+# V1.11: PRECEDENT DATES ALLOWED —
+#        - Datat nga excerpt e precedentëve nxirren me _extract_dates_iso
+#          dhe kalohen si `extra_allowed_dates` në check_all_sections.
+#          Eliminohet false positive ku precedentët me datë në excerpt
+#          flag-ohen si high-risk sepse data nuk shfaqet në draftin origjinal.
+# V1.10: READINESS OVERRIDE PREPEND + TITLE SYNC —
+#       - B2 FIX: override block PREPEND-ohet në KRYE të seksionit 6
+#         (V1.9 e append-onte në fund → user shihte "GATI" para shënimit).
+#       - Titulli i seksionit 6 modifikohet në "6. GATISHMËRIA — ⚠️ KËRKON PUNË".
+#       - Blloku i override përmban "MOS e lexoni 'GATI' më poshtë si
+#         vlerësim aktual" për të eliminuar kontradiktën vizuale.
 # V1.9: READINESS OVERRIDE + TYPO FIX —
 #       - Typo: "PËRMban" → "PËRMBAN" në hallucination banner.
 #       - Readiness override: nëse hallucination ka high/medium issues DHE
 #         readiness == "READY" → forcohet në "NEEDS WORK" + shënim në
-#         seksionin 6. Konsistencë: raporti nuk mund të jetë "GATI" kur ka
-#         dyshime të vërteta hallucination.
+#         seksionin 6.
 # V1.8: TIMING LOGS CLEANUP — logger.warning → logger.info për timing.
 # V1.7: ANTI-HALLUCINATION GATE — build_fact_profile + check_all_sections.
 # V1.6: PRECEDENT PARSER ROBUST.
@@ -30,7 +40,7 @@ from .fact_extractor import build_fact_profile
 from .mongo_verifier import verify_all
 from .streaming import synthesize_section_streaming
 from .persistence import load_document, load_extraction
-from .hallucination_checker import check_all_sections
+from .hallucination_checker import check_all_sections, _extract_dates_iso
 from .precedent_search import (
     build_precedent_query,
     search_relevant_precedents,
@@ -142,7 +152,7 @@ def _build_hallucination_warning(hallucination_report: Dict[str, Any]) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.9: READINESS OVERRIDE HELPERS
+# V1.9 + V1.10: READINESS OVERRIDE HELPERS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _maybe_override_readiness(
@@ -151,8 +161,9 @@ def _maybe_override_readiness(
     sections: Dict[str, Dict[str, Any]],
 ) -> str:
     """
-    V1.9: Nëse hallucination ka high/medium issues dhe readiness == "READY",
-    forco në "NEEDS WORK" + injekto shënim në seksionin 6.
+    V1.10: Nëse hallucination ka high/medium issues dhe readiness == "READY",
+    forco në "NEEDS WORK" + injekto shënim NË KRYE të seksionit 6
+    (jo në fund si V1.9) + modifiko titullin e seksionit.
 
     Kthen readiness (të modifikuar ose origjinal).
     """
@@ -175,28 +186,47 @@ def _maybe_override_readiness(
     reason_text = " dhe ".join(reasons)
 
     new_readiness = "NEEDS WORK"
+    new_label = READINESS_LABELS_SQ.get(new_readiness, new_readiness)
+
     logger.info(
-        f"🔄 [VERIFY V1.9] Readiness override: READY → NEEDS WORK "
+        f"🔄 [VERIFY V1.11] Readiness override: READY → NEEDS WORK "
         f"(arsyeja: {reason_text})"
     )
 
-    # Injekto shënim në seksionin 6 (readiness)
     sec = sections.get("readiness")
-    if sec and sec.get("content"):
-        note = (
-            f"\n\n---\n\n"
-            f"> ⚠️ **Vërejtje nga sistemi anti-hallucination:**\n"
-            f"> Gatishmëria u rishkallëzua automatikisht në **"
-            f"{READINESS_LABELS_SQ.get(new_readiness, new_readiness)}** "
-            f"për shkak të {reason_text} të identifikuara në raport.\n"
-            f"> Verifikoni manualisht seksionet e shënuara më sipër "
-            f"përpara dorëzimit."
+    if not sec:
+        logger.warning(
+            "⚠️ [VERIFY V1.11] Seksioni 'readiness' mungon — "
+            "override u aplikua vetëm në header."
         )
-        sec["content"] = sec["content"] + note
+        return new_readiness
+
+    # ── V1.10: Modifiko TITULLIN e seksionit 6 që të pasqyrojë override-in ──
+    original_title = sec.get("title") or "6. GATISHMËRIA"
+    if "KËRKON PUNË" not in original_title:
+        sec["title"] = f"{original_title} — ⚠️ {new_label}"
+
+    # ── V1.10: PREPEND bllok override në KRYE të seksionit ──
+    if sec.get("content"):
+        override_block = (
+            f"> 🛑 **VËREJTJE E SISTEMIT — GATISHMËRIA U KORRIGJUA: {new_label}**\n"
+            f">\n"
+            f"> ⚠️ **MOS e lexoni vlerësimin \"GATI\" më poshtë si "
+            f"vlerësim aktual.** Teksti më poshtë u gjenerua nga LLM-ja "
+            f"para kontrollit anti-hallucination. Sistemi identifikoi "
+            f"{reason_text} dhe e ka rishkallëzuar gatishmërinë në "
+            f"**{new_label}**.\n"
+            f">\n"
+            f"> **Vlerësimi përfundimtar dhe i vlefshëm: {new_label}.** "
+            f"Verifikoni manualisht seksionet e shënuara më sipër "
+            f"përpara dorëzimit.\n"
+            f"\n---\n\n"
+        )
+        sec["content"] = override_block + sec["content"]
     else:
         logger.warning(
-            "⚠️ [VERIFY V1.9] Seksioni 'readiness' mungon ose bosh — "
-            "shënimi nuk mund të injektohet."
+            "⚠️ [VERIFY V1.11] Seksioni 'readiness' ka content bosh — "
+            "override block nuk u injektua, por titulli u modifikua."
         )
 
     return new_readiness
@@ -411,7 +441,7 @@ def _post_process_precedents_section(
 
     if not pse_map:
         logger.warning(
-            f"⚠️ [V1.9] Nuk u nxorën Pse relevant për {count} precedentë. "
+            f"⚠️ [V1.11] Nuk u nxorën Pse relevant për {count} precedentë. "
             f"Output LLM fillon: {text[:200]}"
         )
 
@@ -749,7 +779,7 @@ class DraftVerifier:
         file_name = (document or {}).get("file_name", "draft")
 
         logger.info(
-            f"🔎 [VERIFY V1.9] Start: case={case_id}, doc={document_id}, "
+            f"🔎 [VERIFY V1.11] Start: case={case_id}, doc={document_id}, "
             f"file={file_name}, doc_type={doc_type} ({doc_type_label}), "
             f"len={len(doc_text)} chars, user={user_id or '?'}, "
             f"parallel x{MAX_CONCURRENT_VERIFY_SECTIONS}, "
@@ -781,7 +811,7 @@ class DraftVerifier:
                     doc_text, source_document=file_name
                 )
                 logger.info(
-                    f"🔬 [VERIFY V1.9] Fact profile: "
+                    f"🔬 [VERIFY V1.11] Fact profile: "
                     f"dates={fact_profile.get('stats', {}).get('total_dates', 0)}, "
                     f"parties={fact_profile.get('stats', {}).get('total_parties', 0)}, "
                     f"deadlines={fact_profile.get('stats', {}).get('legal_deadlines', 0)}"
@@ -856,7 +886,7 @@ class DraftVerifier:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [VERIFY PARALLEL V1.9] {len(VERIFY_SECTION_KEYS)} seksione, "
+            f"🚀 [VERIFY PARALLEL V1.11] {len(VERIFY_SECTION_KEYS)} seksione, "
             f"max_workers={MAX_CONCURRENT_VERIFY_SECTIONS}"
         )
 
@@ -1032,6 +1062,24 @@ class DraftVerifier:
                 except Exception:
                     pass
 
+            # V1.11: Nxirr datat nga excerpt e precedentëve (trusted sources)
+            precedent_dates: Set[str] = set()
+            for p in precedents:
+                excerpt = (p.get("text_excerpt") or "").strip()
+                if excerpt:
+                    try:
+                        precedent_dates.update(_extract_dates_iso(excerpt))
+                    except Exception as _e:
+                        logger.warning(
+                            f"⚠️ [VERIFY V1.11] Date extract failed for "
+                            f"precedent {p.get('case_number')}: {_e}"
+                        )
+            if precedent_dates:
+                logger.info(
+                    f"📅 [VERIFY V1.11] Precedent excerpt dates (allowed): "
+                    f"{sorted(precedent_dates)}"
+                )
+
             t0 = time.time()
             try:
                 hallucination_report = check_all_sections(
@@ -1040,9 +1088,10 @@ class DraftVerifier:
                     fact_profile=fact_profile,
                     verification_report=verification_report,
                     extra_allowed_cases=found_precedent_cases,
+                    extra_allowed_dates=precedent_dates,   # V1.11
                 )
                 logger.info(
-                    f"🧪 [VERIFY V1.9] Hallucination: "
+                    f"🧪 [VERIFY V1.11] Hallucination: "
                     f"status={hallucination_report.get('status')}, "
                     f"issues={hallucination_report.get('total_issues', 0)} "
                     f"(high={hallucination_report.get('severity_totals', {}).get('high', 0)}, "
@@ -1055,12 +1104,12 @@ class DraftVerifier:
                 hallucination_report = {}
             _lap("hallucination_check", t0)
         elif not HALLUCINATION_GATE_ENABLED:
-            logger.info("ℹ️ [VERIFY V1.9] Hallucination gate çaktivizuar (env)")
+            logger.info("ℹ️ [VERIFY V1.11] Hallucination gate çaktivizuar (env)")
         elif not fact_profile:
-            logger.warning("⚠️ [VERIFY V1.9] Fact profile bosh — halluzinacioni nuk u kontrollua")
+            logger.warning("⚠️ [VERIFY V1.11] Fact profile bosh — halluzinacioni nuk u kontrollua")
 
         # ═══════════════════════════════════════════════════════════════════
-        # V1.9: READINESS OVERRIDE (para scoring)
+        # V1.9 + V1.10: READINESS OVERRIDE (para scoring)
         # ═══════════════════════════════════════════════════════════════════
         readiness = _parse_readiness(sections)
         readiness_before_override = readiness
@@ -1122,7 +1171,7 @@ class DraftVerifier:
                 "sections_total": len(VERIFY_SECTION_KEYS),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": "verify_hybrid_v1.9",
+                "execution_mode": "verify_hybrid_v1.11",
                 "precedents_found": len(precedents),
                 "precedent_threshold": PRECEDENT_SIMILARITY_THRESHOLD,
                 "precedent_top_k": PRECEDENT_TOP_K,
@@ -1132,7 +1181,7 @@ class DraftVerifier:
                 "formal_pct": formal_pct,
                 "legal_pct": legal_pct,
                 "readiness_score": readiness_score,
-                # V1.9: Readiness override tracking
+                # V1.9 + V1.10: Readiness override tracking
                 "readiness_overridden": readiness_overridden,
                 "readiness_before_override": readiness_before_override,
                 # Hallucination stats
@@ -1164,7 +1213,7 @@ class DraftVerifier:
         result["persisted"] = persisted
 
         logger.info(
-            f"✅ [VERIFY V1.9] Complete: "
+            f"✅ [VERIFY V1.11] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"readiness={readiness}"
             + (f" (override from {readiness_before_override})" if readiness_overridden else "")
