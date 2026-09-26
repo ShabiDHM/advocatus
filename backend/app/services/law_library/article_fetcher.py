@@ -1,8 +1,9 @@
 # FILE: backend/app/services/law_library/article_fetcher.py
-# PHOENIX PROTOCOL - ARTICLE FETCHER V1.1
-# V1.1: FIX — Akronimi nxirret VETËM nga kllapa "(KPK)" ose "(LMD)".
-#       Më parë `re.sub(r'[^A-Z]', '', clean.upper())` krijonte pattern-e
-#       false-positive si "LNL", "KPKNRL" nga tituj normalë me numra.
+# PHOENIX PROTOCOL - ARTICLE FETCHER V1.2
+# V1.2: FIX — Akronimi nxirret edhe kur pas tij vjen tekst (p.sh. "(KPK Nr. 06/L-074)").
+#       Kërkon 2-6 shkronja uppercase menjëherë pas "(" dhe lejon vazhdim.
+#       Më parë regex-i kërkonte ")" menjëherë pas akronimit → humbiste KPK.
+# V1.1: FIX — Akronimi nxirret VETËM nga kllapa, jo nga re.sub([^A-Z]).
 # V1.0: Gjen tekstin e saktë të një neni nga MongoDB.
 
 import re
@@ -44,9 +45,9 @@ def _build_title_patterns(law_title: str) -> List[str]:
         patterns.append(rf"\b{part1}\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*{part2}\b")
         patterns.append(rf"\b{part1}\s+L\s+{part2}\b")
 
-    # V1.1: Akronimi VETËM nga kllapa — p.sh. "(KPK)", "(LMD)"
-    # Nuk përdorim më re.sub(r'[^A-Z]', '', ...) sepse krijonte false-positive.
-    for abbrev in set(re.findall(r'\(([A-Z]{2,6})\)', clean)):
+    # V1.2: Akronimi VETËM nga kllapa — p.sh. "(KPK)", "(LMD)", "(KPK Nr. 06/L-074)"
+    # \b pas {2,6} lejon që akronimi të pasohet nga hapësirë ose tekst.
+    for abbrev in set(re.findall(r'\(([A-Z]{2,6})\b', clean)):
         patterns.append(rf"\b{re.escape(abbrev)}\b")
 
     return patterns
