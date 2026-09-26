@@ -1,11 +1,12 @@
 # FILE: backend/app/services/document_review/precedent_search/service.py
-# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.4
+# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.6
+# V2.6: RERANK SCALE CLARITY — Shtuar _resolve_rerank_min_score() që
+#       centralizon logjikën e threshold-it në shkallën 0-10 (DeepSeek).
+#       Zëvendëson inline-in `if PRECEDENT_RERANKER == "cohere": min * 10`
+#       me thirrje të lexueshme. Zero ndryshim sjelljeje.
+# V2.5: CACHE CONSISTENCY FIX — Hequr _set_cache(query, [], top_k) në rrugën
+#       e "0 kandidate pas threshold-it".
 # V2.4: PERFORMANCE — pre-filter para rerank + cache.
-#       - PRE-FILTER: vetëm top 20 kandidatë (sipas RRF/cosine) shkojnë në rerank.
-#         Fitimi: 50 → 20 LLM calls → ~110s → ~40s.
-#       - CACHE: rezultati cache-ohet 24h në Redis sipas query text.
-#         Fitimi: 40s → 0s në query të përsëritur.
-#       - Fix threshold: filtrimi aplikohet EDHE kur cosine=None (text-only).
 # V2.3: Cohere reranker dispatcher.
 # V2.2: _cli_test() shfaq topic_label + rerank_score.
 # V2.1: Filtrim me rerank_score >= PRECEDENT_RERANK_MIN_SCORE.
@@ -35,7 +36,7 @@ from .searchers import (
     search_fallback,
     rrf_fusion,
 )
-from .rerank import rerank
+from .rerank import rerank, COHERE_TO_DEEPSEEK_SCALE
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,21 @@ PRECEDENT_CACHE_ENABLED = True
 
 # V2.4: Sa kandidatë dërgohen në rerank (para: pa limit → 50+)
 PRECEDENT_RERANK_PRE_FILTER_TOP_N = 20
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.6: RERANK THRESHOLD RESOLVER
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _resolve_rerank_min_score() -> float:
+    """
+    V2.6: Kthen threshold-in e rerank-ut në shkallën e unifikuar 0-10
+    (DeepSeek). Për Cohere, shkallëzohet ×COHERE_TO_DEEPSEEK_SCALE pasi
+    rerank_cohere() e ka tashmë të shkallëzuar `rerank_score` në 0-10.
+    """
+    if PRECEDENT_RERANKER == "cohere":
+        return PRECEDENT_RERANK_COHERE_MIN_SCORE * COHERE_TO_DEEPSEEK_SCALE
+    return PRECEDENT_RERANK_MIN_SCORE
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -133,19 +149,18 @@ def search_relevant_precedents(
     threshold: float = PRECEDENT_SIMILARITY_THRESHOLD,
 ) -> List[Dict[str, Any]]:
     """
-    V2.4: Hybrid (Atlas + MongoDB text + RRF) + Reranker.
+    V2.6: Hybrid (Atlas + MongoDB text + RRF) + Reranker.
 
     Rrjedha:
       1. CACHE check — nëse ekziston në Redis, kthe direkt
       2. Embedding query
       3. Kandidatet: hybrid / vector-only / fallback
       4. Filtrim: _is_real_case_number + threshold
-         (V2.4: aplikohet edhe kur cosine=None — text-only)
       5. Dedup sipas case_number
-      6. V2.4: PRE-FILTER — top 20 sipas RRF/cosine → rerank
+      6. PRE-FILTER — top 20 sipas RRF/cosine → rerank
       7. Rerank (deepseek | cohere | none)
-      8. Filtrim me rerank_score >= min_score
-      9. V2.4: CACHE save
+      8. Filtrim me rerank_score >= _resolve_rerank_min_score()
+      9. CACHE save — VETËM nëse ka rezultate
       10. Format + log
     """
     if not query_text or not query_text.strip():
@@ -209,8 +224,6 @@ def search_relevant_precedents(
         return []
 
     # ─── 4. Filtrim + threshold ───
-    # V2.4: threshold aplikohet edhe kur cosine=None (text-only results).
-    # Për ata, përdorim RRF score si metrikë alternative.
     filtered_for_dedup: List[Dict[str, Any]] = []
     skipped_no_sim = 0
     for doc in candidates:
@@ -221,17 +234,13 @@ def search_relevant_precedents(
         cosine = doc.get("similarity")
         rrf = doc.get("rrf_score")
 
-        # V2.4: Nëse ka cosine → kontrollo; përndryshe kontrollo RRF (nëse ekziston)
         if cosine is not None:
             if float(cosine) < threshold:
                 continue
         elif rrf is not None:
-            # RRF scores janë zakonisht 0-1 (ose 0-0.1 pas normalizimit).
-            # Threshold-i është për cosine, prandaj këtu kërkojmë RRF > 0.
             if float(rrf) <= 0:
                 continue
         else:
-            # As cosine, as RRF — nuk mund të vlerësojmë → skip
             skipped_no_sim += 1
             continue
 
@@ -246,7 +255,8 @@ def search_relevant_precedents(
         logger.info(
             f"ℹ️ [PRECEDENT] 0 kandidate pas filtrit (strategjia={strategy})"
         )
-        _set_cache(query_text, top_k, [])
+        # V2.5: NUK cache-ohet [] — transient dështimi nuk duhet të bllokojë
+        # rezultatet e vlefshme për 24 orë.
         return []
 
     # ─── 5. Dedup ───
@@ -270,9 +280,7 @@ def search_relevant_precedents(
 
     deduped = list(seen.values())
 
-    # ─── 6. V2.4: PRE-FILTER para rerank ───
-    # Sort sipas (RRF, cosine) desc, pastaj merr top N.
-    # Kjo shmang dërgimin e 50+ kandidatëve në LLM.
+    # ─── 6. PRE-FILTER para rerank ───
     deduped_sorted = sorted(
         deduped,
         key=lambda d: (
@@ -286,7 +294,7 @@ def search_relevant_precedents(
     pre_filtered = deduped_sorted[:pre_filter_limit]
 
     logger.info(
-        f"⚡ [PRECEDENT V2.4] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
+        f"⚡ [PRECEDENT V2.6] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
         f"kandidatë për rerank (limit={pre_filter_limit})"
     )
 
@@ -296,10 +304,8 @@ def search_relevant_precedents(
         reranked_docs = rerank(query_text, pre_filtered, top_n=top_k * 2)
         reranked = True
 
-        if PRECEDENT_RERANKER == "cohere":
-            min_score = PRECEDENT_RERANK_COHERE_MIN_SCORE * 10.0
-        else:
-            min_score = PRECEDENT_RERANK_MIN_SCORE
+        # V2.6: Threshold i centralizuar (shkallë 0-10)
+        min_score = _resolve_rerank_min_score()
 
         final_docs = [
             d for d in reranked_docs
@@ -328,14 +334,13 @@ def search_relevant_precedents(
             search_source=doc.get("_search_source"),
         ))
 
-    # ─── 9. CACHE SAVE ───
-    # Vetëm nëse kemi rezultate (mos cache bosh për shkak të transient errors)
+    # ─── 9. CACHE SAVE — VETËM nëse ka rezultate ───
     if formatted:
         _set_cache(query_text, top_k, formatted)
 
     # ─── 10. Log ───
     logger.info(
-        f"🏛️ [PRECEDENT] Strategjia={strategy}, "
+        f"🏛️ [PRECEDENT V2.6] Strategjia={strategy}, "
         f"reranker={PRECEDENT_RERANKER}, "
         f"reranked={reranked}, "
         f"kandidate={len(candidates)}, "
@@ -386,24 +391,23 @@ def _cli_test():
     )
 
     print(f"\n{'=' * 70}")
-    print(f"TEST V2.4 - Query: '{test_query}'")
+    print(f"TEST V2.6 - Query: '{test_query}'")
     print(f"Hybrid: {PRECEDENT_USE_HYBRID}, Reranker: {PRECEDENT_RERANKER}")
     print(f"Threshold: {PRECEDENT_SIMILARITY_THRESHOLD}, Top-K: {PRECEDENT_TOP_K}")
     print(f"Pre-filter top N: {PRECEDENT_RERANK_PRE_FILTER_TOP_N}")
     print(f"Cache: {'ENABLED' if PRECEDENT_CACHE_ENABLED else 'DISABLED'} "
           f"(TTL={PRECEDENT_CACHE_TTL_SECONDS}s)")
     if PRECEDENT_RERANKER == "cohere":
-        print(f"Min Cohere score: {PRECEDENT_RERANK_COHERE_MIN_SCORE}")
+        print(f"Min Cohere score (0-1): {PRECEDENT_RERANK_COHERE_MIN_SCORE}")
+        print(f"Min effective (0-10): {_resolve_rerank_min_score():.2f}")
     else:
         print(f"Min DeepSeek score: {PRECEDENT_RERANK_MIN_SCORE}")
     print('=' * 70)
 
-    # Test 1: Cold run
     print("\n[TEST 1] Cold run (nuk ka cache)...")
     results = search_relevant_precedents(db, test_query, top_k=5)
     print(f"\n>>> Rezultatet: {len(results)}")
 
-    # Test 2: Warm run
     print("\n[TEST 2] Warm run (duhet cache HIT)...")
     results2 = search_relevant_precedents(db, test_query, top_k=5)
     print(f"\n>>> Rezultatet: {len(results2)}")

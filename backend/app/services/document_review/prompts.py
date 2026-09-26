@@ -1,5 +1,11 @@
 # FILE: backend/app/services/document_review/prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V4.14
+# PHOENIX PROTOCOL - SECTION PROMPTS V4.15
+# V4.15: DOCUMENT HEADER + CONTEXT MAP FIX —
+#        - _block_document_header() tani aplikohet edhe për
+#          "drafting_quality" dhe "errors_corrections" (vlerësojnë formën
+#          dhe gabimet procedurale → duan fillim/fund të dokumentit).
+#        - Shtuar "deadlines" në SECTION_CONTEXT_MAP["document_summary"]
+#          (prompt-i e referonte "[AFAT]" por blloku nuk ofrohej).
 # V4.14: RIGOROUS ANALYSIS — shtuar seksione per analize te thelle:
 #        - document_summary: "Shenja te fshehta" + "Modele"
 #        - errors_corrections: "Vulnerabilitete strategjike"
@@ -287,10 +293,12 @@ RREGULLA:
 }
 
 
+# V4.15: "deadlines" shtuar në document_summary (përputhet me prompt-in [AFAT])
 SECTION_CONTEXT_MAP: Dict[str, List[str]] = {
     "document_summary": [
         "client", "meta", "parties", "dispositive", "medical", "tests",
         "convictions", "judge_court", "contradictions", "articles", "laws",
+        "deadlines",   # V4.15: prompt-i referon "[AFAT]"
     ],
     "article_verification": ["articles", "laws"],
     "supreme_court_precedents": ["case_numbers", "meta", "precedents"],
@@ -854,7 +862,15 @@ def build_verified_context(
     if "client" in blocks_needed or client_name:
         lines.extend(_block_client_context(client_name, client_position))
 
-    if section_key in ("document_summary", "action_steps", "analiza_e_thelluar") and doc_text:
+    # V4.15: _block_document_header aplikohet edhe për drafting_quality
+    # dhe errors_corrections (vlerësojnë formën dhe gabimet procedurale)
+    if section_key in (
+        "document_summary",
+        "action_steps",
+        "analiza_e_thelluar",
+        "drafting_quality",       # V4.15
+        "errors_corrections",     # V4.15
+    ) and doc_text:
         lines.extend(_block_document_header(doc_text))
 
     lines.extend(_block_antihallucination(citation_profile, fact_profile, verification_report))

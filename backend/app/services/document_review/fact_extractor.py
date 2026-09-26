@@ -1,13 +1,15 @@
 # FILE: backend/app/services/document_review/fact_extractor.py
-# PHOENIX PROTOCOL - FACT EXTRACTOR V3.2
-# V3.2: FIX KONTRADIKTA EKSTERNE — dallon midis:
-#       (a) kontradikta BRENDA dokumentit (të vërteta, listohen)
-#       (b) kontradikta që dokumenti RAPORTON për një dokument tjetër
-#           (duke u referuar "në Aktvendimin X", "sipas Vendimit Y", etj.)
-#       Impakti: eliminohen false-positives si "6 muaj vs 12 muaj në
-#       Aktvendimin C.nr.385/2024" që raportohen në një kallëzim.
-# V3.1: SOURCE DOCUMENT — deadlines me fushen source_document.
-# V3.0: ZONES — kontradiktat klasifikohen sipas zones.
+# PHOENIX PROTOCOL - FACT EXTRACTOR V3.4
+# V3.4: MEDICAL_TESTS DEDUPE — Refactor i dedup-it në extract_medical_tests:
+#       - Ndau në 2 faza: (1) mblidh indeksat për heqje, (2) apliko heqjen
+#         në fund, descending. Eliminon mutimin e listës gjatë iterimit
+#         (`deduped.remove(existing)` brenda `for existing in deduped`).
+#       - Sjellja: e njëjtë me V3.3 për shkak të `break`-it, por kodi tani
+#         është idiomatik dhe robust ndaj refactor-eve.
+# V3.3: REPORTED CONTEXT UNIFIED — deadlines tani kanë flag `is_reported`.
+# V3.2: FIX KONTRADIKTA EKSTERNE.
+# V3.1: SOURCE DOCUMENT.
+# V3.0: ZONES.
 # V2.1: Normalize unit + medical_tests kontekst i gjere + dedupe.
 
 import re
@@ -61,8 +63,6 @@ ZONE_UNKNOWN = "unknown"
 # ═══════════════════════════════════════════════════════════════════════════
 # V3.2: REPORTED CONTEXT DETECTION
 # ═══════════════════════════════════════════════════════════════════════════
-# Fjalët kyçe që tregojnë se teksti po RAPORTON përmbajtjen e një dokumenti
-# tjetër (jo të vetin). Kontradiktat që shfaqen këtu janë EKSTERNE.
 
 _REPORTING_REF_PATTERN = re.compile(
     r'(?:'
@@ -82,10 +82,7 @@ _REPORTED_CONTEXT_WINDOW = 400
 
 
 def _is_reported_context(text: str, position: int, window: int = _REPORTED_CONTEXT_WINDOW) -> bool:
-    """
-    V3.2: Kontrollon nëse pozicioni shfaqet brenda kontekstit ku dokumenti
-    RAPORTON përmbajtjen e një dokumenti tjetër.
-    """
+    """V3.2: Kontrollon nëse pozicioni shfaqet brenda kontekstit të raportimit."""
     if not text:
         return False
     start = max(0, position - window)
@@ -214,14 +211,14 @@ def extract_dates(text: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT DEADLINES — me source_document
+# EXTRACT DEADLINES — V3.3 me is_reported
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_deadlines(
     text: str,
     source_document: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """V3.1: Nxjerr afatet procedurale + fushen `source_document`."""
+    """V3.3: Nxjerr afatet procedurale + `source_document` + `is_reported`."""
     if not text:
         return []
 
@@ -235,6 +232,7 @@ def extract_deadlines(
         has_legal_context = any(
             kw in context_lower for kw in DEADLINE_CONTEXT_KEYWORDS
         )
+        is_reported = _is_reported_context(text, match.start())
         results.append({
             "num": num,
             "unit": unit_norm,
@@ -243,6 +241,7 @@ def extract_deadlines(
             "context": context[:MAX_CONTEXT_CHARS],
             "has_legal_context": has_legal_context,
             "source_document": source_document or None,
+            "is_reported": is_reported,
         })
 
     return results
@@ -365,17 +364,23 @@ def extract_medical_findings(text: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EXTRACT MEDICAL TESTS — V2.1
+# EXTRACT MEDICAL TESTS — V3.4
 # ═══════════════════════════════════════════════════════════════════════════
 
 def extract_medical_tests(text: str) -> List[Dict[str, Any]]:
-    """V2.1: Nxjerr testet mjekesore + rezultatin."""
+    """
+    V3.4: Nxjerr testet mjekesore + rezultatin.
+
+    Dedup me 2 faza: (1) skano për mbivendosje, (2) apliko heqjet në fund.
+    Nuk muton listën gjatë iterimit.
+    """
     if not text:
         return []
 
     results: List[Dict[str, Any]] = []
     seen: Set[str] = set()
     WIDE_WINDOW = 500
+    DEDUPE_DISTANCE = 100
 
     for kw in MEDICAL_TEST_KEYWORDS:
         pattern = re.compile(re.escape(kw), re.IGNORECASE)
@@ -404,20 +409,28 @@ def extract_medical_tests(text: str) -> List[Dict[str, Any]]:
                 "context_full": context,
             })
 
-    deduped: List[Dict[str, Any]] = []
-    for r in results:
-        overlap = False
-        for existing in deduped:
-            if abs(r["position"] - existing["position"]) < 100:
+    # V3.4: Dedup me 2 faza (nuk muton gjatë iterimit)
+    to_remove: Set[int] = set()
+    for i, r in enumerate(results):
+        if i in to_remove:
+            continue
+        for j in range(i + 1, len(results)):
+            if j in to_remove:
+                continue
+            existing = results[j]
+            if abs(r["position"] - existing["position"]) < DEDUPE_DISTANCE:
+                # Prefero result-in me specific (jo "unknown")
                 if r["result"] != "unknown" and existing["result"] == "unknown":
-                    deduped.remove(existing)
-                    break
-                overlap = True
-                break
-        if not overlap:
-            deduped.append(r)
+                    to_remove.add(j)
+                elif r["result"] == "unknown" and existing["result"] != "unknown":
+                    to_remove.add(i)
+                    break  # i u hoq → ndalo krahasimin për i
 
-    return deduped
+    # Apliko heqjet descending për indeksa të sigurt
+    for idx in sorted(to_remove, reverse=True):
+        results.pop(idx)
+
+    return results
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -495,7 +508,7 @@ def extract_judge_and_court(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CONTRADICTIONS — V3.2 (ZONE-AWARE + REPORTED CONTEXT)
+# CONTRADICTIONS — V3.3 (ZONE-AWARE + REPORTED CONTEXT)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_all_periods(
@@ -512,7 +525,6 @@ def _extract_all_periods(
             continue
         num = int(match.group(1))
         unit_norm = _normalize_unit(match.group(2))
-        # V3.2: is_reported flag
         is_reported = _is_reported_context(text, match.start())
         results.append({
             "num": num,
@@ -549,13 +561,7 @@ def detect_contradictions(
     distances: Optional[List[Dict[str, Any]]] = None,
     text: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    V3.2: Kontradikta zone-aware + reported context.
-
-    - Kontradiktat BRENDA dokumentit (jo-reported) → flag "internal"
-    - Kontradiktat RAPORTUAR (is_reported per te gjitha vlerat)
-      → flag "reported" (jo kontradikte reale e dokumentit)
-    """
+    """V3.3: Kontradikta zone-aware + reported context."""
     contradictions: List[Dict[str, Any]] = []
 
     zone_anchors: List[Tuple[int, str]] = []
@@ -570,21 +576,27 @@ def detect_contradictions(
         for it in items:
             it["zone"] = _zone_at(zone_anchors, it.get("position", 0))
 
-    # 1. Deadlines
-    deadlines_by_unit: Dict[str, List[Dict[str, Any]]] = {}
+    # 1. Deadlines — V3.3 me is_reported
+    _annotate(deadlines)
+    deadlines_by_zone_unit: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     for d in deadlines:
         if not d.get("has_legal_context"):
             continue
-        deadlines_by_unit.setdefault(d["unit"], []).append(d)
+        key = (d.get("zone", ZONE_UNKNOWN), d["unit"])
+        deadlines_by_zone_unit.setdefault(key, []).append(d)
 
-    for unit, items in deadlines_by_unit.items():
+    for (zone, unit), items in deadlines_by_zone_unit.items():
         if len(items) < 2:
             continue
         unique_nums = set(item["num"] for item in items)
         if len(unique_nums) > 1:
+            all_reported = all(item.get("is_reported", False) for item in items)
+            kind = "reported" if all_reported else "internal"
             contradictions.append({
                 "type": "deadline_inconsistency",
-                "kind": "internal",
+                "kind": kind,
+                "zone": zone,
+                "zone_label": _zone_label(zone),
                 "unit": unit,
                 "values": sorted(unique_nums),
                 "count": len(items),
@@ -605,7 +617,6 @@ def detect_contradictions(
             unique_nums = set(item["num"] for item in items)
             if len(unique_nums) <= 1:
                 continue
-            # V3.2: Nese te gjitha vlerat jane "reported" → kontradikte e jashtme
             all_reported = all(item.get("is_reported", False) for item in items)
             kind = "reported" if all_reported else "internal"
             contradictions.append({
@@ -646,14 +657,14 @@ def detect_contradictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BUILD FACT PROFILE — V3.2
+# BUILD FACT PROFILE — V3.4
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_fact_profile(
     text: str,
     source_document: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """V3.2: Nderton profilin e plote te fakteve + source_document."""
+    """V3.4: Nderton profilin e plote te fakteve + source_document."""
     if not text:
         return {
             "dates": [],
@@ -661,6 +672,7 @@ def build_fact_profile(
             "legal_deadlines": [],
             "parties": [],
             "contradictions": [],
+            "reported_contradictions": [],
             "dispositive_points": [],
             "medical_findings": [],
             "medical_tests": [],
@@ -691,7 +703,6 @@ def build_fact_profile(
         text=text,
     )
 
-    # V3.2: Ndarja e kontradiktave
     internal_contradictions = [c for c in contradictions if c.get("kind") != "reported"]
     reported_contradictions = [c for c in contradictions if c.get("kind") == "reported"]
 
@@ -713,7 +724,7 @@ def build_fact_profile(
     }
 
     logger.info(
-        f"🔬 [FACT_EXTRACTOR V3.2] dates={stats['total_dates']}, "
+        f"🔬 [FACT_EXTRACTOR V3.4] dates={stats['total_dates']}, "
         f"deadlines={stats['total_deadlines']} "
         f"(legal={stats['legal_deadlines']}), "
         f"parties={stats['total_parties']}, "
@@ -730,8 +741,8 @@ def build_fact_profile(
         "deadlines": deadlines,
         "legal_deadlines": legal_deadlines,
         "parties": parties,
-        "contradictions": internal_contradictions,  # V3.2: vetem internal
-        "reported_contradictions": reported_contradictions,  # V3.2: te vecanta
+        "contradictions": internal_contradictions,
+        "reported_contradictions": reported_contradictions,
         "dispositive_points": dispositive_points,
         "medical_findings": medical_findings,
         "medical_tests": medical_tests,

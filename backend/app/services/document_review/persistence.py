@@ -1,9 +1,13 @@
 # FILE: backend/app/services/document_review/persistence.py
-# PHOENIX PROTOCOL - PERSISTENCE V2.0
-# Ngarkon dokumentin dhe ekstraktimin nga MongoDB; ruan rezultatin.
+# PHOENIX PROTOCOL - PERSISTENCE V2.1
+# V2.1: LOAD_EXTRACTION DIAGNOSTICS — load_extraction() tani logon statusin
+#       real kur extraction != completed: "processing"/"pending"/"queued"
+#       → INFO me udhëzim; "failed" → WARNING me arsyen; mungon → INFO.
+#       Përpara: None silent → user shihte "Drafti nuk ka tekst" pa e ditur pse.
+# V2.0: Ngarkon dokumentin dhe ekstraktimin nga MongoDB; ruan rezultatin.
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from datetime import datetime, timezone
 from bson import ObjectId
 
@@ -11,6 +15,13 @@ from .constants import SYNTHESIS_COLLECTION, EXTRACTION_COLLECTION
 from .prompts import DOCUMENT_REVIEW_PROMPTS
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.1: EXTRACTION STATUS CONSTANTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+_EXTRACTION_STATUS_IN_PROGRESS = {"processing", "pending", "queued", "running"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -37,14 +48,81 @@ def load_document(db, case_id: str, document_id: str) -> Dict[str, Any]:
         return {}
 
 
-def load_extraction(db, case_id: str, document_id: str) -> Optional[Dict[str, Any]]:
-    """Ngarko ekstraktimin (NER + Metadata) nga MongoDB."""
+def _find_extraction_any_status(
+    db, case_id: str, document_id: str,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """
+    V2.1: Gjen ekstraktimin e çdo statusi (jo vetëm completed).
+
+    Kthen (entry, status) ose (None, None) nëse mungon fare.
+    """
     try:
-        return db[EXTRACTION_COLLECTION].find_one({
+        entry = db[EXTRACTION_COLLECTION].find_one({
+            "case_id": str(case_id),
+            "document_id": str(document_id),
+        })
+        if not entry:
+            return None, None
+        return entry, str(entry.get("status", "")).lower()
+    except Exception as e:
+        logger.warning(f"⚠️ _find_extraction_any_status: {e}")
+        return None, None
+
+
+def load_extraction(db, case_id: str, document_id: str) -> Optional[Dict[str, Any]]:
+    """
+    V2.1: Ngarko ekstraktimin (NER + Metadata) nga MongoDB.
+
+    Diagnostikon statusin kur ekstraktimi nuk është "completed":
+      - processing/pending/queued/running → INFO ("prit")
+      - failed/error → WARNING me arsyen
+      - mungon → INFO
+    """
+    try:
+        # 1. Provo completed direkt
+        completed = db[EXTRACTION_COLLECTION].find_one({
             "case_id": str(case_id),
             "document_id": str(document_id),
             "status": "completed",
         })
+        if completed:
+            return completed
+
+        # 2. Nuk ka "completed" — diagnostiko pse
+        entry, status = _find_extraction_any_status(db, case_id, document_id)
+
+        if entry is None:
+            logger.info(
+                f"ℹ️ [load_extraction] Pa ekstraktim: case={case_id}, "
+                f"doc={document_id} — verifiko draftin me fallback (document.content)."
+            )
+            return None
+
+        if status in _EXTRACTION_STATUS_IN_PROGRESS:
+            logger.info(
+                f"⏳ [load_extraction] Ekstraktimi në progres: case={case_id}, "
+                f"doc={document_id}, status='{status}'. "
+                f"Verifiko draftin përpara se ekstraktimi të mbarojë — "
+                f"përdoret fallback i document.content."
+            )
+            return None
+
+        if status in ("failed", "error"):
+            reason = entry.get("error_message") or entry.get("error") or "(pa arsye)"
+            logger.warning(
+                f"⚠️ [load_extraction] Ekstraktimi dështoi: case={case_id}, "
+                f"doc={document_id}, status='{status}', reason='{reason}'. "
+                f"Verifiko draftin me fallback (document.content)."
+            )
+            return None
+
+        # Status tjetër i panjohur
+        logger.warning(
+            f"⚠️ [load_extraction] Status i panjohur '{status}' për "
+            f"case={case_id}, doc={document_id}. Fallback në document.content."
+        )
+        return None
+
     except Exception as e:
         logger.warning(f"⚠️ load_extraction: {e}")
         return None

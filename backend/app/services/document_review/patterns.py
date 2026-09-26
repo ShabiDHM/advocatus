@@ -1,5 +1,10 @@
 # FILE: backend/app/services/document_review/patterns.py
-# PHOENIX PROTOCOL - REGEX PATTERNS V2.6
+# PHOENIX PROTOCOL - REGEX PATTERNS V2.7
+# V2.7: CASE_NUMBER_PATTERN EXPANDED — shtuar prefikse reale të Kosovës që
+#       mungonin: PP, PP.I, PP.II, PPII, PPI, PA, PA2, PP1, PP2, KML, KM,
+#       CML, CM, GJ, GJK, KI, KZ. Renditur nga më i gjati → më i shkurtri
+#       (Python regex alternation = first match, jo longest match).
+#       Sinkronizuar me citation_extractor.CASE_NUMBER_PREFIXES.
 # V2.6: LAW_NUMBER_LEGACY_PATTERN — kap formatin "Ligji Nr. 2004/32"
 #       (4-digit / 1-4-digit) që nuk përputhet me format XX/L-XXX.
 # V2.5: ARTICLE_PATTERN — kap listat me presje.
@@ -55,10 +60,23 @@ LAW_NAME_PATTERN = re.compile(
 
 ABBREV_PATTERN = re.compile(r'\b([A-ZËÇ]{2,6})\b')
 
+# V2.7: CASE_NUMBER_PATTERN — prefikse të plota, longest-first
+# Konvencionet e Kosovës:
+#   - Forma me pikë: PP.II, PP.I, A.NR (numri i seksionit të brendshëm)
+#   - Forma pa pikë: PPII, PPI, KMLP, PML, ANR, PZR
+#   - Forma 3-karakterëshe: PA1, PA2, PKR, PP1, PP2, REV, KML, CML, GJK
+#   - Forma 2-karakterëshe: PP, PA, KM, GJ, KI, KZ, KE, PN, KP, CA, CM
+#   - Forma 1-karakterëshe: P, K, C
 CASE_NUMBER_PATTERN = re.compile(
     r'\b('
-    r'PML|Rev|REV|KMLP|ANR|A\.NR|PZR|'
-    r'PA1|PKR|P|C|CA|KE|PN|KP|PP\.II'
+    r'PP\.II|PP\.I|'                          # PP.II, PP.I (me pikë)
+    r'A\.NR|'                                 # A.NR (me pikë)
+    r'PPII|PPI|'                              # PPII, PPI (pa pikë)
+    r'KMLP|PML|ANR|PZR|'                      # 4-karakterësh
+    r'PA1|PA2|PKR|PP1|PP2|'                   # 3-karakterësh me numër
+    r'REV|KML|CML|GJK|'                       # 3-karakterësh shkronja
+    r'PP|PA|KM|GJ|KI|KZ|KE|PN|KP|CA|CM|'     # 2-karakterësh
+    r'P|K|C'                                  # 1-karakterësh
     r')'
     r'\.?\s*[Nn]r\.?\s*'
     r'(\d+[\w\/\.\-]*)',

@@ -1,8 +1,14 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V58.0 (ORG-ID REFACTOR)
+# PHOENIX PROTOCOL - CASE SERVICE V59.0 (CASCADE CLEANUP EXPANDED)
+# V59.0: CASCADE CLEANUP EXPANDED — Shtuar fshirje e sub-collections që
+#        mbeteshin pas delete/purge:
+#          - case_extractions (NER + metadata)
+#          - case_synthesis (document review cache + synthesis legacy)
+#          - case_chat_history (RAG chat)
+#          - case_cross_references (orchestrator V1.8.2 legacy)
+#        Plus $unset i case_document_verifications në purge (ishte vetëm në
+#        hard delete). Fix për storage leak + GDPR concern.
 # V58.0: REFACTOR — heq `org_id` (legacy). Canonical: `organization_id`.
-#        _get_user_org_id / _get_case_org_id / _build_case_access_query / create_case
-#        / _map_case_document — të gjitha përdorin vetëm `organization_id`.
 # V57.1: FIX Pydantic validation.
 # V57.0: ORG-AWARE ACCESS.
 # V56.0: CASCADE CLEANUP FIX.
@@ -25,6 +31,25 @@ from app.services import storage_service, vector_store_service
 logger = logging.getLogger(__name__)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V59.0: SUB-COLLECTION NAMES (për cascade cleanup)
+# ═══════════════════════════════════════════════════════════════════════════
+# Këto collections ruajnë `case_id` si STRING (str(case_id)) — të gjeneruara
+# nga pipeline i ekstraktimit, document_review, RAG chat, orchestrator.
+
+SUBCOLLECTION_CASE_EXTRACTIONS = "case_extractions"
+SUBCOLLECTION_CASE_SYNTHESIS = "case_synthesis"
+SUBCOLLECTION_CASE_CHAT_HISTORY = "case_chat_history"
+SUBCOLLECTION_CASE_CROSS_REFERENCES = "case_cross_references"
+
+CASCADE_SUBCOLLECTIONS = [
+    SUBCOLLECTION_CASE_EXTRACTIONS,
+    SUBCOLLECTION_CASE_SYNTHESIS,
+    SUBCOLLECTION_CASE_CHAT_HISTORY,
+    SUBCOLLECTION_CASE_CROSS_REFERENCES,
+]
+
+
 # --- HELPER FUNCTIONS ---
 
 def _safe_str(oid: Any) -> Optional[str]:
@@ -33,9 +58,7 @@ def _safe_str(oid: Any) -> Optional[str]:
 
 
 def _get_user_org_id(user: UserInDB) -> Optional[str]:
-    """
-    V58.0: Lexon vetëm `organization_id` (canonical).
-    """
+    """V58.0: Lexon vetëm `organization_id` (canonical)."""
     val = getattr(user, "organization_id", None)
     if val:
         return str(val)
@@ -86,7 +109,6 @@ def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None)
 
     else:
         if organization_id:
-            # V58.0: Vetëm `organization_id` (str + ObjectId)
             org_clauses: List[Dict[str, Any]] = [
                 {"organization_id": organization_id},
             ]
@@ -119,7 +141,6 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
 
         user_id = case_doc.get("user_id") or case_doc.get("owner_id")
 
-        # V58.0: Vetëm `organization_id`
         organization_id_raw = case_doc.get("organization_id")
         if organization_id_raw and ObjectId.is_valid(str(organization_id_raw)):
             organization_id = ObjectId(str(organization_id_raw))
@@ -174,7 +195,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         return {
             "id": case_id_obj,
             "user_id": user_id,
-            "organization_id": organization_id,  # V58.0: key i ri
+            "organization_id": organization_id,
             "case_number": case_number,
             "title": title,
             "description": case_doc.get("description"),
@@ -206,6 +227,43 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         return None
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V59.0: CASCADE SUBCOLLECTIONS CLEANUP
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _cleanup_case_subcollections(
+    db: Database, case_id: Any, case_id_str: str,
+) -> Dict[str, int]:
+    """
+    V59.0: Fshin sub-collections e analizave për një case.
+
+    Collections: case_extractions, case_synthesis, case_chat_history,
+                 case_cross_references.
+
+    Kthen {collection_name: deleted_count}.
+    """
+    counts: Dict[str, int] = {}
+
+    for coll_name in CASCADE_SUBCOLLECTIONS:
+        try:
+            # Fshij me STRING (canonical në të gjitha këto collections)
+            result = db[coll_name].delete_many({"case_id": case_id_str})
+            counts[coll_name] = result.deleted_count
+            if result.deleted_count > 0:
+                logger.info(
+                    f"🗑️ [Cascade V59.0] {coll_name}: "
+                    f"{result.deleted_count} dokument(e) fshirë për case={case_id_str}"
+                )
+        except Exception as e:
+            logger.warning(
+                f"⚠️ [Cascade V59.0] {coll_name} cleanup failed për "
+                f"case={case_id_str}: {e}"
+            )
+            counts[coll_name] = 0
+
+    return counts
+
+
 # --- CRUD OPERATIONS ---
 
 def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
@@ -222,7 +280,6 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         case_dict["opposing_party"] = clean_opposing
         case_dict["opponent_name"] = clean_opposing
 
-    # V58.0: Vetëm `organization_id`
     organization_id = _get_user_org_id(owner)
     has_active_sub = getattr(owner, "has_active_subscription", False) or (getattr(owner, "subscription_status", "") == "ACTIVE")
 
@@ -234,7 +291,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     case_dict.update({
         "owner_id": owner.id,
         "user_id": owner.id,
-        "organization_id": org_oid,  # V58.0
+        "organization_id": org_oid,
         "assigned_user_ids": [str(owner.id)],
         "is_unlocked": bool(has_active_sub),
         "unlocked_at": datetime.now(timezone.utc) if has_active_sub else None,
@@ -317,7 +374,18 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
 
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    """V56.0: CASCADE CLEANUP I PLOTË."""
+    """
+    V59.0: CASCADE CLEANUP I PLOTË — storage + vector + sub-collections.
+
+    Fshin:
+      - Storage files (documents, media, archives)
+      - Vector embeddings (documents, media)
+      - Collections: documents, media_evidence, archives, findings,
+                     calendar_events, alerts
+      - V59.0: case_extractions, case_synthesis, case_chat_history,
+               case_cross_references
+      - Case doc (përfshirë case_document_verifications subfield)
+    """
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
     if not case:
@@ -327,6 +395,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
     caller_id_str = str(owner.id)
 
+    # --- Storage + Vector: documents ---
     documents = list(db.documents.find(any_id_query))
     for doc in documents:
         doc_id_str = str(doc["_id"])
@@ -345,6 +414,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         except Exception as e:
             logger.warning(f"⚠️ Doc embeddings cleanup failed për {doc_id_str}: {e}")
 
+    # --- Storage + Vector: media ---
     media_items = list(db.media_evidence.find(any_id_query))
     for media in media_items:
         media_id_str = str(media["_id"])
@@ -364,6 +434,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
             logger.warning(f"⚠️ Media embeddings cleanup failed për {media_id_str}: {e}")
     db.media_evidence.delete_many(any_id_query)
 
+    # --- Storage: archives ---
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
@@ -374,6 +445,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
 
     db.archives.delete_many(any_id_query)
 
+    # --- Findings ---
     try:
         findings_deleted = db.findings.delete_many(any_id_query)
         if findings_deleted.deleted_count > 0:
@@ -381,6 +453,10 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     except Exception as e:
         logger.warning(f"⚠️ Findings cleanup failed për {case_id_str}: {e}")
 
+    # --- V59.0: CASCADE SUBCOLLECTIONS ---
+    cascade_counts = _cleanup_case_subcollections(db, case_id, case_id_str)
+
+    # --- Final: case doc + primary collections ---
     db.cases.delete_one({"_id": case_id})
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
@@ -389,11 +465,21 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     except Exception:
         pass
 
-    logger.info(f"🧹 [Case Delete] Lënda {case_id_str} u fshi me sukses me të gjitha burimet.")
+    cascade_total = sum(cascade_counts.values())
+    logger.info(
+        f"🧹 [Case Delete V59.0] Lënda {case_id_str} u fshi me sukses. "
+        f"Sub-collections: {cascade_total} dokument(e) të fshirë "
+        f"({cascade_counts})."
+    )
 
 
 def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, Any]:
-    """RREGULLI I DYFISHTË I PASTRIMIT."""
+    """
+    V59.0: RREGULLI I DYFISHTË I PASTRIMIT.
+
+    Soft delete (is_purged=True) + cascade cleanup i sub-collections +
+    $unset i case_document_verifications.
+    """
     now = datetime.now(timezone.utc)
     cutoff_date = now - timedelta(days=expiry_days)
 
@@ -401,6 +487,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
 
     purged_cases_count = 0
     deleted_docs_count = 0
+    total_subcollection_cleanup: Dict[str, int] = {c: 0 for c in CASCADE_SUBCOLLECTIONS}
 
     for case in all_unpurged_cases:
         case_id = case["_id"]
@@ -441,6 +528,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
         if should_purge:
             any_id_query = {"case_id": {"$in": [case_id, case_id_str]}}
 
+            # --- Storage + Vector: documents ---
             documents = list(db.documents.find(any_id_query))
             for doc in documents:
                 doc_id_str = str(doc["_id"])
@@ -462,6 +550,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
 
                 deleted_docs_count += 1
 
+            # --- Storage + Vector: media ---
             media_items = list(db.media_evidence.find(any_id_query))
             for media in media_items:
                 media_id_str = str(media["_id"])
@@ -481,6 +570,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                     pass
             db.media_evidence.delete_many(any_id_query)
 
+            # --- Documents: mark as PURGED (soft) ---
             db.documents.update_many(
                 any_id_query,
                 {"$set": {
@@ -491,22 +581,37 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                 }}
             )
 
+            # --- V59.0: CASCADE SUBCOLLECTIONS + unset verifications ---
+            cascade_counts = _cleanup_case_subcollections(db, case_id, case_id_str)
+            for k, v in cascade_counts.items():
+                total_subcollection_cleanup[k] += v
+
+            # --- Case: mark purged + clear verifications subfield ---
             db.cases.update_one(
                 {"_id": case_id},
-                {"$set": {
-                    "is_purged": True,
-                    "purged_at": now,
-                    "status": "ARCHIVED_COMPLETED",
-                    "updated_at": now
-                }}
+                {
+                    "$set": {
+                        "is_purged": True,
+                        "purged_at": now,
+                        "status": "ARCHIVED_COMPLETED",
+                        "updated_at": now
+                    },
+                    "$unset": {
+                        "case_document_verifications": "",
+                    }
+                }
             )
             purged_cases_count += 1
-            logger.info(f"🧹 [Auto-Purge] Lënda {case_id_str} u pastrua.")
+            logger.info(
+                f"🧹 [Auto-Purge V59.0] Lënda {case_id_str} u pastrua. "
+                f"Sub-collections fshirë: {cascade_counts}"
+            )
 
     return {
         "status": "success",
         "purged_cases_count": purged_cases_count,
         "deleted_documents_count": deleted_docs_count,
+        "subcollections_cleanup": total_subcollection_cleanup,
         "timestamp": now.isoformat()
     }
 

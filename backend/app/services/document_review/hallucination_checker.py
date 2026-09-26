@@ -1,5 +1,12 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.11
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.12
+# V1.12: LEGACY LAW PATTERN FIX —
+#        - Importuar LAW_NUMBER_LEGACY_PATTERN nga patterns.py (kërkon
+#          "Ligj"/"Kodi" para YYYY/N → shmang false positives për
+#          numra lëndësh/kontratash).
+#        - Hequr definicioni lokal pa kontekst.
+#        - Forcuar kontrollin kontekstual në _extract_law_numbers_from_title_strict:
+#          hiqur "nr."/"nr " (shumë të dobët) → mbahen VETËM "ligj"/"kodi".
 # V1.11: STRICT OUTPUT VALIDATION — _safe_normalize_law valido outputin me regex:
 #        outputi DUHET te permbaje 'L-' ose '/' + numra. Refuzon tituj si 'LMDHF'
 #        ose 'Ligjit për Familjen'. Heq `name` dhe `title` nga skanimi.
@@ -16,6 +23,7 @@ from .patterns import (
     DATE_ALBANIAN_PATTERN,
     ARTICLE_PATTERN,
     LAW_NUMBER_PATTERN,
+    LAW_NUMBER_LEGACY_PATTERN,       # V1.12: i importuar (jo lokal)
     LAW_NUMBER_WITH_NAME_PATTERN,
     CASE_NUMBER_PATTERN,
     ABBREV_PATTERN,
@@ -37,11 +45,6 @@ CASE_NUMBER_PREFIXES: Set[str] = {
     "CP", "AC", "PN", "KP", "ARJ", "A", "P",
     "KPK", "KPPRK", "KPRK",
 }
-
-
-LAW_NUMBER_LEGACY_PATTERN = re.compile(
-    r'\b(\d{4})\s*[\/\-]\s*(\d{1,4})\b'
-)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -103,7 +106,8 @@ def _safe_normalize_law(raw_value: str) -> Optional[str]:
 
 def _extract_law_numbers_from_title_strict(title: str) -> Set[str]:
     """
-    V1.11: Nxjerr numra ligjesh VETEM ne formatet strikte.
+    V1.12: Nxjerr numra ligjesh VETEM ne formatet strikte.
+    Kontrolli kontekstual tani kërkon VETËM "ligj" ose "kodi" (jo "nr.").
     """
     found: Set[str] = set()
     if not title:
@@ -120,7 +124,8 @@ def _extract_law_numbers_from_title_strict(title: str) -> Set[str]:
     for m in LAW_NUMBER_LEGACY_PATTERN.finditer(s):
         start = max(0, m.start() - 100)
         ctx = lower[start:m.start() + 10]
-        if any(k in ctx for k in ("ligj", "kodi", "nr.", "nr ")):
+        # V1.12: VETEM "ligj" ose "kodi" — "nr."/"nr " hiqen (shume te dobët)
+        if any(k in ctx for k in ("ligj", "kodi")):
             candidate = f"{m.group(1)}/{m.group(2)}"
             if _is_valid_law_output(candidate):
                 found.add(candidate)
@@ -252,10 +257,10 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.11] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.12] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.11] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.12] No successor laws collected.")
 
     return successors
 
@@ -319,6 +324,8 @@ def _extract_laws(text: str) -> Set[str]:
         if n and _is_valid_law_output(n):
             found.add(n)
 
+    # V1.12: LAW_NUMBER_LEGACY_PATTERN tani kërkon "Ligj"/"Kodi" para numrit.
+    # Nuk kap "Vendimi Nr. 2024/25" — false positive i shmangur.
     for m in LAW_NUMBER_LEGACY_PATTERN.finditer(text):
         candidate = f"{m.group(1)}/{m.group(2)}"
         if _is_valid_law_output(candidate):
@@ -396,7 +403,7 @@ class HallucinationChecker:
             extra_allowed_cases=extra_allowed_cases,
         )
         logger.info(
-            f"[HALLUCINATION V1.11] Allowed values: "
+            f"[HALLUCINATION V1.12] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
@@ -436,7 +443,7 @@ class HallucinationChecker:
         laws.update(successors)
 
         logger.info(
-            f"[HALLUCINATION V1.11] Laws: base={len(base_laws)}, "
+            f"[HALLUCINATION V1.12] Laws: base={len(base_laws)}, "
             f"successors={len(successors)}, total={len(laws)}"
         )
 
@@ -631,7 +638,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.11] Status={global_status}, "
+        f"[HALLUCINATION V1.12] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

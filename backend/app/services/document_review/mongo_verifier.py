@@ -1,5 +1,10 @@
 # FILE: backend/app/services/document_review/mongo_verifier.py
-# PHOENIX PROTOCOL - MONGO VERIFIER V2.3 (KEYWORD STOPWORDS)
+# PHOENIX PROTOCOL - MONGO VERIFIER V2.4 (CONTEXT FIELD UNIFIED)
+# V2.4: CONTEXT FIELD UNIFIED — verify_articles() tani eksporton `context`
+#       dhe `sentence` (jo `citation_context`/`citation_sentence`) për t'u
+#       lexuar nga verify_prompts._block_cited_articles dhe
+#       document_review.prompts._block_articles. Fix për bug-un ku konteksti
+#       i citimit nuk shfaqej në asnjë prompt.
 # V2.3: KEYWORD_MATCH_STOPWORDS — fjalë gjenerike ("republika", "kosova",
 #       "kodi", "ligji") nuk kontribuojnë në overlap. FIX për mis-attribution
 #       ku "Kushtetuta e Republikës së Kosovës" match-on "KODI PENAL
@@ -80,11 +85,6 @@ KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
 # ═══════════════════════════════════════════════════════════════════════════
 # V2.2: KNOWN_ABBREV_EXCLUDES — keywords që NUK duhet të shfaqen
 # ═══════════════════════════════════════════════════════════════════════════
-#
-# Arsyetimi: "Kodi Penal" dhe "Kodi Procedurës Penale" të dy përmbajnë
-# fjalën "penal" (brenda "penale"). Pa excludes, KPRK match-on gabimisht
-# titullin "Kodi Procedurës Penale".
-#
 
 KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
     # KPRK = Kodi Penal ≠ Kodi Procedurës Penale
@@ -106,15 +106,6 @@ KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
 # ═══════════════════════════════════════════════════════════════════════════
 # V2.3: KEYWORD_MATCH_STOPWORDS — fjalë gjenerike që NUK kontribuojnë
 # ═══════════════════════════════════════════════════════════════════════════
-#
-# "republika"/"kosova"/"kodi"/"ligji" shfaqen në shumë tituj ligjesh.
-# Nëse numërohen në overlap, shkaktojnë false-positive.
-#
-# Shembull bug: hint = "Kushtetuta e Republikës së Kosovës" dhe
-# db_title = "KODI PENAL I REPUBLIKËS SË KOSOVËS"
-# Pa stopwords: overlap = {republika, kosova} → 2 match → True (GABIM)
-# Me stopwords: cit_kw = {} → skip keyword match → False (SAKTË)
-#
 
 KEYWORD_MATCH_STOPWORDS: Set[str] = {
     "republikes", "republike", "republika", "republik",
@@ -268,7 +259,7 @@ def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
                 break
         if exclude_hit:
             logger.debug(
-                f"[V2.3] Skip abbrev '{candidate}' — excluded keyword "
+                f"[V2.4] Skip abbrev '{candidate}' — excluded keyword "
                 f"'{ex}' found in title: {db_title[:80]}"
             )
             continue
@@ -651,8 +642,10 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             db, article["number"], article.get("paragraph"),
             article.get("law_hint", ""),
         )
-        verification["citation_context"] = article.get("context", "")
-        verification["citation_sentence"] = article.get("sentence", "")
+        # V2.4: Fusha të unifikuara — `context` dhe `sentence` lexohen
+        # nga verify_prompts._block_cited_articles dhe document_review.prompts._block_articles
+        verification["context"] = article.get("context", "")
+        verification["sentence"] = article.get("sentence", "")
         results.append(verification)
 
     verified = sum(1 for r in results if r["exists"])
@@ -670,7 +663,7 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.3] Articles: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.4] Articles: {len(results)} total, "
         f"{verified} verified (including {successor_matches} in successor laws, "
         f"{alias_matches} via alias), "
         f"{alternative_found} exist elsewhere (wrong hint), "
@@ -763,7 +756,7 @@ def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[st
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.3] Laws by number: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.4] Laws by number: {len(results)} total, "
         f"{verified} verified, {replaced} replaced"
     )
     return results
@@ -840,7 +833,7 @@ def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str
     precedents = sum(1 for r in results if r["is_precedent"])
     cited = sum(1 for r in results if not r["is_likely_own"])
     logger.info(
-        f"📚 [MONGO_VERIFIER] Case numbers: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.4] Case numbers: {len(results)} total, "
         f"{cited} cited, {precedents} real precedents"
     )
     return results
@@ -890,7 +883,7 @@ def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.3] Complete: "
+        f"📚 [MONGO_VERIFIER V2.4] Complete: "
         f"articles {stats['articles_verified']}/{stats['articles_total']} "
         f"(+{stats['articles_in_successor_laws']} in successor laws, "
         f"{stats['articles_via_alias']} via alias), "

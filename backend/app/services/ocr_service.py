@@ -1,5 +1,7 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - AI VISION OCR ENGINE V31.1 (ZERO CLAUDE • ZERO GPT-4O-MINI • ECONOMICAL GEMINI SUITE)
+# PHOENIX PROTOCOL - AI VISION OCR ENGINE V31.2 (ECONOMICAL GEMINI SUITE)
+# V31.2: COMMENT CLEANUP — Hequr referencat historike ndaj Claude në komente
+#        dhe header. Funksionalisht identike me V31.1 (Gemini 2.5 Flash + 1.5).
 # V31.1: FIX — hequr google/gemini-2.0-flash-001 (deprecated nga OpenRouter,
 #        kthente 404 "No endpoints found"). Renditur google/gemini-2.5-flash
 #        si model parësor (i verifikuar punues në prodhim).
@@ -18,7 +20,7 @@ from app.services.llm.llm_client import _get_sync_client, _get_api_key
 
 logger = logging.getLogger(__name__)
 
-# 🛡️ HIERARKIA E VERIFIKUAR EKONOMIKE E AI VISION (ZERO CLAUDE • ZERO GPT-4O-MINI)
+# 🛡️ HIERARKIA E VERIFIKUAR EKONOMIKE E AI VISION
 # V31.1: google/gemini-2.0-flash-001 u hoq — OpenRouter kthen 404 "No endpoints found".
 VISION_MODELS_HIERARCHY = [
     "google/gemini-2.5-flash",         # Modeli parësor — i verifikuar punues (Shtator 2026)
@@ -78,12 +80,12 @@ def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
     return None
 
 
-# --- 2. OPENROUTER MULTIMODAL AI VISION OCR (ZERO CLAUDE • KONSUM MINIMAL) ---
+# --- 2. OPENROUTER MULTIMODAL AI VISION OCR (KONSUM MINIMAL) ---
 
 def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
     """
     Përdor inteligjencën vizuale ekonomike për të transkriptuar 100% të tekstit
-    nga imazhi i skanuar, pa konsumuar kredi te Claude Sonnet.
+    nga imazhi i skanuar, pa konsumuar kredi te modelet e shtrenjta LLM.
     """
     api_key = _get_api_key()
     if not api_key:
@@ -128,7 +130,6 @@ def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
                     raw_text = response.choices[0].message.content or ""
                     cleaned_text = raw_text.strip()
 
-                    # Nëse modeli kthen refuzim, hidhe poshtë menjëherë dhe kalo te modeli pasues
                     if is_ai_refusal(cleaned_text):
                         logger.warning(f"⚠️ [AI Vision OCR] Modeli {model_name} ktheu REFUSAL: '{cleaned_text[:60]}...' -> Kalojmë te modeli pasues.")
                         break

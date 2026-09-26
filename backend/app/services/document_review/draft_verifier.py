@@ -1,5 +1,13 @@
 # FILE: backend/app/services/document_review/draft_verifier.py
-# PHOENIX PROTOCOL - DRAFT VERIFIER V1.6
+# PHOENIX PROTOCOL - DRAFT VERIFIER V1.7
+# V1.7: ANTI-HALLUCINATION GATE — shtuar kontroll i automatizuar i halluzinacioneve:
+#       - build_fact_profile() ekstrakton datat/afatet/palët/konfliktet.
+#       - check_all_sections() verifikon nëse LLM shpiku vlera që nuk
+#         shfaqen në draft (nene, ligje, data, numra lëndësh).
+#       - Nëse status="suspect": warning banner shtohet në krye të
+#         full_report + hallucination_report ruhet në result.
+#       - NUK bllokon seksionet (hybrid: Python A + LLM B/C/D; bllokimi
+#         do humbte faktet e verifikuara).
 # V1.6: PRECEDENT PARSER ROBUST +
 #       - Heq çdo A-section nga output-i LLM (parandalon dublikim)
 #       - Fallback për PSE_RELEVANT: provon bllok → rreshta numerik → fjalë kyçe
@@ -17,15 +25,17 @@ import time
 import logging
 import concurrent.futures
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Callable, Tuple
+from typing import Any, Dict, List, Optional, Callable, Tuple, Set
 
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from .citation_extractor import build_citation_profile
+from .fact_extractor import build_fact_profile
 from .mongo_verifier import verify_all
 from .streaming import synthesize_section_streaming
 from .persistence import load_document, load_extraction
+from .hallucination_checker import check_all_sections
 from .precedent_search import (
     build_precedent_query,
     search_relevant_precedents,
@@ -45,6 +55,11 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT_VERIFY_SECTIONS = int(
     os.getenv("VERIFY_MAX_WORKERS", os.getenv("DOC_REVIEW_MAX_WORKERS", "3"))
 )
+
+# V1.7: Flag për të mundësuar/çaktivizuar gate-in (default: ON)
+HALLUCINATION_GATE_ENABLED = os.getenv(
+    "VERIFY_HALLUCINATION_GATE", "true"
+).lower() == "true"
 
 READINESS_LABELS_SQ: Dict[str, str] = {
     "READY":       "GATI",
@@ -81,6 +96,55 @@ def _is_international_law(law_hint: str) -> bool:
         return False
     h = law_hint.lower()
     return any(kw in h for kw in INTERNATIONAL_LAW_KEYWORDS)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.7: HALLUCINATION GATE HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _build_hallucination_warning(hallucination_report: Dict[str, Any]) -> str:
+    """V1.7: Ndërton banner warning për t'u vendosur në krye të full_report."""
+    status = hallucination_report.get("status", "clean")
+    if status == "clean":
+        return ""
+
+    total = hallucination_report.get("total_issues", 0)
+    sev = hallucination_report.get("severity_totals", {}) or {}
+    high = sev.get("high", 0)
+    medium = sev.get("medium", 0)
+    low = sev.get("low", 0)
+
+    suspicious = hallucination_report.get("suspicious_sections", []) or []
+
+    lines: List[str] = []
+    lines.append("> ⚠️ **KY RAPORT PËRMban DYSHIME PËR HALLUZINACIONE**")
+    lines.append(">")
+    lines.append(
+        f"> Sistemi anti-hallucination identifikoi **{total} vlera** "
+        f"që NUK shfaqen në dokumentin origjinal:"
+    )
+    lines.append(f">   - Rrezik i lartë: **{high}**")
+    lines.append(f">   - Rrezik i mesëm: **{medium}**")
+    lines.append(f">   - Rrezik i ulët: **{low}**")
+    lines.append(">")
+
+    if suspicious:
+        lines.append("> **Seksionet me dyshime:**")
+        for key in suspicious[:7]:
+            per_sec = (hallucination_report.get("per_section") or {}).get(key, {})
+            sec_issues = per_sec.get("issues", []) or []
+            high_i = sum(1 for i in sec_issues if i.get("severity") == "high")
+            med_i = sum(1 for i in sec_issues if i.get("severity") == "medium")
+            lines.append(
+                f">   - `{key}` — {len(sec_issues)} dyshime "
+                f"(high: {high_i}, medium: {med_i})"
+            )
+        lines.append(">")
+
+    lines.append("> **Veprimi i rekomanduar:** verifikoni manualisht të gjitha")
+    lines.append("> vlerat e listuara më sipër përpara se t'i besoni raportit.")
+
+    return "\n".join(lines) + "\n\n---\n\n"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -240,7 +304,6 @@ def _strip_precedent_a_sections(text: str) -> str:
     if not text:
         return text
 
-    # Pattern: heading që përmban "Precedentët" dhe "identifikuar"
     pattern = re.compile(
         r'(?:^|\n)[ \t]*(?:#{1,4}\s*)?(?:[▸◆►•]\s*)?'
         r'A\.?\s*Precedent[ëe]t?\s+(?:e\s+)?identifikuar'
@@ -255,14 +318,9 @@ def _strip_precedent_a_sections(text: str) -> str:
 def _extract_pse_relevant_map(text: str, count: int) -> Dict[int, str]:
     """
     V1.6: Nxjerr 'Pse relevant' për çdo precedent.
-    Strategjia:
-      1. Blloku PSE_RELEVANT_START...PSE_RELEVANT_END
-      2. Rreshta 'N: tekst' ose 'N. tekst' në fillim
-      3. Rreshta 'N — tekst' (listë kompakte)
     """
     result: Dict[int, str] = {}
 
-    # Strategjia 1: blloku i deklaruar
     block = re.search(
         r'PSE_RELEVANT_START\s*\n(.*?)\n\s*PSE_RELEVANT_END',
         text,
@@ -280,7 +338,6 @@ def _extract_pse_relevant_map(text: str, count: int) -> Dict[int, str]:
         if result:
             return result
 
-    # Strategjia 2: kërko rreshtat 'Pse relevant: X' ose 'N: X' të përsëritur
     inline_matches = re.findall(
         r'(?:^|\n)\s*(?:[#*>\-]\s*)?(?:\*\*)?Pse relevant[^\n:]*[:.]\s*(.+?)(?=\n|$)',
         text,
@@ -304,21 +361,18 @@ def _post_process_precedents_section(
 
     text = llm_output or ""
 
-    # V1.6: Hiq A-section-in e LLM para çdo gjëje tjetër (parandalon dublikim)
     text_clean = _strip_precedent_a_sections(text)
 
-    # V1.6: Provo të nxjerësh PSE_RELEVANT map
     pse_map = _extract_pse_relevant_map(text, count)
     if not pse_map:
         pse_map = _extract_pse_relevant_map(text_clean, count)
 
     if not pse_map:
         logger.warning(
-            f"⚠️ [V1.6] Nuk u nxorën Pse relevant për {count} precedentë. "
+            f"⚠️ [V1.7] Nuk u nxorën Pse relevant për {count} precedentë. "
             f"Output LLM fillon: {text[:200]}"
         )
 
-    # Pastro PSE_RELEVANT block nga output-i
     rest = re.sub(
         r'PSE_RELEVANT_START.*?PSE_RELEVANT_END\s*',
         '',
@@ -327,7 +381,6 @@ def _post_process_precedents_section(
         flags=re.DOTALL | re.IGNORECASE,
     ).strip()
 
-    # Hiq heading-un e dyfishuar
     rest = re.sub(
         r'^#{1,4}\s*3\.?\s*PRECEDENT[ËE]?\s+MB[ËE]SHTET[ËE]S\s*\n+',
         '',
@@ -343,7 +396,6 @@ def _post_process_precedents_section(
         flags=re.IGNORECASE,
     )
 
-    # Zëvendëso placeholder-at
     for i in range(1, count + 1):
         txt = pse_map.get(i) or "_[Nuk u gjenerua nga LLM-ja]_"
         facts_block = facts_block.replace(f"{{PSE_RELEVANT_{i}}}", txt)
@@ -655,10 +707,11 @@ class DraftVerifier:
         file_name = (document or {}).get("file_name", "draft")
 
         logger.info(
-            f"🔎 [VERIFY V1.6] Start: case={case_id}, doc={document_id}, "
+            f"🔎 [VERIFY V1.7] Start: case={case_id}, doc={document_id}, "
             f"file={file_name}, doc_type={doc_type} ({doc_type_label}), "
             f"len={len(doc_text)} chars, user={user_id or '?'}, "
-            f"parallel x{MAX_CONCURRENT_VERIFY_SECTIONS}"
+            f"parallel x{MAX_CONCURRENT_VERIFY_SECTIONS}, "
+            f"hallucination_gate={HALLUCINATION_GATE_ENABLED}"
         )
 
         if progress_callback:
@@ -677,6 +730,25 @@ class DraftVerifier:
             logger.error(f"❌ [VERIFY] build_citation_profile failed: {e}")
             citation_profile = {"stats": {"total_articles": 0, "total_laws_by_number": 0}}
         _lap("build_citation_profile", t0)
+
+        # V1.7: FACT PROFILE për hallucination check
+        t0 = time.time()
+        fact_profile: Dict[str, Any] = {}
+        if HALLUCINATION_GATE_ENABLED:
+            try:
+                fact_profile = build_fact_profile(
+                    doc_text, source_document=file_name
+                )
+                logger.info(
+                    f"🔬 [VERIFY V1.7] Fact profile: "
+                    f"dates={fact_profile.get('stats', {}).get('total_dates', 0)}, "
+                    f"parties={fact_profile.get('stats', {}).get('total_parties', 0)}, "
+                    f"deadlines={fact_profile.get('stats', {}).get('legal_deadlines', 0)}"
+                )
+            except Exception as e:
+                logger.error(f"❌ [VERIFY] build_fact_profile failed: {e}")
+                fact_profile = {}
+        _lap("build_fact_profile", t0)
 
         t0 = time.time()
         try:
@@ -732,12 +804,19 @@ class DraftVerifier:
             precedents = []
         _lap("search_relevant_precedents", t0)
 
+        # V1.7: Nxjerr numrat e lëndëve të precedentëve (për extra_allowed_cases)
+        found_precedent_cases: Set[str] = set()
+        for p in precedents:
+            cn = (p.get("case_number") or "").strip()
+            if cn:
+                found_precedent_cases.add(cn)
+
         sections: Dict[str, Dict[str, Any]] = {}
         section_stats: Dict[str, Any] = {}
         sections_start = time.time()
 
         logger.warning(
-            f"🚀 [VERIFY PARALLEL V1.6] {len(VERIFY_SECTION_KEYS)} seksione, "
+            f"🚀 [VERIFY PARALLEL V1.7] {len(VERIFY_SECTION_KEYS)} seksione, "
             f"max_workers={MAX_CONCURRENT_VERIFY_SECTIONS}"
         )
 
@@ -899,6 +978,47 @@ class DraftVerifier:
             f"{sections_total_time}s"
         )
 
+        # ═══════════════════════════════════════════════════════════════════
+        # V1.7: ANTI-HALLUCINATION CHECK
+        # ═══════════════════════════════════════════════════════════════════
+        hallucination_report: Dict[str, Any] = {}
+        if HALLUCINATION_GATE_ENABLED and fact_profile:
+            if progress_callback:
+                try:
+                    progress_callback("step_started", {
+                        "step_key": "hallucination_check",
+                        "step_title": "Duke kontrolluar saktësinë e fakteve...",
+                    })
+                except Exception:
+                    pass
+
+            t0 = time.time()
+            try:
+                hallucination_report = check_all_sections(
+                    sections=sections,
+                    citation_profile=citation_profile,
+                    fact_profile=fact_profile,
+                    verification_report=verification_report,
+                    extra_allowed_cases=found_precedent_cases,
+                )
+                logger.warning(
+                    f"🧪 [VERIFY V1.7] Hallucination: "
+                    f"status={hallucination_report.get('status')}, "
+                    f"issues={hallucination_report.get('total_issues', 0)} "
+                    f"(high={hallucination_report.get('severity_totals', {}).get('high', 0)}, "
+                    f"medium={hallucination_report.get('severity_totals', {}).get('medium', 0)}, "
+                    f"low={hallucination_report.get('severity_totals', {}).get('low', 0)}), "
+                    f"suspicious={hallucination_report.get('suspicious_sections', [])}"
+                )
+            except Exception as e:
+                logger.error(f"❌ [VERIFY] check_all_sections failed: {e}")
+                hallucination_report = {}
+            _lap("hallucination_check", t0)
+        elif not HALLUCINATION_GATE_ENABLED:
+            logger.info("ℹ️ [VERIFY V1.7] Hallucination gate çaktivizuar (env)")
+        elif not fact_profile:
+            logger.warning("⚠️ [VERIFY V1.7] Fact profile bosh — halluzinacioni nuk u kontrollua")
+
         readiness = _parse_readiness(sections)
 
         score, score_breakdown = _calculate_score(
@@ -914,6 +1034,12 @@ class DraftVerifier:
             readiness=readiness,
         )
 
+        # V1.7: Prepend hallucination warning në krye të full_report
+        if hallucination_report.get("status") == "suspect":
+            warning_banner = _build_hallucination_warning(hallucination_report)
+            if warning_banner:
+                full_report = warning_banner + full_report
+
         duration = round(time.time() - start, 2)
 
         vstats = verification_report.get("stats", {}) or {}
@@ -922,6 +1048,8 @@ class DraftVerifier:
         legal_pct = score_breakdown.get("legal", 0.0)
         formal_pct = score_breakdown.get("formal", 0.0)
         readiness_score = int(score_breakdown.get("readiness", 0))
+
+        h_sev = (hallucination_report or {}).get("severity_totals", {}) or {}
 
         result: Dict[str, Any] = {
             "case_id": case_id,
@@ -942,7 +1070,7 @@ class DraftVerifier:
                 "sections_total": len(VERIFY_SECTION_KEYS),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": "verify_hybrid_v1.6",
+                "execution_mode": "verify_hybrid_v1.7",
                 "precedents_found": len(precedents),
                 "precedent_threshold": PRECEDENT_SIMILARITY_THRESHOLD,
                 "precedent_top_k": PRECEDENT_TOP_K,
@@ -952,6 +1080,14 @@ class DraftVerifier:
                 "formal_pct": formal_pct,
                 "legal_pct": legal_pct,
                 "readiness_score": readiness_score,
+                # V1.7: Hallucination stats
+                "hallucination_status": hallucination_report.get("status", "not_checked"),
+                "hallucination_issues": hallucination_report.get("total_issues", 0),
+                "hallucination_high": h_sev.get("high", 0),
+                "hallucination_medium": h_sev.get("medium", 0),
+                "hallucination_low": h_sev.get("low", 0),
+                "hallucination_suspicious_sections": hallucination_report.get("suspicious_sections", []),
+                "hallucination_enabled": HALLUCINATION_GATE_ENABLED,
             },
             "readiness": readiness,
             "score": score,
@@ -960,6 +1096,10 @@ class DraftVerifier:
             "section_stats": section_stats,
             "status": "completed",
         }
+
+        # V1.7: Ruaj hallucination_report të plotë për konsum të ardhshëm
+        if hallucination_report:
+            result["hallucination_report"] = hallucination_report
 
         t0 = time.time()
         persisted = _persist_verification(
@@ -970,12 +1110,14 @@ class DraftVerifier:
         result["persisted"] = persisted
 
         logger.info(
-            f"✅ [VERIFY V1.6] Complete: "
+            f"✅ [VERIFY V1.7] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"readiness={readiness}, score={score} "
             f"(formal={formal_pct}%, legal={legal_pct}%, readiness={readiness_score}), "
             f"precedents={len(precedents)}, "
             f"articles={articles_verified}/{articles_total}, "
+            f"hallucination={result['stats']['hallucination_status']} "
+            f"({result['stats']['hallucination_issues']} issues), "
             f"report_chars={len(full_report)}, duration={duration}s, "
             f"persisted={persisted}"
         )

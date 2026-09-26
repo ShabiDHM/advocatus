@@ -1,5 +1,8 @@
 # FILE: backend/app/services/document_review/precedent_search/rerank.py
-# PHOENIX PROTOCOL - PRECEDENT RERANK V2.3
+# PHOENIX PROTOCOL - PRECEDENT RERANK V2.4
+# V2.4: COHERE SCALE CLARITY — Shtuar konstantja COHERE_TO_DEEPSEEK_SCALE
+#       që eksplicite dokumenton normalizimin 0-1 → 0-10. Zero ndryshim
+#       sjelljeje, vetëm qartësi për reader-in (përpara: `* 10.0` inline).
 # V2.3: Shtuar Cohere Reranker + dispatcher:
 #       - rerank_deepseek(): i paprekur nga V2.2
 #       - rerank_cohere(): Cohere Rerank API (multilingual v3.0)
@@ -23,6 +26,12 @@ from .config import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# V2.4: Faktori i shkallëzimit Cohere → DeepSeek (0-1 → 0-10).
+# DeepSeek-as-judge kthen score 0-10, Cohere kthen relevance_score 0-1.
+# Të dyja ruhen si `rerank_score` në shkallën 0-10 për konsistencë.
+COHERE_TO_DEEPSEEK_SCALE: float = 10.0
 
 
 # ===========================================================================
@@ -204,10 +213,11 @@ def rerank_cohere(
     top_n: int = PRECEDENT_RERANK_TOP_N,
 ) -> List[Dict[str, Any]]:
     """
-    V2.3: Rerank me Cohere Rerank API (multilingual v3.0).
+    V2.4: Rerank me Cohere Rerank API (multilingual v3.0).
 
-    Cohere kthen relevance_score 0-1 per cdo dokument. Ne e ruajme si
-    rerank_score (0-1) dhe e skalojme ne 0-10 per konsistence me DeepSeek.
+    Cohere kthen relevance_score 0-1 per cdo dokument. Ruhet si `cohere_score`
+    (0-1) DHE `rerank_score = cohere_score * COHERE_TO_DEEPSEEK_SCALE` (0-10)
+    per konsistence me DeepSeek.
     """
     if not candidates:
         return []
@@ -249,17 +259,18 @@ def rerank_cohere(
             top_n=min(top_n * 2, len(documents)),
         )
 
-        # Cohere kthen .results = [{index, relevance_score}, ...]
         applied = 0
         for result in response.results:
             idx = result.index
             score = result.relevance_score  # 0-1
 
             if 0 <= idx < len(to_rerank):
-                # Ruaj score origjinal 0-1
+                # V2.4: Ruaj score origjinal 0-1
                 to_rerank[idx]["cohere_score"] = float(score)
-                # Skalo ne 0-10 per konsistence me DeepSeek
-                to_rerank[idx]["rerank_score"] = float(score) * 10.0
+                # V2.4: Skalo ne 0-10 per konsistence me DeepSeek
+                to_rerank[idx]["rerank_score"] = (
+                    float(score) * COHERE_TO_DEEPSEEK_SCALE
+                )
                 applied += 1
 
         to_rerank.sort(

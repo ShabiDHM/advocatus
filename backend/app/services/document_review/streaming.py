@@ -1,5 +1,12 @@
 # FILE: backend/app/services/document_review/streaming.py
-# PHOENIX PROTOCOL - STREAMING V1.2
+# PHOENIX PROTOCOL - STREAMING V1.3
+# V1.3: ROLE CONFLICT FIX — Hequr identiteti global "Auditues Ligjor i
+#       Gjykatës Supreme" dhe blloku "ROLI YT" nga wrapper-i. Identiteti
+#       tani vjen EKSKLUZIVISHT nga section_cfg['prompt'] (secila section
+#       ka rolin e vet: Partner, Verifikues, Analist, Revizor, Strateg).
+#       Zgjidh konfliktin e dyfishtë ku LLM merrte dy role kontradiktore.
+#       Gjithashtu heq "NUK justifikon" që binte ndesh me "Arsyetimi"
+#       në seksionin "readiness".
 # V1.2: System prompt i ri "Auditues Ligjor i Gjykatës Supreme" (jo "Revizor").
 #       Udhëzime eksplicite: "MOS përmbledh — AUDITO".
 # V1.1: max_tokens dinamik (jo 8192 hardcoded).
@@ -67,7 +74,7 @@ def stream_section_sync(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SECTION STREAMING — V1.2
+# SECTION STREAMING — V1.3 (identitet per-section)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def synthesize_section_streaming(
@@ -78,20 +85,17 @@ def synthesize_section_streaming(
     document_type: str,
     stream_callback: Optional[Callable[[str, str], None]] = None,
 ) -> str:
-    """Streaming i një section. V1.2: system prompt 'legal audit'."""
+    """
+    V1.3: Streaming i një section.
+
+    Wrapper-i jep VETËM kontekstin e dokumentit + formatimin.
+    Identiteti dhe rregullat specifike vijnë nga section_cfg['prompt'].
+    """
     section_max_tokens = section_cfg.get("max_tokens", DEFAULT_MAX_TOKENS)
     section_title = section_cfg.get("title", section_key)
 
-    system_prompt = f"""Ti je "Auditues Ligjor i Gjykatës Supreme të Kosovës" — zyrë këshilluese.
-
-DOKUMENTI NË AUDITIM: {file_name}
+    system_prompt = f"""DOKUMENTI NË AUDITIM: {file_name}
 LLOJI I DOKUMENTIT: {document_type}
-
-ROLI YT:
-- Ti NUK jep mendim personal — ti AUDITON dokumentin bazuar në faktet e verifikuara.
-- Ti NUK përmbledhë — ti IDENTIFIKON problemet dhe PROPOZON zgjidhje.
-- Ti NUK shpik asnjë detaj — përdor VETËM faktet e dhëna.
-- Ti NUK justifikon — ti raporton.
 
 {section_cfg['prompt']}
 

@@ -1,5 +1,9 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.16
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.17
+# V5.17: VERIFICATION_DETAILS REMOVED — Hequr blloku `verification_details`
+#        nga result (write-only, zero konsumatorë backend/frontend).
+#        Statistikat mbeten në `stats.citation_stats`, `stats.fact_stats`,
+#        `stats.verification_stats`. Redukton ~200-500KB per dokument në Mongo.
 # V5.16: CLIENT POSITION — review() pranon client_position, e kalon te
 #        build_verified_context() per klasifikim te dyfishe (case + doc).
 # V5.15: CLIENT CONTEXT — client_name.
@@ -56,7 +60,7 @@ class DocumentReviewService:
         progress_callback: Optional[Callable] = None,
         section_stream_callback: Optional[Callable[[str, str], None]] = None,
         client_name: Optional[str] = None,
-        client_position: Optional[str] = None,   # V5.16
+        client_position: Optional[str] = None,
     ) -> Dict[str, Any]:
         start = time.time()
 
@@ -92,7 +96,7 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.16] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.17] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, "
             f"len={len(doc_text)} chars, client={client_name or '?'} "
             f"({client_position or '?'}), parallel x{MAX_CONCURRENT_SECTIONS}"
@@ -154,7 +158,7 @@ class DocumentReviewService:
         sections_start = time.time()
 
         logger.warning(
-            f"🚀 [PARALLEL V5.16] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
+            f"🚀 [PARALLEL V5.17] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
             f"seksione me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -199,7 +203,7 @@ class DocumentReviewService:
             ]
 
             logger.info(
-                f"⚡ [V5.16 BATCH] article_verification: {total_articles} nene "
+                f"⚡ [V5.17 BATCH] article_verification: {total_articles} nene "
                 f"→ {len(batches)} batches (size≈{batch_size})"
             )
 
@@ -207,7 +211,6 @@ class DocumentReviewService:
                 partial_report = dict(verification_report)
                 partial_report["articles"] = batch_articles
 
-                # V5.16: Kalo client_name + client_position
                 partial_context = build_verified_context(
                     citation_profile=citation_profile,
                     fact_profile=fact_profile,
@@ -218,11 +221,11 @@ class DocumentReviewService:
                     precedents=None,
                     doc_text=None,
                     client_name=client_name,
-                    client_position=client_position,   # V5.16
+                    client_position=client_position,
                 )
 
                 logger.warning(
-                    f"▶️ [V5.16 BATCH {batch_idx + 1}/{len(batches)}] "
+                    f"▶️ [V5.17 BATCH {batch_idx + 1}/{len(batches)}] "
                     f"article_verification — {len(batch_articles)} nene, "
                     f"context={len(partial_context)} chars"
                 )
@@ -237,13 +240,13 @@ class DocumentReviewService:
                         stream_callback=None,
                     )
                     logger.warning(
-                        f"✅ [V5.16 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"✅ [V5.17 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Përfundoi: {len(content)} chars"
                     )
                     return content
                 except Exception as e:
                     logger.error(
-                        f"❌ [V5.16 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"❌ [V5.17 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Dështoi: {e}"
                     )
                     return f"[Seksioni batch {batch_idx + 1} dështoi: {e}]"
@@ -262,14 +265,14 @@ class DocumentReviewService:
                     try:
                         contents[idx] = fut.result()
                     except Exception as e:
-                        logger.error(f"❌ [V5.16 BATCH] Future {idx} error: {e}")
+                        logger.error(f"❌ [V5.17 BATCH] Future {idx} error: {e}")
                         contents[idx] = f"[Batch {idx + 1} dështoi]"
 
             combined = "\n\n".join(c for c in contents if c).strip()
             elapsed = round(time.time() - section_start, 2)
 
             logger.warning(
-                f"✅ [SECTION DONE V5.16] {section_key}: {elapsed}s, "
+                f"✅ [SECTION DONE V5.17] {section_key}: {elapsed}s, "
                 f"{len(combined)} chars combined (batches={len(batches)})"
             )
 
@@ -351,7 +354,6 @@ class DocumentReviewService:
 
             t_ctx = time.time()
             try:
-                # V5.16: kalo client_position
                 verified_context = build_verified_context(
                     citation_profile=citation_profile,
                     fact_profile=fact_profile,
@@ -362,7 +364,7 @@ class DocumentReviewService:
                     precedents=precedents,
                     doc_text=doc_text,
                     client_name=client_name,
-                    client_position=client_position,   # V5.16
+                    client_position=client_position,
                 )
             except Exception as e:
                 logger.error(f"❌ [SECTION {section_key}] Context build failed: {e}")
@@ -465,11 +467,11 @@ class DocumentReviewService:
                                 "content_length": stat_entry.get("content_length", 0),
                             })
                     except Exception as e:
-                        logger.error(f"❌ [PARALLEL V5.16] Future failed for {section_key}: {e}")
+                        logger.error(f"❌ [PARALLEL V5.17] Future failed for {section_key}: {e}")
 
         except Exception as e:
-            logger.error(f"❌ [PARALLEL V5.16] ThreadPoolExecutor failed: {e}")
-            logger.warning(f"🔄 [PARALLEL V5.16] Fallback në sequential mode")
+            logger.error(f"❌ [PARALLEL V5.17] ThreadPoolExecutor failed: {e}")
+            logger.warning(f"🔄 [PARALLEL V5.17] Fallback në sequential mode")
             for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
                 try:
                     key, sec_entry, stat_entry, _timing = _run_section(section_key, section_cfg)
@@ -487,7 +489,7 @@ class DocumentReviewService:
         logger.warning(f"⏱️ [TIMING] sections_total (parallel x{MAX_CONCURRENT_SECTIONS}): {sections_total_time}s")
 
         logger.info(
-            f"🏛️ [V5.16] Precedent cases qe do te lejohen: "
+            f"🏛️ [V5.17] Precedent cases qe do te lejohen: "
             f"{len(found_precedent_cases)} -> {sorted(found_precedent_cases)[:5]}"
         )
 
@@ -555,7 +557,7 @@ class DocumentReviewService:
                 )
                 blocked_count += 1
 
-            logger.warning(f"🛡️ [V5.16 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
+            logger.warning(f"🛡️ [V5.17 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
 
         # MONTIMI FINAL
         document_meta = {"file_name": file_name, "document_type": document_type}
@@ -581,8 +583,8 @@ class DocumentReviewService:
             "document_ids": [document_id],
             "document_type": document_type,
             "file_name": file_name,
-            "client_name": client_name,          # V5.15
-            "client_position": client_position,  # V5.16
+            "client_name": client_name,
+            "client_position": client_position,
             "built_at": datetime.now(timezone.utc).isoformat(),
             "full_report": full_report,
             "sections": sections,
@@ -603,7 +605,7 @@ class DocumentReviewService:
                 "sections_blocked": len(hallucination_report.get("suspicious_sections", [])),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.16",
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.17",
                 "hallucination_status": hallucination_report["status"],
                 "hallucination_issues": hallucination_report["total_issues"],
                 "hallucination_suspicious_sections": hallucination_report["suspicious_sections"],
@@ -621,11 +623,6 @@ class DocumentReviewService:
                     "hallucination_check_sec": round(hallucination_time, 2),
                 },
             },
-            "verification_details": {
-                "citation_profile": citation_profile,
-                "fact_profile": fact_profile,
-                "verification_report": verification_report,
-            },
             "hallucination_report": hallucination_report,
             "section_stats": section_stats,
             "status": "completed",
@@ -636,7 +633,7 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.16] Complete: "
+            f"✅ [DOC_REVIEW V5.17] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"blocked={result['stats']['sections_blocked']}, "
             f"articles_verified={verification_report['stats']['articles_verified']}, "

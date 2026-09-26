@@ -1,11 +1,21 @@
 // FILE: src/services/caseAnalysisService.ts
-// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.10
+// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.11
+// V1.11: REWRITE REMOVED + TOKEN URL FIX —
+//        - Hequr dead code Rewrite:
+//          streamDraftRewrite(), getSavedRewrite(),
+//          ValidationIssue, RewriteValidation, StructureStats,
+//          DraftRewriteResult, SavedRewriteResponse, REWRITE_TIMEOUT_MS.
+//        - Hequr token nga query string në streamDraftVerification.
+//          fetch() mban headers, prandaj token-i në URL ishte i
+//          panevojshëm dhe rrezik sigurie (server logs, referer).
+//        - Pastruar AnalysisPhase: hequr 'cross_reference' dhe 'synthesis'
+//          (nuk emitohen më nga orchestratori V1.9).
 // V1.10: CLEANUP — hequr streamDraftAiImprove() + tipet AiImprove* +
 //        AI_IMPROVE_TIMEOUT_MS (funksionaliteti u hoq për të shmangur
 //        rrezikun e halucinacioneve semantike).
 // V1.9: AI IMPROVE (u hoq).
-// V1.8: MULTI-DEVICE — getSavedRewrite().
-// V1.7: REWRITE VALIDATION.
+// V1.8: MULTI-DEVICE — getSavedRewrite() (u hoq në V1.11).
+// V1.7: REWRITE VALIDATION (u hoq në V1.11).
 
 import { tokenManager, API_V1_URL, apiClient } from './apiClient';
 
@@ -17,8 +27,6 @@ export type AnalysisScope = 'case' | 'document';
 
 export type AnalysisPhase =
   | 'extraction'
-  | 'cross_reference'
-  | 'synthesis'
   | 'document_review';
 
 export interface AnalysisEvent {
@@ -105,72 +113,8 @@ export interface DraftVerificationResponse {
   verification?: DraftVerificationCached;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// REWRITE TYPES
-// ────────────────────────────────────────────────────────────────────────────
-
-export interface ValidationIssue {
-  type: string;
-  type_label: string;
-  value: string;
-  context: string;
-  severity: 'high' | 'medium' | 'low';
-}
-
-export interface RewriteValidation {
-  is_safe: boolean;
-  severity: 'clean' | 'warning' | 'danger';
-  total_issues: number;
-  issues: ValidationIssue[];
-  stats: Record<string, any>;
-  high_count: number;
-  medium_count: number;
-  error?: string;
-}
-
-export interface StructureStats {
-  deduped: number;
-  releveled: number;
-  empty_removed: number;
-}
-
-export interface DraftRewriteResult {
-  case_id: string;
-  document_id: string;
-  doc_type: string;
-  doc_type_label: string;
-  file_name: string;
-  built_at: string;
-  content: string;
-  content_chars: number;
-  original_chars: number;
-  ratio_pct: number;
-  chunks_total: number;
-  chunks_failed: number;
-  input_tokens: number;
-  output_tokens: number;
-  cost_estimate_usd: number;
-  duration_sec: number;
-  llm_time_sec: number;
-  validation_time_sec?: number;
-  score_before?: number | null;
-  readiness_before?: string | null;
-  validation?: RewriteValidation;
-  structure_stats?: StructureStats;
-  status: 'completed' | 'error';
-  error_message?: string;
-  persisted?: boolean;
-}
-
-// V1.8: GET response type
-export interface SavedRewriteResponse {
-  has_rewrite: boolean;
-  rewrite?: DraftRewriteResult;
-}
-
 const ANALYSIS_TIMEOUT_MS = 45 * 60 * 1000;
 const VERIFY_TIMEOUT_MS = 15 * 60 * 1000;
-const REWRITE_TIMEOUT_MS = 10 * 60 * 1000;
 
 // ────────────────────────────────────────────────────────────────────────────
 // SERVICE
@@ -266,18 +210,13 @@ export class CaseAnalysisService {
       }
     }
 
-    const url = new URL(
-      `${API_V1_URL}/cases/${caseId}/documents/${documentId}/verify`
-    );
-    if (token) {
-      url.searchParams.set('token', token);
-    }
+    const url = `${API_V1_URL}/cases/${caseId}/documents/${documentId}/verify`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
 
     try {
-      const response = await fetch(url.toString(), {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Accept': 'text/event-stream',
@@ -321,77 +260,6 @@ export class CaseAnalysisService {
     }
   }
 
-  public async *streamDraftRewrite(
-    caseId: string,
-    documentId: string,
-    docType: VerifyDocType,
-  ): AsyncGenerator<AnalysisEvent, void, unknown> {
-    let token = tokenManager.get();
-    if (!token) {
-      try {
-        const { data } = await apiClient.post<{ access_token: string }>('/auth/refresh');
-        tokenManager.set(data.access_token);
-        token = data.access_token;
-      } catch {
-        // vazhdo pa token
-      }
-    }
-
-    const url = new URL(
-      `${API_V1_URL}/cases/${caseId}/documents/${documentId}/rewrite`
-    );
-    if (token) {
-      url.searchParams.set('token', token);
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REWRITE_TIMEOUT_MS);
-
-    try {
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Accept': 'text/event-stream',
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ doc_type: docType }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        let errorMsg = 'Rishkrimi i dokumentit dështoi.';
-        try {
-          const errJson = await response.json();
-          if (errJson?.detail) errorMsg = errJson.detail;
-        } catch {
-          if (response.status === 400) errorMsg = 'Lloj dokumenti i pavlefshëm.';
-          else if (response.status === 401) errorMsg = 'Sesioni ka skaduar. Rifreskoni faqen.';
-          else if (response.status === 403) errorMsg = 'Nuk keni akses në këtë lëndë.';
-          else if (response.status === 404) errorMsg = 'Lënda ose dokumenti nuk u gjet.';
-        }
-        throw new Error(errorMsg);
-      }
-
-      if (!response.body) {
-        throw new Error('Përgjigjja SSE është e zbrazët.');
-      }
-
-      yield* this._readSSEStream(response.body);
-
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      if (err?.name === 'AbortError') {
-        throw new Error(
-          `Koha e rishkrimit skadoi pas ${Math.round(REWRITE_TIMEOUT_MS / 60000)} minutash.`
-        );
-      }
-      throw err;
-    }
-  }
-
   public async getDraftVerification(
     caseId: string,
     documentId: string,
@@ -410,7 +278,7 @@ export class CaseAnalysisService {
       if (err?.response?.status === 404) {
         return { has_verification: false };
       }
-      console.warn('[CaseAnalysisService V1.10] getDraftVerification failed:', err);
+      console.warn('[CaseAnalysisService V1.11] getDraftVerification failed:', err);
       throw err;
     }
   }
@@ -425,34 +293,7 @@ export class CaseAnalysisService {
       );
       return data;
     } catch (err: any) {
-      console.error('[CaseAnalysisService V1.10] clearDraftVerification failed:', err);
-      throw err;
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // V1.8: GET SAVED REWRITE (multi-device)
-  // ══════════════════════════════════════════════════════════════════════════
-
-  public async getSavedRewrite(
-    caseId: string,
-    documentId: string,
-    docType?: VerifyDocType,
-  ): Promise<SavedRewriteResponse> {
-    try {
-      const params: Record<string, string> = {};
-      if (docType) params.doc_type = docType;
-
-      const { data } = await apiClient.get<SavedRewriteResponse>(
-        `/cases/${caseId}/documents/${documentId}/rewrite`,
-        { params },
-      );
-      return data;
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
-        return { has_rewrite: false };
-      }
-      console.warn('[CaseAnalysisService V1.10] getSavedRewrite failed:', err);
+      console.error('[CaseAnalysisService V1.11] clearDraftVerification failed:', err);
       throw err;
     }
   }

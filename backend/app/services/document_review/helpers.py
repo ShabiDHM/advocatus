@@ -1,5 +1,9 @@
 # FILE: backend/app/services/document_review/helpers.py
-# PHOENIX PROTOCOL - HELPERS V2.1
+# PHOENIX PROTOCOL - HELPERS V2.2
+# V2.2: FIX LEGACY LAW NUMBER — normalize_law_number() njeh formatin
+#       "YYYY/N" (p.sh. "2004/32", "1999/1") dhe e kthen PA NDRYSHIM.
+#       Përpara: "2004/32" → "20/L-0432" (korruptim → false-positive
+#       hallucination në anti-hallucination gate).
 # V2.1: FIX në split_into_sentences — nda vetëm me \n\n ose pikë + hapësirë 
 #       + shkronjë e madhe. Kjo parandalon copëtimin e fjalive me "par.1\ndhe 2".
 
@@ -31,12 +35,25 @@ def normalize_albanian(text: str) -> str:
 
 
 def normalize_law_number(num: str) -> str:
-    """Normalizon numrin e ligjit në format standard 'XX/L-YYY'."""
+    """
+    Normalizon numrin e ligjit në format standard 'XX/L-YYY'.
+
+    V2.2: Njeh edhe formatin legacy "YYYY/N" (p.sh. "2004/32") dhe e
+    kthen PA NDRYSHIM — parandalon korruptimin "2004/32" → "20/L-0432".
+    """
     if not num:
         return ""
-    digits = re.sub(r'\D', '', num)
+
+    stripped = str(num).strip()
+
+    # V2.2: Kontrollo formatin legacy PARA stripping-ut te diakritikave
+    m_legacy = re.match(r'^(\d{4})\s*[\/\-]\s*(\d{1,4})$', stripped)
+    if m_legacy:
+        return f"{m_legacy.group(1)}/{m_legacy.group(2)}"
+
+    digits = re.sub(r'\D', '', stripped)
     if len(digits) < 4:
-        return num
+        return stripped
     return f"{digits[:2]}/L-{digits[2:]}"
 
 

@@ -1,5 +1,6 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR & SEQUENTIAL DOCX ENGINE V17.0 (IN-LINE TABLES + REAL PAGE SEGMENTATION)
+# PHOENIX PROTOCOL - OCR & SEQUENTIAL DOCX ENGINE V17.1 (IN-LINE TABLES + REAL PAGE SEGMENTATION)
+# V17.1: COMMENT CLEANUP — Hequr referenca historike ndaj Claude në docstring.
 # 100% COMPLETE CODE • ZERO PY WARNINGS • BACKWARD COMPATIBLE SERVICE ADAPTER
 
 import fitz
@@ -87,7 +88,7 @@ def _extract_docx_headers_footers(doc) -> str:
 def _extract_docx_text(file_path: str) -> str:
     """
     Ekstrakton tekstin nga .docx duke ruajtur renditjen kronologjike të paragrafëve dhe tabelave,
-    si dhe duke segmentuar saktë faqet (--- [FAQJA X] ---) për Claude dhe sistemin RAG.
+    si dhe duke segmentuar saktë faqet (--- [FAQJA X] ---) për sistemin RAG dhe modelet e analizës.
     """
     if not docx:
         return _extract_legacy_doc_text(file_path)
@@ -106,13 +107,11 @@ def _extract_docx_text(file_path: str) -> str:
         char_count_in_page = 0
         PAGE_CHAR_THRESHOLD = 2300  # Mesatare e standardizuar për faqe ligjore A4
 
-        # Përshkimi sekuencial i trupit të dokumentit (Paragrafët dhe Tabelat në renditje natyrale)
         for element in doc.element.body:
             if isinstance(element, CT_P):
                 p = Paragraph(element, doc)
                 text = p.text.strip()
 
-                # Kontrollo për thyerje të qartë faqeje në XML të Word-it
                 has_hard_page_break = bool(
                     element.xpath('.//w:br[@w:type="page"]') or 
                     element.xpath('.//w:lastRenderedPageBreak')
@@ -127,7 +126,6 @@ def _extract_docx_text(file_path: str) -> str:
                     parts.append(text)
                     char_count_in_page += len(text)
 
-                # Ndarje natyrale faqeje sipas vëllimit nëse Word nuk ka ruajtur hard break
                 if char_count_in_page >= PAGE_CHAR_THRESHOLD:
                     current_page += 1
                     parts.append(f"\n--- [FAQJA {current_page}] ---\n")
@@ -195,7 +193,6 @@ def _extract_text_from_pdf(file_path: str) -> str:
         pages_results: Dict[int, str] = {}
         pages_needing_ocr: List[Tuple[int, bytes]] = []
 
-        # Pass 1: Digital Text Extraction
         for i in range(total):
             page = doc[i]
             digital_text = _strip_footer(_sanitize_text("\n".join([b[4] for b in sorted(page.get_text("blocks"), key=lambda b: (int(b[1]/3), int(b[0])))])))
@@ -209,7 +206,6 @@ def _extract_text_from_pdf(file_path: str) -> str:
 
         doc.close()
 
-        # Pass 2: PHOENIX PARALLEL OCR (thread pool)
         if pages_needing_ocr:
             logger.info(f"📄 [OCR Parallel] Filloi leximi i {len(pages_needing_ocr)} faqeve të skanuara me {OCR_WORKERS} punëtorë...")
             with ThreadPoolExecutor(max_workers=OCR_WORKERS) as executor:
@@ -250,11 +246,9 @@ def extract_text(file_path: Union[str, bytes, os.PathLike], mime_type: str = "")
     file_name_lower = path_str.lower()
     mime_lower = (mime_type or "").lower()
 
-    # PDF
     if "pdf" in mime_lower or file_name_lower.endswith(".pdf"):
         return _extract_text_from_pdf(path_str)
 
-    # WORD DOCUMENTS (.docx & legacy .doc)
     if ("word" in mime_lower or 
         "officedocument" in mime_lower or 
         file_name_lower.endswith(".docx") or 
@@ -262,7 +256,6 @@ def extract_text(file_path: Union[str, bytes, os.PathLike], mime_type: str = "")
         mime_lower == "application/msword"):
         return _extract_docx_text(path_str)
 
-    # DIRECT IMAGE OCR SUPPORT (.jpg, .jpeg, .png, .webp)
     if (any(mime_lower.startswith(img_t) for img_t in ["image/jpeg", "image/png", "image/webp", "image/jpg"]) or 
         any(file_name_lower.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"])):
         if advanced_bytes_ocr:
@@ -274,7 +267,6 @@ def extract_text(file_path: Union[str, bytes, os.PathLike], mime_type: str = "")
                 logger.error(f"❌ Direct Image OCR Error: {img_err}")
         return ""
 
-    # EXCEL
     if "excel" in mime_lower or "spreadsheet" in mime_lower or file_name_lower.endswith(".xlsx") or file_name_lower.endswith(".xls"):
         try:
             import pandas as pd

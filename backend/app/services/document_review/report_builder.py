@@ -1,15 +1,36 @@
 # FILE: backend/app/services/document_review/report_builder.py
-# PHOENIX PROTOCOL - REPORT BUILDER V1.0
-# Monton raportin final duke kombinuar:
-#   - Seksionet narrative (nga LLM)
-#   - Kontekstin e verifikuar (nga Python)
-#   - Statistikat përfundimtare
+# PHOENIX PROTOCOL - REPORT BUILDER V1.1
+# V1.1: ANALIZA_E_THELLUAR + LOOP REFACTOR —
+#       - Shtuar seksioni i 7-të "analiza_e_thelluar" në montim
+#         (V4.14 e prompts.py e kishte shtuar në prompts por jo në raport).
+#       - Refactor: 7 blloqe if të përsëritura → 1 loop mbi
+#         SECTION_ORDER. Ndryshimi i ardhshëm i prompts.py
+#         (shtim/heqje seksioni) mbetet në sinkron automatikisht.
+# V1.0: Monton raportin final duke kombinuar:
+#       - Seksionet narrative (nga LLM)
+#       - Kontekstin e verifikuar (nga Python)
+#       - Statistikat përfundimtare
 
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.1: SECTION ORDER — i vetmi vend për të shtuar/hequr seksione
+# ═══════════════════════════════════════════════════════════════════════════
+
+SECTION_ORDER: List[str] = [
+    "document_summary",
+    "article_verification",
+    "supreme_court_precedents",
+    "drafting_quality",
+    "errors_corrections",
+    "action_steps",
+    "analiza_e_thelluar",   # V1.1: V4.14 e shtoi në prompts.py, tani edhe këtu
+]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -39,7 +60,7 @@ def build_full_report(
     file_name = document_meta.get("file_name", "Dokument")
     document_type = document_meta.get("document_type", "Dokument")
 
-    lines = []
+    lines: List[str] = []
 
     # ═══ HEADER ═══
     lines.append(f"# RAPORT VERIFIKIMI — {document_type.upper()}")
@@ -51,56 +72,19 @@ def build_full_report(
     lines.append("---")
     lines.append("")
 
-    # ═══ 1. PËRMBLEDHJE EKZEKUTIVE ═══
-    if "document_summary" in sections:
-        lines.append(f"## {sections['document_summary']['title']}")
-        lines.append("")
-        lines.append(sections["document_summary"]["content"])
-        lines.append("")
-        lines.append("---")
-        lines.append("")
+    # ═══ SEKSIONET NARRATIVE (V1.1: loop) ═══
+    for key in SECTION_ORDER:
+        sec = sections.get(key)
+        if not sec:
+            continue
+        title = sec.get("title") or key
+        content = sec.get("content") or ""
+        if not content.strip():
+            continue
 
-    # ═══ 2. VERIFIKIMI I NENEVE ═══
-    if "article_verification" in sections:
-        lines.append(f"## {sections['article_verification']['title']}")
+        lines.append(f"## {title}")
         lines.append("")
-        lines.append(sections["article_verification"]["content"])
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-    # ═══ 3. PRECEDENTËT ═══
-    if "supreme_court_precedents" in sections:
-        lines.append(f"## {sections['supreme_court_precedents']['title']}")
-        lines.append("")
-        lines.append(sections["supreme_court_precedents"]["content"])
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-    # ═══ 4. CILËSIA E HARTIMIT ═══
-    if "drafting_quality" in sections:
-        lines.append(f"## {sections['drafting_quality']['title']}")
-        lines.append("")
-        lines.append(sections["drafting_quality"]["content"])
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-    # ═══ 5. GABIME DHE KORRIGJIME ═══
-    if "errors_corrections" in sections:
-        lines.append(f"## {sections['errors_corrections']['title']}")
-        lines.append("")
-        lines.append(sections["errors_corrections"]["content"])
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-    # ═══ 6. HAPAT KONKRET ═══
-    if "action_steps" in sections:
-        lines.append(f"## {sections['action_steps']['title']}")
-        lines.append("")
-        lines.append(sections["action_steps"]["content"])
+        lines.append(content)
         lines.append("")
         lines.append("---")
         lines.append("")
@@ -123,7 +107,7 @@ def _build_stats_section(
     verification_report: Dict[str, Any],
 ) -> List[str]:
     """Ndërton seksionin e statistikave."""
-    lines = []
+    lines: List[str] = []
 
     stats = verification_report.get("stats", {})
 

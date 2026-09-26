@@ -1,5 +1,7 @@
 # FILE: backend/app/services/document_review/verify_prompts.py
-# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.8
+# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.9
+# V1.9: THRESHOLD UNIFIED — MIN_PRECEDENT_SIMILARITY 0.50 → 0.70 për
+#       konsistencë me PRECEDENT_SIMILARITY_THRESHOLD në precedent_search/config.
 # V1.8: HYBRID SECTION 3 — Python generon 3.A (faktet e precedentëve) direkt
 #       nga MongoDB; LLM shkruan PSE_RELEVANT + 3.B + 3.C. Zero hallucination.
 # V1.7: HYBRID SECTION 2 — Python generon 2.A (Nenet e verifikuara).
@@ -27,7 +29,7 @@ DEFAULT_MAX_DRAFT_CHARS = 60000
 DRAFT_HEAD_CHARS = 45000
 DRAFT_TAIL_CHARS = 10000
 
-MIN_PRECEDENT_SIMILARITY = 0.50
+MIN_PRECEDENT_SIMILARITY = 0.70
 
 
 DEDUP_RULE = """
@@ -812,7 +814,7 @@ def get_checklist(doc_type: str) -> Optional[Dict[str, Any]]:
 
 def _cli_test():
     print("=" * 70)
-    print("VERIFY PROMPTS V1.8 — DIAGNOSTIKË")
+    print("VERIFY PROMPTS V1.9 — DIAGNOSTIKË")
     print("=" * 70)
 
     print(f"\nLlojet e dokumenteve ({len(VERIFY_DOC_TYPES)}):")
@@ -826,13 +828,13 @@ def _cli_test():
         needs = cfg.get("needs", [])
         print(f"  - {k:25s} max_tokens={cfg.get('max_tokens')} needs={needs}")
 
-    print(f"\nV1.8 Konstante:")
+    print(f"\nV1.9 Konstante:")
     print(f"  - DEFAULT_MAX_DRAFT_CHARS: {DEFAULT_MAX_DRAFT_CHARS}")
-    print(f"  - MIN_PRECEDENT_SIMILARITY: {MIN_PRECEDENT_SIMILARITY}")
+    print(f"  - MIN_PRECEDENT_SIMILARITY: {MIN_PRECEDENT_SIMILARITY} (V1.9 unified)")
     print(f"  - Section 2: HYBRID (A nga Python, B/C/D nga LLM)")
-    print(f"  - Section 2 max_tokens: 2000 (ishte 2800)")
+    print(f"  - Section 2 max_tokens: 2000")
     print(f"  - Section 3: HYBRID (3.A nga Python, PSE_RELEVANT + B/C nga LLM)")
-    print(f"  - Section 3 max_tokens: 2000 (ishte 2400)")
+    print(f"  - Section 3 max_tokens: 2000")
     print(f"  - Section 5: 4 fusha (Ku / Pse / Si / Shembull)")
 
 

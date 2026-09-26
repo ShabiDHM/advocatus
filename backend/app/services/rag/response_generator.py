@@ -1,5 +1,8 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.0
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.1
+# V98.1: CLAUDE OVERRIDE REMOVED — Hequr override-i silent "claude"→"deepseek"
+#        në _get_target_model() (i njëjti fix si llm_client.py V88.0).
+#        Claude nuk përdoret më; model-i i ENV respektohet verbatim.
 # V98.0: Shtuar parametër opsional `model` në generate_stream/_call_with_retry.
 #        Chat-i i klientit kalon FAST_SEARCH_MODEL (gpt-4o-mini).
 #        Law Audit vazhdon me default (DEEP_ANALYSIS_MODEL - deepseek).
@@ -32,11 +35,17 @@ OPENROUTER_HEADERS = {
 
 
 def _get_target_model() -> str:
-    """Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL.
-    Përdoret si fallback kur generate_stream nuk jep model eksplicit."""
-    model = getattr(settings, "LLM_MODEL", None) or os.getenv("LLM_MODEL", "") or "deepseek/deepseek-chat"
-    if "claude" in model.lower() or "anthropic" in model.lower():
-        model = "deepseek/deepseek-chat"
+    """
+    V98.1: Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL.
+
+    Përdoret si fallback kur generate_stream nuk jep model eksplicit.
+    Model-i i ENV respektohet verbatim — asnjë override silent.
+    """
+    model = (
+        getattr(settings, "LLM_MODEL", None)
+        or os.getenv("LLM_MODEL", "")
+        or "deepseek/deepseek-chat"
+    )
     return model
 
 
@@ -51,7 +60,7 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
 
 class ResponseGenerator:
     """
-    Gjeneruesi Qendror i Përgjigjeve (V98.0):
+    Gjeneruesi Qendror i Përgjigjeve (V98.1):
     - Motor i vetëm me parametër opsional `model`:
         * Chat-i i klientit → FAST_SEARCH_MODEL (gpt-4o-mini)
         * Law Audit / other → default DEEP_ANALYSIS_MODEL (deepseek)

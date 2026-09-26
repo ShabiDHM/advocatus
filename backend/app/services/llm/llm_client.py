@@ -1,7 +1,14 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V87.0
-# V87.0: Shtuar DEEP_ANALYSIS_MODEL për analiza të thella (synthesis + document review).
-#        FAST_SEARCH_MODEL mbetet për NER, Metadata, Law Search.
+# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V88.1
+# V88.1: STREAM RETRY FIX — stream_text_async() nuk retry pasi ka filluar të
+#        yield-ojë chunks. Përpara: nëse lidhja binte MES stream-it, retry
+#        fillonte nga e para dhe yield-on të njëjtat chunks përsëri →
+#        tekst i dublikuar në UI. Tani: flag stream_started bllokon retry.
+# V88.0: CLAUDE OVERRIDE REMOVED + MAX_TOKENS PARAMETRIZED —
+#        - Hequr override-i silent "claude" → "deepseek" në _get_target_model.
+#        - Shtuar parametri max_tokens në _call_llm, _call_llm_async,
+#          stream_text_async. Default: 8192 për backward compat.
+# V87.0: Shtuar DEEP_ANALYSIS_MODEL për analiza të thella.
 # V86.0: Hequr konstantja e vdekur TEMP_FORENSIC.
 
 import os
@@ -16,8 +23,8 @@ from openai import OpenAI, AsyncOpenAI
 
 from app.core.config import settings
 from app.services.llm.prompt_templates import (
-    build_dynamic_identity_header, 
-    _sanitize_and_disambiguate_prompt, 
+    build_dynamic_identity_header,
+    _sanitize_and_disambiguate_prompt,
     AI_DISCLAIMER
 )
 
@@ -31,9 +38,7 @@ EMBEDDING_MODEL = "openai/text-embedding-3-small"
 # MODEL STRATEGY (V87.0 — Hybrid)
 # ═══════════════════════════════════════════════════════════════════════════
 # FAST_SEARCH_MODEL    → Detyra mekanike: NER, Metadata, Law Search
-#                        (shpejtësi + kosto minimale)
 # DEEP_ANALYSIS_MODEL  → Analiza të thella: Synthesis, Document Review
-#                        (reasoning maksimal)
 # ═══════════════════════════════════════════════════════════════════════════
 FAST_SEARCH_MODEL = "openai/gpt-4o-mini"
 DEEP_ANALYSIS_MODEL = "deepseek/deepseek-chat"
@@ -42,10 +47,14 @@ TEMP_ANALYSIS = 0.0
 TEMP_DRAFTING = 0.0
 TEMP_CHAT = 0.05
 
+# V88.0: Default max_tokens (mbetet 8192 për backward compat)
+DEFAULT_MAX_TOKENS = 8192
+
 OPENROUTER_HEADERS = {
     "HTTP-Referer": "https://juristi.tech",
     "X-Title": "Juristi AI - Kosova Legal Tech Orchestrator"
 }
+
 
 def _get_api_key() -> str:
     return (
@@ -54,34 +63,42 @@ def _get_api_key() -> str:
         or os.getenv("OPENAI_API_KEY", "")
     )
 
+
 def _get_target_model() -> str:
-    """Lexon modelin e parazgjedhur global (DeepSeek)."""
+    """
+    V88.0: Lexon modelin e parazgjedhur global (DeepSeek).
+
+    Heq override-in silent "claude" → "deepseek". Claude nuk përdoret më;
+    model-i i ENV respektohet verbatim. Nëse ENV ka model të pavlefshëm,
+    kërkesa do të dështojë në OpenRouter me gabim të qartë — jo fshehtë.
+    """
     model = (
-        getattr(settings, "LLM_MODEL", None) or 
-        os.getenv("LLM_MODEL", "") or 
-        "deepseek/deepseek-chat"
+        getattr(settings, "LLM_MODEL", None)
+        or os.getenv("LLM_MODEL", "")
+        or "deepseek/deepseek-chat"
     )
-    if "claude" in model.lower() or "anthropic" in model.lower():
-        model = "deepseek/deepseek-chat"
     return model
 
-def _get_sync_client() -> OpenAI: 
+
+def _get_sync_client() -> OpenAI:
     key = _get_api_key()
     return OpenAI(
-        api_key=key, 
-        base_url=OPENROUTER_URL, 
+        api_key=key,
+        base_url=OPENROUTER_URL,
         timeout=300.0,
         default_headers=OPENROUTER_HEADERS
     )
 
-def _get_async_client() -> AsyncOpenAI: 
+
+def _get_async_client() -> AsyncOpenAI:
     key = _get_api_key()
     return AsyncOpenAI(
-        api_key=key, 
-        base_url=OPENROUTER_URL, 
+        api_key=key,
+        base_url=OPENROUTER_URL,
         timeout=300.0,
         default_headers=OPENROUTER_HEADERS
     )
+
 
 def _get_provider_routing_payload() -> Dict[str, Any]:
     return {
@@ -90,6 +107,7 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
         }
     }
 
+
 def _apply_hallucination_filter(text: str) -> str:
     try:
         from app.services.pillars.hallucination_filter import HallucinationFilter
@@ -97,12 +115,13 @@ def _apply_hallucination_filter(text: str) -> str:
     except Exception:
         return text
 
+
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
     if not text:
         return {}
-    
+
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-    
+
     try:
         return json.loads(cleaned)
     except Exception:
@@ -125,20 +144,23 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
 
     return {}
 
+
 def _prepare_system_prompt(system_prompt: str) -> str:
     if "[MANDATI DHE IDENTITETI I LËNDËS]" in system_prompt or "MANDATI RIGOROZ" in system_prompt:
         return system_prompt
-    
+
     identity_header = build_dynamic_identity_header()
     albanian_enforcement = "RREGULL GJUHËSOR I HEKURT: Përgjigju VETËM në gjuhën shqipe standarde juridike të Republikës së Kosovës."
     return f"{identity_header}\n{albanian_enforcement}\n\n{system_prompt}"
 
+
 def _call_llm(
-    system_prompt: str, 
-    user_content: str, 
-    json_mode: bool = False, 
-    temperature: float = TEMP_ANALYSIS, 
-    model: Optional[str] = None
+    system_prompt: str,
+    user_content: str,
+    json_mode: bool = False,
+    temperature: float = TEMP_ANALYSIS,
+    model: Optional[str] = None,
+    max_tokens: int = DEFAULT_MAX_TOKENS,   # V88.0: parametrizuar
 ) -> str:
     key = _get_api_key()
     if not key:
@@ -156,7 +178,7 @@ def _call_llm(
             {"role": "user", "content": sanitized_user_content}
         ],
         "temperature": temperature,
-        "max_tokens": 8192,
+        "max_tokens": max_tokens,   # V88.0
         "extra_body": _get_provider_routing_payload()
     }
     if json_mode:
@@ -180,12 +202,14 @@ def _call_llm(
 
     return ""
 
+
 async def _call_llm_async(
-    system_prompt: str, 
-    user_content: str, 
-    json_mode: bool = False, 
-    temperature: float = TEMP_ANALYSIS, 
-    model: Optional[str] = None
+    system_prompt: str,
+    user_content: str,
+    json_mode: bool = False,
+    temperature: float = TEMP_ANALYSIS,
+    model: Optional[str] = None,
+    max_tokens: int = DEFAULT_MAX_TOKENS,   # V88.0: parametrizuar
 ) -> str:
     key = _get_api_key()
     if not key:
@@ -203,7 +227,7 @@ async def _call_llm_async(
             {"role": "user", "content": sanitized_user_content}
         ],
         "temperature": temperature,
-        "max_tokens": 8192,
+        "max_tokens": max_tokens,   # V88.0
         "extra_body": _get_provider_routing_payload()
     }
     if json_mode:
@@ -227,9 +251,10 @@ async def _call_llm_async(
 
     return ""
 
+
 def get_embedding(text: str) -> List[float]:
     key = _get_api_key()
-    if not text or not key: 
+    if not text or not key:
         return [0.0] * 1536
     try:
         client = _get_sync_client()
@@ -239,9 +264,10 @@ def get_embedding(text: str) -> List[float]:
         logger.error(f"❌ Embedding Failure: {e}")
         return [0.0] * 1536
 
+
 def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
     key = _get_api_key()
-    if not texts or not key: 
+    if not texts or not key:
         return [[0.0] * 1536 for _ in texts]
     try:
         clean_inputs = [t.replace("\n", " ").strip() or " " for t in texts]
@@ -252,12 +278,22 @@ def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
         logger.error(f"❌ Batch Embedding Failure: {e}")
         return [get_embedding(t) for t in texts]
 
+
 async def stream_text_async(
-    sys_p: str, 
-    user_p: str, 
-    temp: float = TEMP_CHAT, 
-    model: Optional[str] = None
+    sys_p: str,
+    user_p: str,
+    temp: float = TEMP_CHAT,
+    model: Optional[str] = None,
+    max_tokens: int = DEFAULT_MAX_TOKENS,   # V88.0: parametrizuar
 ) -> AsyncGenerator[str, None]:
+    """
+    V88.1: Streaming me retry të sigurt.
+
+    Retry bëhet VETËM nëse stream nuk ka filluar të yield-ojë (gabim para
+    ose gjatë hapjes së lidhjes). Nëse stream ka filluar (≥1 chunk yield-uar),
+    retry nuk bëhet — yield-ohet error message + return. Kjo parandalon
+    dublimin e chunks në UI.
+    """
     client = _get_async_client()
     full_sys = _prepare_system_prompt(sys_p)
     sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
@@ -271,21 +307,36 @@ async def stream_text_async(
         ],
         "temperature": temp,
         "stream": True,
-        "max_tokens": 8192,
+        "max_tokens": max_tokens,   # V88.0
         "extra_body": _get_provider_routing_payload()
     }
 
     for attempt in range(1, 4):
+        # V88.1: flag per çdo attempt — reset-ohet kur fillon cikli
+        stream_started = False
+
         try:
             stream = await client.chat.completions.create(**kwargs)
             async for chunk in stream:
-                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content: 
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                    stream_started = True   # V88.1
                     yield chunk.choices[0].delta.content
-            
+
             yield AI_DISCLAIMER
             return
         except Exception as e:
             err_msg = str(e).lower()
+
+            # V88.1: Nëse tashmë kemi yield-uar chunks, retry do dublonte tekstin.
+            if stream_started:
+                logger.error(
+                    f"❌ [stream_text_async V88.1] Gabim MES stream-it në "
+                    f"{target_model} — retry nuk bëhet (shmang dublimin): {e}"
+                )
+                yield f"\n\n[Gabim i rrjetit mes përgjigjes. Ju lutem rifreskoni faqen dhe provoni përsëri.]"
+                return
+
+            # Retry vetëm nëse stream nuk ka filluar (lidhja nuk u hap fare ose dështoi para chunk-ut të parë)
             if "429" in err_msg or "rate limit" in err_msg:
                 logger.warning(f"⚠️ [Rate Limit 429] në {target_model} stream. Po pres {2 * attempt}s...")
                 await asyncio.sleep(2.0 * attempt)
