@@ -1,12 +1,16 @@
 # FILE: backend/app/services/document_review/fact_extractor.py
-# PHOENIX PROTOCOL - FACT EXTRACTOR V3.17
-# V3.17: EXPANDED PERIOD/DEADLINE PATTERN — Prano mbarime rasore shqipe:
-#        "muaj"/"muajsh"/"muajve", "ditë"/"ditësh"/"ditëve", "javë"/"javësh"/"javëve",
-#        "vjet"/"vite"/"vitesh"/"vitit". Zbulo kontradikta "6 muaj" vs "12 muajve".
-# V3.16: PREFIX-BASED ROOTS.
-# V3.15: SENTENCE-BOUNDED CONTEXT.
-# V3.12: ROLE-BASED SUSPECT EXTRACTION.
+# PHOENIX PROTOCOL - FACT EXTRACTOR V3.19
+# V3.19: MORPHOLOGY-AWARE ROOTS —
+#        - ROOT_PREFIX_LEN 5 → 4
+#        - Normalizim diakritikash (ë→e, ç→c) para root prefix:
+#          "urdhërit" → "urdi", "urdhri" → "urdi" (përputhen!)
+#        - CONTRADICTION_MIN_SHARED = 1 (kthyer)
+#        - Shtuar "kohëzgjatje*" në stopwords — koncept i përbashkët
+#          që krijon false-positive mes vlerave të ndryshme.
+# V3.18: MIN_SHARED=2 (u hoq — tepër strikt).
+# V3.17: EXPANDED PERIOD PATTERN.
 
+import os
 import re
 import logging
 from typing import Dict, Any, List, Set, Tuple, Optional
@@ -43,14 +47,9 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V3.17: EXPANDED PERIOD/DEADLINE PATTERN — override lokal
+# V3.17: EXPANDED PERIOD/DEADLINE PATTERN
 # ═══════════════════════════════════════════════════════════════════════════
 
-# V3.17: Prano të gjitha mbarimet rasore shqipe:
-#   ditë / ditësh / ditëve / dite / ditesh / diteve
-#   muaj / muajsh / muajve
-#   javë / javësh / javëve / jave / javesh / javeve
-#   vit / vjet / vite / vitesh / viteve / vitit
 _EXPANDED_PERIOD_PATTERN = re.compile(
     r'\b(\d+)\s*'
     r'('
@@ -315,7 +314,6 @@ def extract_deadlines(
 
     results: List[Dict[str, Any]] = []
 
-    # V3.17: Përdor _EXPANDED_PERIOD_PATTERN (pranon muajve/ditëve/javëve)
     for match in _EXPANDED_PERIOD_PATTERN.finditer(text):
         num = int(match.group(1))
         unit_norm = _normalize_unit(match.group(2))
@@ -693,7 +691,6 @@ def _extract_all_periods(
         return []
     exclude = exclude_positions or set()
     results: List[Dict[str, Any]] = []
-    # V3.17: Përdor _EXPANDED_PERIOD_PATTERN
     for match in _EXPANDED_PERIOD_PATTERN.finditer(text):
         if match.start() in exclude:
             continue
@@ -743,7 +740,7 @@ def _extract_all_distances(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V3.16: PREFIX-BASED ROOT MATCHING (Albanian morphology)
+# V3.19: MORPHOLOGY-AWARE ROOTS
 # ═══════════════════════════════════════════════════════════════════════════
 
 _CONTEXT_STOPWORDS = frozenset([
@@ -762,20 +759,46 @@ _CONTEXT_STOPWORDS = frozenset([
     "kjo", "ky", "këto", "keto", "këta", "keta", "ato", "ata",
     "gjithashtu", "përfundimisht", "perfundimisht",
     "sipas", "të", "te", "i", "e", "a", "u",
+    # V3.19: Koncepte të përbashkëta që shkaktojnë false-positive
+    "kohëzgjatje", "kohëzgjatja", "kohëzgjatjes", "kohëzgjatj",
+    "kohezgjatje", "kohezgjatja", "kohezgjatjes", "kohezgjatj",
+    "periudhe", "periudha", "periudhë", "periudhës",
 ])
 
-ROOT_PREFIX_LEN = 5
+ROOT_PREFIX_LEN = 4
+
+# V3.19: Minimumi i fjalëve të përbashkëta për të konsideruar kontradiktë.
+CONTRADICTION_MIN_SHARED = int(
+    os.getenv("CONTRADICTION_MIN_SHARED", "1")
+)
+
+
+def _strip_diacritics(s: str) -> str:
+    """V3.19: Heq diakritikat shqipe (ë→e, ç→c) për krahasim uniform."""
+    return (
+        s.lower()
+        .replace("ë", "e")
+        .replace("ç", "c")
+    )
 
 
 def _extract_context_roots(ctx: str, prefix_len: int = ROOT_PREFIX_LEN) -> Set[str]:
+    """
+    V3.19: Nxjerr rrënjët e fjalëve duke:
+      1. Filtruar fjalët nën 5 shkronja (nuk kap "muaj", "javë", "ditë")
+      2. Normalizuar diakritikat (ë→e, ç→c)
+      3. Filtruar stopwords
+      4. Marrë prefiksin e parë (default 4 shkronja)
+    """
     if not ctx:
         return set()
     words = re.findall(r'[a-zA-ZëçËÇ]{5,}', ctx.lower())
     roots: Set[str] = set()
     for w in words:
-        if w in _CONTEXT_STOPWORDS:
+        w_norm = _strip_diacritics(w)
+        if w in _CONTEXT_STOPWORDS or w_norm in _CONTEXT_STOPWORDS:
             continue
-        roots.add(w[:prefix_len] if len(w) > prefix_len else w)
+        roots.add(w_norm[:prefix_len] if len(w_norm) > prefix_len else w_norm)
     return roots
 
 
@@ -807,6 +830,10 @@ def detect_contradictions(
     text: Optional[str] = None,
     own_case_numbers: Optional[Set[str]] = None,
 ) -> List[Dict[str, Any]]:
+    """
+    V3.19: Kërkohet kontekst i ngjashëm (min 1 rrënjë e përbashkët) —
+    përdor sentence_context + morphology-aware roots.
+    """
     contradictions: List[Dict[str, Any]] = []
 
     zone_anchors: List[Tuple[int, str]] = []
@@ -839,10 +866,10 @@ def detect_contradictions(
         if len(unique_nums) <= 1:
             continue
 
-        if not _contexts_share_topic(items, min_shared=1):
+        if not _contexts_share_topic(items, min_shared=CONTRADICTION_MIN_SHARED):
             logger.info(
-                f"⏭️ [V3.17 CONTRADICTION SKIP] deadline {unit} "
-                f"{sorted(unique_nums)} — kontekst i ndryshëm."
+                f"⏭️ [V3.19 CONTRADICTION SKIP] deadline {unit} "
+                f"{sorted(unique_nums)} — <{CONTRADICTION_MIN_SHARED} roots."
             )
             continue
 
@@ -878,10 +905,10 @@ def detect_contradictions(
             if len(unique_nums) <= 1:
                 continue
 
-            if not _contexts_share_topic(items, min_shared=1):
+            if not _contexts_share_topic(items, min_shared=CONTRADICTION_MIN_SHARED):
                 logger.info(
-                    f"⏭️ [V3.17 CONTRADICTION SKIP] period {unit} "
-                    f"{sorted(unique_nums)} — kontekst i ndryshëm."
+                    f"⏭️ [V3.19 CONTRADICTION SKIP] period {unit} "
+                    f"{sorted(unique_nums)} — <{CONTRADICTION_MIN_SHARED} roots."
                 )
                 continue
 
@@ -915,10 +942,10 @@ def detect_contradictions(
             if len(items) <= 1 or len(unique_distances) <= 1:
                 continue
 
-            if not _contexts_share_topic(items, min_shared=1):
+            if not _contexts_share_topic(items, min_shared=CONTRADICTION_MIN_SHARED):
                 logger.info(
-                    f"⏭️ [V3.17 CONTRADICTION SKIP] distance {unit} "
-                    f"{sorted(unique_distances)} — kontekst i ndryshëm."
+                    f"⏭️ [V3.19 CONTRADICTION SKIP] distance {unit} "
+                    f"{sorted(unique_distances)} — <{CONTRADICTION_MIN_SHARED} roots."
                 )
                 continue
 
@@ -944,7 +971,7 @@ def detect_contradictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BUILD FACT PROFILE — V3.17
+# BUILD FACT PROFILE — V3.19
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_fact_profile(
@@ -1025,7 +1052,7 @@ def build_fact_profile(
     }
 
     logger.info(
-        f"🔬 [FACT_EXTRACTOR V3.17] dates={stats['total_dates']}, "
+        f"🔬 [FACT_EXTRACTOR V3.19] dates={stats['total_dates']}, "
         f"deadlines={stats['total_deadlines']} "
         f"(legal={stats['legal_deadlines']}), "
         f"parties={stats['total_parties']}, "
@@ -1035,6 +1062,8 @@ def build_fact_profile(
         f"reported={stats['reported_contradictions']}), "
         f"dispositive_points={stats['total_dispositive_points']}, "
         f"medical_findings={stats['total_medical_findings']}, "
+        f"min_shared={CONTRADICTION_MIN_SHARED}, "
+        f"root_len={ROOT_PREFIX_LEN}, "
         f"source={source_document or '(pa emer)'}"
     )
 

@@ -1,9 +1,13 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.15
-# V1.15: DETAILED ISSUE LOGGING — Çdo issue logohet individualisht me
-#        INFO, duke përfshirë type, value, message, snippet.
-# V1.14: CONTEXT-AWARE ARTICLE CHECK.
-# V1.13: EXTRA_ALLOWED_DATES + DATE CHECK FIX.
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.16.1
+# V1.16.1: 2 FIX-e kritike në meta-layer:
+#          (1) _normalize_law_name tani heq trajtat rasore shqipe:
+#              "ligjit"→"ligji", "ligjin"→"ligji", "kodin"→"kodi"
+#              Pa këtë, map-i nuk përputhej ("ligji per familjen" ≠ "ligjit per familjen").
+#          (2) Hoqur "KPK" nga valid_std — KPK është variant i vjetër/ambigu,
+#              nuk duhet të pranohet si zëvendësim i KPRK.
+# V1.16: META-LAYER VALIDATION (law name↔number + abbrev replacement).
+# V1.15: DETAILED ISSUE LOGGING.
 
 import re
 import logging
@@ -36,6 +40,115 @@ CASE_NUMBER_PREFIXES: Set[str] = {
     "CP", "AC", "PN", "KP", "ARJ", "A", "P",
     "KPK", "KPPRK", "KPRK",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.16: KNOWN LAW NAME ↔ NUMBER MAP
+# ═══════════════════════════════════════════════════════════════════════════
+
+KNOWN_LAW_NAME_NUMBER_MAP: Dict[str, List[str]] = {
+    "kodi penal": ["06/L-074", "06L074"],
+    "kodi i procedures penale": ["08/L-032", "08L032"],
+    "kodi i procedures penale te kosoves": ["08/L-032", "08L032"],
+    "ligji per proceduren kontestimore": ["03/L-006", "03L006"],
+    "ligji per marredheniet e detyrimeve": ["04/L-077", "04L077"],
+    "ligji per familjen": ["2004/32", "200432"],
+    "ligji per mbrojtjen nga dhuna ne familje": ["03/L-182", "08/L-185", "03L182", "08L185"],
+    "ligji per prokurorine speciale": ["08/L-168", "08L168"],
+    "ligji per mbrojtjen e femijes": ["06/L-084", "06L084"],
+    "ligji i punes": ["03/L-212", "03L212"],
+    "ligji per shoqerite tregtare": ["06/L-016", "06L016"],
+    "ligji per gjykaten komerciale": ["08/L-015", "08L015"],
+}
+
+
+# Regex: "Ligji(t) për [Name] ... Nr. [Number]"
+_LAW_NAME_WITH_NUMBER_RE = re.compile(
+    r'(Ligj(?:i|it|in|ji)?\s+(?:për|per|e|të|te)\s+'
+    r'[A-Za-zëçËÇ\s\-]{4,80}?)'
+    r'\s*[\(\[]?\s*(?:Nr\.?\s*)?'
+    r'(\d{2,4}\s*/\s*[A-Za-z]\s*[\-–]?\s*\d{2,4}|\d{4}\s*/\s*\d{1,4})',
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+# Regex: "zëvendëso X me Y" / "ndrysho X në Y"
+_ABBREV_REPLACEMENT_RE = re.compile(
+    r'(?:[Zz]ëvendëso|[Zz]evendeso|ndrysho|kthe)\s+'
+    r'["\'`«“]?([A-Z]{2,6})["\'`»”]?\s+'
+    r'(?:me|në|ne)\s+'
+    r'["\'`«“]?([A-Z]{2,6})["\'`»”]?',
+    re.UNICODE,
+)
+
+
+# V1.16.1: Map për trajta rasore shqipe (nominativ → trajta bazë)
+_ALBANIAN_CASE_NORMALIZATIONS = [
+    (r'\bligjit\b', 'ligji'),
+    (r'\bligjin\b', 'ligji'),
+    (r'\bligje\b', 'ligji'),
+    (r'\bligjet\b', 'ligji'),
+    (r'\bligjeve\b', 'ligji'),
+    (r'\bligji\b', 'ligji'),
+    (r'\bligj\b', 'ligji'),
+    (r'\bkodin\b', 'kodi'),
+    (r'\bkodet\b', 'kodi'),
+    (r'\bkodit\b', 'kodi'),
+    (r'\bkod\b', 'kodi'),
+    (r'\bproceduren\b', 'procedure'),
+    (r'\bprocedures\b', 'procedure'),
+    (r'\bprocedura\b', 'procedure'),
+    (r'\bprocedurat\b', 'procedure'),
+    (r'\bmarredheniet\b', 'marredhenie'),
+    (r'\bmarredhenie\b', 'marredhenie'),
+    (r'\bdetyrimet\b', 'detyrim'),
+    (r'\bdetyrimeve\b', 'detyrim'),
+    (r'\bfamiljen\b', 'familje'),
+    (r'\bfamiljes\b', 'familje'),
+    (r'\bmbrojtjen\b', 'mbrojtje'),
+    (r'\bmbrojtjes\b', 'mbrojtje'),
+    (r'\bdhunen\b', 'dhune'),
+    (r'\bdhunes\b', 'dhune'),
+    (r'\bfemijes\b', 'femije'),
+    (r'\bfemijen\b', 'femije'),
+    (r'\bpunen\b', 'pune'),
+    (r'\bpunes\b', 'pune'),
+    (r'\bshoqerite\b', 'shoqeri'),
+    (r'\bshoqerive\b', 'shoqeri'),
+    (r'\btregtare\b', 'tregtar'),
+    (r'\btregtareve\b', 'tregtar'),
+    (r'\bgjykaten\b', 'gjykate'),
+    (r'\bgjykates\b', 'gjykate'),
+    (r'\bkontestimore\b', 'kontestim'),
+    (r'\bpenale\b', 'penal'),
+    (r'\bpenal\b', 'penal'),
+    (r'\bspeciale\b', 'speci'),
+    (r'\bspecial\b', 'speci'),
+    (r'\bkomerciale\b', 'komer'),
+    (r'\bkomercial\b', 'komer'),
+]
+
+
+def _normalize_law_name(name: str) -> str:
+    """V1.16.1: Normalizon emrin e ligjit duke hequr trajtat rasore."""
+    if not name:
+        return ""
+    n = name.strip().lower()
+    # Heq diakritikat
+    n = n.replace("ë", "e").replace("ç", "c")
+    # Zbato normalizimet e rasave
+    for pattern, replacement in _ALBANIAN_CASE_NORMALIZATIONS:
+        n = re.sub(pattern, replacement, n)
+    # Heq hapësira të shumëfishta
+    n = re.sub(r'\s+', ' ', n).strip()
+    return n
+
+
+def _normalize_law_num(num: str) -> str:
+    """V1.16: Normalizon numrin e ligjit për krahasim."""
+    if not num:
+        return ""
+    return re.sub(r'[\s]+', '', num).upper().replace('–', '-')
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -276,10 +389,10 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.15] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.16.1] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.15] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.16.1] No successor laws collected.")
 
     return successors
 
@@ -422,7 +535,7 @@ class HallucinationChecker:
             extra_allowed_dates=extra_allowed_dates,
         )
         logger.info(
-            f"[HALLUCINATION V1.15] Allowed values: "
+            f"[HALLUCINATION V1.16.1] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
@@ -468,7 +581,7 @@ class HallucinationChecker:
         laws.update(successors)
 
         logger.info(
-            f"[HALLUCINATION V1.15] Laws: base={len(base_laws)}, "
+            f"[HALLUCINATION V1.16.1] Laws: base={len(base_laws)}, "
             f"successors={len(successors)}, total={len(laws)}"
         )
 
@@ -504,6 +617,112 @@ class HallucinationChecker:
             "abbrevs": abbrevs,
         }
 
+    # ────────────────────────────────────────────────────────────────────
+    # V1.16 / V1.16.1: NEW CHECKS — meta-layer validation
+    # ────────────────────────────────────────────────────────────────────
+
+    def _check_law_name_number_consistency(self, content: str) -> List[Dict[str, Any]]:
+        """
+        V1.16.1: Zbulon referenca si "Ligji për Familjen (Nr. 04/L-077)" ku
+        numri nuk i përket ligjit të emërtuar.
+        """
+        issues: List[Dict[str, Any]] = []
+
+        if not content:
+            return issues
+
+        for m in _LAW_NAME_WITH_NUMBER_RE.finditer(content):
+            raw_name = m.group(1).strip()
+            raw_num = m.group(2).strip()
+
+            name_norm = _normalize_law_name(raw_name)
+            num_norm = _normalize_law_num(raw_num)
+
+            matched_key = None
+            for known_name in KNOWN_LAW_NAME_NUMBER_MAP:
+                if known_name in name_norm or name_norm in known_name:
+                    matched_key = known_name
+                    break
+
+            if not matched_key:
+                logger.debug(
+                    f"[V1.16.1] No known match for name_norm='{name_norm}'"
+                )
+                continue
+
+            valid_nums = {
+                _normalize_law_num(v) for v in KNOWN_LAW_NAME_NUMBER_MAP[matched_key]
+            }
+
+            if num_norm not in valid_nums:
+                snippet = _find_snippet(content, raw_num, window=80)
+                issues.append({
+                    "type": "law_name_number_mismatch",
+                    "value": f"{raw_name} (Nr. {raw_num})",
+                    "severity": "medium",
+                    "message": (
+                        f"Numri '{raw_num}' nuk i përket '{raw_name}'. "
+                        f"Numrat e pranuar: {sorted(valid_nums)}."
+                    ),
+                    "snippet": snippet,
+                })
+            else:
+                logger.debug(
+                    f"[V1.16.1] Name↔number OK: '{raw_name}' → '{raw_num}'"
+                )
+
+        return issues
+
+    def _check_abbreviation_replacement(self, content: str) -> List[Dict[str, Any]]:
+        """
+        V1.16.1: Zbulon rekomandime si "zëvendëso KPRK me KPK" ku:
+          - KPRK është akronim i vlefshëm (në self.allowed["abbrevs"])
+          - KPK NUK është standard (i hequr nga valid_std).
+        """
+        issues: List[Dict[str, Any]] = []
+
+        if not content:
+            return issues
+
+        allowed_abbrevs = self.allowed.get("abbrevs", set())
+
+        # V1.16.1: Hoqur "KPK" (variant i vjetër/ambigu, nuk pranohet si
+        # zëvendësim i KPRK).
+        valid_std = {
+            "KPRK", "KPPRK", "LPK", "LMD", "LMDHF",
+            "LFK", "LSHT", "PSRK", "KRK", "LPTS",
+        }
+
+        for m in _ABBREV_REPLACEMENT_RE.finditer(content):
+            from_abbr = m.group(1).upper().strip()
+            to_abbr = m.group(2).upper().strip()
+
+            if from_abbr == to_abbr:
+                continue
+
+            from_is_valid = from_abbr in valid_std or from_abbr in allowed_abbrevs
+            to_is_valid = to_abbr in valid_std
+
+            if from_is_valid and not to_is_valid:
+                snippet = _find_snippet(content, m.group(0), window=80)
+                issues.append({
+                    "type": "invalid_abbrev_replacement",
+                    "value": f"{from_abbr} → {to_abbr}",
+                    "severity": "high",
+                    "message": (
+                        f"Rekomandim i gabuar: '{from_abbr}' është akronim "
+                        f"standard i vlefshëm, ndërsa '{to_abbr}' nuk është. "
+                        f"MOS e zëvendëso."
+                    ),
+                    "snippet": snippet,
+                })
+
+        return issues
+
+    # ────────────────────────────────────────────────────────────────────
+    # EXISTING CHECKS
+    # ────────────────────────────────────────────────────────────────────
+
     def _check_dates(self, content: str) -> List[Dict[str, Any]]:
         found = _extract_dates_iso(content)
         unknown = found - self.allowed["dates_iso"]
@@ -523,7 +742,7 @@ class HallucinationChecker:
         for a in sorted(unknown):
             if not _has_real_citation_context(content, a):
                 logger.info(
-                    f"[HALLUCINATION V1.15] Skip article '{a}' — "
+                    f"[HALLUCINATION V1.16.1] Skip article '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -599,6 +818,9 @@ class HallucinationChecker:
         issues.extend(self._check_laws(content))
         issues.extend(self._check_cases(content))
         issues.extend(self._check_abbrevs(content))
+        # V1.16.1: meta-layer checks
+        issues.extend(self._check_law_name_number_consistency(content))
+        issues.extend(self._check_abbreviation_replacement(content))
 
         high = sum(1 for i in issues if i["severity"] == "high")
         medium = sum(1 for i in issues if i["severity"] == "medium")
@@ -642,7 +864,7 @@ def check_all_sections(
     extra_allowed_dates: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """
-    V1.15: Kontrollon të gjitha section-t + log i detajuar për secilin issue.
+    V1.16.1: Kontrollon të gjitha section-t + log i detajuar + meta-layer.
     """
     checker = HallucinationChecker(
         citation_profile, fact_profile, verification_report,
@@ -664,7 +886,6 @@ def check_all_sections(
         for s in ("high", "medium", "low"):
             sev_totals[s] += report["severity_counts"].get(s, 0)
 
-        # V1.15: Log i detajuar për secilin issue
         for issue in report["issues"]:
             sev = issue.get("severity", "?")
             itype = issue.get("type", "?")
@@ -672,15 +893,15 @@ def check_all_sections(
             imsg = issue.get("message", "")
             isnip = (issue.get("snippet", "") or "")[:160]
             logger.info(
-                f"[HALLUCINATION V1.15] 📌 section={key} severity={sev} "
+                f"[HALLUCINATION V1.16.1] 📌 section={key} severity={sev} "
                 f"type={itype} value='{ival}'"
             )
             logger.info(
-                f"[HALLUCINATION V1.15]    message: {imsg}"
+                f"[HALLUCINATION V1.16.1]    message: {imsg}"
             )
             if isnip:
                 logger.info(
-                    f"[HALLUCINATION V1.15]    snippet: {isnip}"
+                    f"[HALLUCINATION V1.16.1]    snippet: {isnip}"
                 )
 
         if report["status"] == "suspect":
@@ -694,7 +915,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.15] Status={global_status}, "
+        f"[HALLUCINATION V1.16.1] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "
