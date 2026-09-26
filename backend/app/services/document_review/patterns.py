@@ -1,18 +1,23 @@
 # FILE: backend/app/services/document_review/patterns.py
-# PHOENIX PROTOCOL - REGEX PATTERNS V2.9
-# V2.9: SUSPECT PATTERNS — shtuar SUSPECT_PATTERN + GROUP_HEADER_PATTERN
-#       për të nxjerrë persona të dyshuar nga kallëzimet penale të
-#       strukturuara me "GRUPI I/II/III" + numërim + emër CAPS.
-# V2.8: LOW CLEANUP (DATE_ALBANIAN, DISPOSITIVE, JUDGE, CONVICTION).
-# V2.7: CASE_NUMBER_PATTERN EXPANDED.
-# V2.6: LAW_NUMBER_LEGACY_PATTERN.
-# V2.5: ARTICLE_PATTERN listat me presje.
+# PHOENIX PROTOCOL - REGEX PATTERNS V3.5
+# V3.5: UNIVERSAL FIRST-WORD + CONJUNCTION FILTERS —
+#       - Kërko fjalën e parë me shkronjë të madhe (emrat shqip).
+#         Eliminon "gjyqtarët Lumni Sallauka", "psikiatrër, Dr. X".
+#       - LEADING_STOPWORDS: parafjalë/lidhëza universale që NUK
+#         fillojnë emër ("SI TË PABAZUAR").
+#       - Refuzo numra romakë ("III dhe IV").
+#       - LEGAL_STOPWORDS: shtuar terma header universalë
+#         ("këshillë", "udhëzim", "informacion", "njoftim", etj.).
+#       Zero varësi domain-i — të gjitha listat janë universale gjuhësore.
+# V3.4: ROLE-BASED FILTERING.
+# V3.3: TRULY DYNAMIC.
+# V3.2: SUSPECT_LINE_PATTERN.
 
 import re
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ARTICLES
+# ARTICLES / LAWS / DATES / DEADLINES (të pandryshuara)
 # ═══════════════════════════════════════════════════════════════════════════
 
 ARTICLE_PATTERN = re.compile(
@@ -23,11 +28,6 @@ ARTICLE_PATTERN = re.compile(
     r'(?:\s*,?\s*(?:par(?:\.|agrafi|agrafit)?|paragrafi|paragrafit)\s*(\d+))?',
     re.IGNORECASE | re.UNICODE,
 )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# LAWS BY NUMBER
-# ═══════════════════════════════════════════════════════════════════════════
 
 LAW_NUMBER_PATTERN = re.compile(
     r'\b(\d{2})\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*(\d{2,4})\b',
@@ -60,14 +60,9 @@ ABBREV_PATTERN = re.compile(r'\b([A-ZËÇ]{2,6})\b')
 
 CASE_NUMBER_PATTERN = re.compile(
     r'\b('
-    r'PP\.II|PP\.I|'
-    r'A\.NR|'
-    r'PPII|PPI|'
-    r'KMLP|PML|ANR|PZR|'
-    r'PA1|PA2|PKR|PP1|PP2|'
-    r'REV|KML|CML|GJK|'
-    r'PP|PA|KM|GJ|KI|KZ|KE|PN|KP|CA|CM|'
-    r'P|K|C'
+    r'PP\.II|PP\.I|A\.NR|PPII|PPI|KMLP|PML|ANR|PZR|'
+    r'PA1|PA2|PKR|PP1|PP2|REV|KML|CML|GJK|'
+    r'PP|PA|KM|GJ|KI|KZ|KE|PN|KP|CA|CM|P|K|C'
     r')'
     r'\.?\s*[Nn]r\.?\s*'
     r'(\d+[\w\/\.\-]*)',
@@ -90,10 +85,7 @@ DATE_ALBANIAN_PATTERN = re.compile(
 
 DEADLINE_PATTERN = re.compile(
     r'\b(\d+)\s*'
-    r'(dit(?:ë|e)?(?:sh|ve)?'
-    r'|muaj(?:sh)?'
-    r'|jav(?:ë|e)?(?:sh)?'
-    r'|vjet|vit)'
+    r'(dit(?:ë|e)?(?:sh|ve)?|muaj(?:sh)?|jav(?:ë|e)?(?:sh)?|vjet|vit)'
     r'\b',
     re.IGNORECASE | re.UNICODE,
 )
@@ -114,17 +106,12 @@ PARTY_LABEL_PATTERN = re.compile(
 
 DISPOSITIVE_POINT_PATTERN = re.compile(
     r'^\s*('
-    r'IV|V|VI{0,3}|IX|'
-    r'XI{0,3}|XX{0,3}|XXX|'
-    r'I{1,3}'
+    r'IV|V|VI{0,3}|IX|XI{0,3}|XX{0,3}|XXX|I{1,3}'
     r')\s*\.\s*(.+?)$',
     re.MULTILINE,
 )
 
-ICD_CODE_PATTERN = re.compile(
-    r'\b([A-Z]\d{2}(?:\.\d{1,2})?)\b',
-    re.UNICODE,
-)
+ICD_CODE_PATTERN = re.compile(r'\b([A-Z]\d{2}(?:\.\d{1,2})?)\b', re.UNICODE)
 
 DIAGNOSIS_KEYWORDS = [
     "çrregullim", "crregullim", "diagnozë", "diagnoze", "diagnostikuar",
@@ -189,10 +176,7 @@ APPEAL_DEADLINE_PATTERN = re.compile(
 
 PERIOD_PATTERN = re.compile(
     r'\b(\d+)\s*'
-    r'(dit(?:ë|e)?(?:sh|ve)?'
-    r'|muaj(?:sh)?'
-    r'|jav(?:ë|e)?(?:sh)?'
-    r'|vjet|vit)'
+    r'(dit(?:ë|e)?(?:sh|ve)?|muaj(?:sh)?|jav(?:ë|e)?(?:sh)?|vjet|vit)'
     r'\b',
     re.IGNORECASE | re.UNICODE,
 )
@@ -209,31 +193,186 @@ AMOUNT_PATTERN = re.compile(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.9: SUSPECT PATTERNS — për kallëzime penale të strukturuara
+# V3.5: STRUCTURAL FILTERS — UNIVERSAL LANGUAGE-AWARE
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Header i grupit: "GRUPI I:", "GRUPI II:", "GRUPI V — PALËT PRIVATE"
-GROUP_HEADER_PATTERN = re.compile(
-    r'^\s*(GRUPI\s+(?:[IVX]+))\s*[:\-—]?\s*([^\n]{0,120})$',
+# Lidhëzat e brendshme të emrave shqip
+NAME_CONNECTORS = frozenset([
+    "i", "e", "të", "te", "dhe", "me", "nga", "de", "van", "bin", "el",
+])
+
+# V3.5: Parafjalë/lidhëza UNIVERSALE — kur fillojnë fjalinë, s'është emër.
+# Këto nuk varen nga domain-i (penal, civil, etj.) — janë gramatikë shqipe.
+LEADING_STOPWORDS = frozenset([
+    "si", "se", "sa", "ku", "kur", "pse", "që", "qe",
+    "me", "nga", "në", "ne", "pa", "jo", "po", "më",
+    "dhe", "ose", "por", "nëse", "ndërsa", "kurse",
+    "për", "per", "sipas", "gjithashtu", "kështu", "keshtu",
+    "konkretisht", "sidomos", "pra", "aty", "këtu", "ketu",
+])
+
+# V3.5: Terma universalë që NUK janë emra personash (në çdo dokument ligjor shqip).
+LEGAL_STOPWORDS = frozenset([
+    # ── Procedura & dokumente ──
+    "neni", "nenit", "nenin", "nenet", "nenët",
+    "ligji", "ligjit", "ligjin", "ligje", "ligjet", "ligjeve",
+    "kodi", "kodit", "kodin", "kodet", "kod",
+    "paragrafi", "paragrafit", "paragrafin", "paragraf",
+    "pika", "pikat", "pikës", "pikes",
+    "aktgjykim", "aktgjykimi", "aktgjykimit",
+    "aktvendim", "aktvendimi", "aktvendimit",
+    "vendim", "vendimi", "vendimit", "vendime", "vendimet",
+    "urdhër", "urdhri", "urdhrin", "urdher",
+    "padi", "padia", "padinë", "padine",
+    "kallëzim", "kallzimi", "kallëzimi", "kallzim",
+    "aktakuzë", "aktakuza", "aktakuze", "aktakuzes",
+    "ankesë", "ankesa", "ankese", "ankimit",
+    "kërkesë", "kerkesa", "kërkesa", "kërkesëpadi",
+    "faturë", "fatura", "kontratë", "kontrata",
+    # ── Institucione ──
+    "gjykata", "gjykatës", "gjykate", "gjykatë",
+    "prokuroria", "prokurorisë", "prokurorise",
+    "kolegji", "kolegjit", "kolegjet",
+    "departamenti", "departamentit", "departament",
+    "divizioni", "divizionit", "divizion",
+    "sektori", "sektorit", "sektor",
+    "zyra", "zyrës", "zyre", "drejtoria", "drejtorisë",
+    "ministria", "ministrisë", "ministrise",
+    "qeveria", "qeverisë", "qeverise",
+    "kabineti", "kabinetit", "kabinet",
+    "komisioni", "komisionit", "komision",
+    "inspektorati", "inspektoratit",
+    "agjencia", "agjencisë", "agjencise",
+    "institucioni", "institucionit", "institucione",
+    "institui", "instituti", "institutit",
+    # ── Strukturorë (jo-rol) ──
+    "grup", "grupi", "grupit", "grupe", "grupet",
+    "seksion", "seksioni", "seksionit", "seksione", "seksionet",
+    "pjesa", "pjesë", "pjesës", "pjesët", "pjeset",
+    "kapitull", "kapitulli", "kapitullit",
+    "nr", "numri", "numrit", "numër", "numer", "numrat",
+    # ── V3.5: Terma header universalë ligjorë ──
+    "këshillë", "keshille", "këshilla", "keshilla",
+    "udhëzim", "udhezim", "udhëzime", "udhezime",
+    "informacion", "informacione", "informacioni",
+    "njoftim", "njoftime", "njoftimi",
+    "vërejtje", "verejtje", "vërejtjet", "verejtjet",
+    "paralajmërim", "paralajmerim",
+    "deklaratë", "deklarate", "deklarata",
+    "vërtetim", "vertetim", "vërtetime", "vertetime",
+    "rekomandim", "rekomandime", "rekomandimi",
+    "konkluzion", "konkluzione", "konkluzioni",
+    "arsyetim", "arsyetime", "arsyetimi",
+    "hyzmet", "shërbim", "sherbim",
+    "juridik", "juridike", "ligjor", "ligjore",
+    # ── Kohë / sasi ──
+    "data", "datat", "datës", "dates",
+    "viti", "vitit", "vit", "vitet",
+    "muaji", "muajit", "muaj", "muajt",
+    "dita", "ditës", "dite", "ditët",
+    "ora", "orës", "ore", "orët",
+    "faqja", "faqes", "faqe", "faqet",
+    # ── Gjeografikë/institucionalë ──
+    "republika", "republikës", "republike", "republik",
+    "shteti", "shtetit", "shtet", "shtetet",
+    "kosova", "kosovës", "kosovë", "kosove",
+    "qendra", "qendrës", "qendrave", "qendre",
+    "lagja", "lagjës", "lagje", "lagjet",
+    "rruga", "rrugës", "rrugë", "rruget",
+    "komuna", "komunës", "komunë", "komunat",
+    "regjioni", "regjionit", "regjion",
+    "sistemi", "sistemit", "sistem", "sistemet",
+])
+
+# V3.5: Titull profesional (nuk është emër i plotë)
+TITLE_PREFIXES = frozenset([
+    "z.", "znj.", "dr.", "prof.", "mr.", "m.sc.", "msc.",
+])
+
+# V3.5: Numra romakë — refuzo nëse të gjitha fjalët "reale" janë romakë.
+ROMAN_NUMERAL_RE = re.compile(r'^[IVX]+$')
+
+# Pragje
+MIN_NAME_WORDS = 2
+MAX_NAME_WORDS = 5
+MIN_UPPERCASE_RATIO = 0.6
+MAX_NAME_LENGTH = 100
+
+
+def is_valid_person_name(s: str) -> bool:
+    """
+    V3.5: Validim STRUKTUROR strikt.
+
+    Refuzon:
+      1. Fillim me shkronjë të vogël (emrat shqip fillojnë me kapital).
+      2. Fillim me parafjalë/lidhëz (LEADING_STOPWORDS).
+      3. Fillim me shkronjë + pikë ("I.", "B.", "C.").
+      4. Numra romakë të vetëm (III, IV).
+      5. Fjalë < 2 ose > 5.
+      6. Përmban numra.
+      7. Përmban ":" brenda.
+      8. Fillim me titull (Dr., Z., etj.).
+      9. Përmban LEGAL_STOPWORDS.
+    """
+    if not s:
+        return False
+    s = s.strip().rstrip(".,;:()[]\"'")
+    if not s or len(s) > MAX_NAME_LENGTH:
+        return False
+
+    # 1. Fillim me "X." (numërime romake/latina)
+    if re.match(r'^[A-Za-z]\.', s):
+        return False
+
+    # 2. ':' brenda — nuk është emër
+    if ':' in s:
+        return False
+
+    words = s.split()
+    if len(words) < MIN_NAME_WORDS or len(words) > MAX_NAME_WORDS:
+        return False
+
+    if any(ch.isdigit() for ch in s):
+        return False
+
+    # 3. Fjala e parë duhet të fillojë me kapital
+    first_word = words[0]
+    if not first_word or not first_word[0].isupper():
+        return False
+
+    # 4. Fjala e parë NUK duhet të jetë parafjalë/lidhëz
+    first_lower = first_word.lower().rstrip(".,;:()")
+    if first_lower in LEADING_STOPWORDS:
+        return False
+
+    # 5. Titull në fillim → refuzo
+    if (first_lower + ".") in TITLE_PREFIXES:
+        return False
+
+    # 6. Ratio e shkronjave të mëdha fillestare
+    uppercase_start = sum(1 for w in words if w and w[0].isupper())
+    if uppercase_start < len(words) * MIN_UPPERCASE_RATIO:
+        return False
+
+    # 7. Fjalë reale (pa lidhëza)
+    real_words = [w for w in words if w.lower() not in NAME_CONNECTORS]
+    if len(real_words) < 2:
+        return False
+
+    # 8. Refuzo nëse të gjitha fjalët reale janë numra romakë
+    if all(ROMAN_NUMERAL_RE.match(w.rstrip(".,;:()")) for w in real_words):
+        return False
+
+    # 9. Filtro fjalët ligjore universale
+    low_words = {w.lower().rstrip(".,;:()") for w in real_words}
+    if low_words & LEGAL_STOPWORDS:
+        return False
+
+    return True
+
+
+# Numërimi opsional i linjës
+NUMBERED_LINE_PATTERN = re.compile(
+    r'^\s*(\d+)\s*[\.\)]\s+([^\n]+)$',
     re.MULTILINE,
-)
-
-# Rresht i personit: "1. NAZLIE BALA — Zyrtare e Lartë në Kabinetin..."
-# Emri mund të jetë ALL CAPS ose Title Case, me hapësira dhe shenja.
-SUSPECT_PATTERN = re.compile(
-    r'^\s*(\d+)\.\s+'
-    r'([A-ZËÇ][A-Za-zëçËÇ\.\-]{2,60}'
-    r'(?:\s+[A-ZËÇ][A-Za-zëçËÇ\.\-]{2,60}){1,4})'
-    r'\s*[—–\-:]\s*'
-    r'([^\n]{5,200})$',
-    re.MULTILINE,
-)
-
-# Fusha e pozitës: "Zyrtare e Lartë në Kabinetin e Ministrisë së Drejtësisë"
-# zakonisht del pas em-dash në rreshtin e personit.
-
-# "Kualifikimi Ligjor Penal:" — për të identifikuar blloqet e personave
-QUALIFICATION_HEADER_PATTERN = re.compile(
-    r'Kualifikimi\s+Ligjor\s+Penal\s*[:\-]',
-    re.IGNORECASE | re.UNICODE,
 )

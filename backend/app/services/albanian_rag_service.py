@@ -1,14 +1,15 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.21
-# V282.21: LOG CLEANUP — 8 warning-e jo-kritike → info:
-#          - Cache REDIS_URL config (cache opsional)
-#          - Cache get/set case_docs (fallback funksionon)
-#          - Cache get/set chunks (best-effort)
-#          - Could not read client case/docs (fallback defaults)
-#          - Comparison/Timeline build failed (features opsionale)
-#          Mbeten warning: Redis init failed, LLM dështoi (dështime reale).
-# V282.20: DUAL HISTORY UNIFIED — Chat history ruhet EKSKLUZIVISHT nga
-#          chat_service.py në `cases.chat_history`.
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.23
+# V282.23: STRUCTURED SUSPECTS INJECTION —
+#          - Agregon suspects nga TË GJITHA dokumentet në fashikull
+#            (build_fact_profile per secilin).
+#          - Injekton suspects_block në system_prompt për intent-et
+#            COMPREHENSIVE_ANALYSIS, DRAFTING, dhe GENERAL_CHAT.
+#          - Fix për bug-un ku chat-i shfaqte vetëm 3/15 persona të dyshuar
+#            sepse LLM-ja lexonte vetëm 3000 chars e parë të një dokumenti.
+# V282.22: STRUCTURAL CONTRADICTION SCAN.
+# V282.21: LOG CLEANUP.
+# V282.20: DUAL HISTORY UNIFIED.
 
 import os
 import logging
@@ -39,6 +40,8 @@ from app.services.rag.timeline_builder import (
     build_timeline,
 )
 from app.services.document_review.mongo_verifier import _verify_single_article
+from app.services.document_review.citation_extractor import build_citation_profile
+from app.services.document_review.fact_extractor import build_fact_profile
 from app.services.pillars.base_pillar_service import BasePillarService
 
 from app.services.pillars.legal_drafting_service import LegalDraftingService
@@ -55,12 +58,13 @@ logger = logging.getLogger(__name__)
 
 _redis_client: Optional[aioredis.Redis] = None
 
-CACHE_TTL_CASE_DOCS = 600       # 10 min — dokumentet e case-it
-CACHE_TTL_CASE_CHUNKS = 300     # 5 min — vector chunks per query
+CACHE_TTL_CASE_DOCS = 600
+CACHE_TTL_CASE_CHUNKS = 300
+
+MAX_DOCS_FOR_CONTRADICTION_SCAN = 30
 
 
 async def _get_redis() -> Optional[aioredis.Redis]:
-    """V282.18: Lazy-init i Redis. Kthen None nëse dështon."""
     global _redis_client
     if _redis_client is not None:
         return _redis_client
@@ -71,7 +75,6 @@ async def _get_redis() -> Optional[aioredis.Redis]:
             or os.getenv("REDIS_URL", "")
         )
         if not redis_url:
-            # V282.21: info — cache është opsional
             logger.info("[Cache] REDIS_URL nuk është konfiguruar — cache çaktivizuar")
             return None
 
@@ -93,7 +96,6 @@ async def _get_redis() -> Optional[aioredis.Redis]:
 
 
 def _serialize_docs_for_cache(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """V282.18: Konverto ObjectId në string për JSON serializim."""
     out: List[Dict[str, Any]] = []
     for d in docs:
         d2 = dict(d)
@@ -104,7 +106,6 @@ def _serialize_docs_for_cache(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]
 
 
 async def _get_cached_case_docs(case_id: str) -> Optional[List[Dict[str, Any]]]:
-    """V282.18: Lexon dokumentet e case-it nga cache."""
     client = await _get_redis()
     if not client:
         return None
@@ -114,13 +115,11 @@ async def _get_cached_case_docs(case_id: str) -> Optional[List[Dict[str, Any]]]:
         if cached:
             return json.loads(cached)
     except Exception as e:
-        # V282.21: info — fallback DB funksionon
         logger.info(f"[Cache] get case_docs failed (fallback DB): {e}")
     return None
 
 
 async def _set_cached_case_docs(case_id: str, docs: List[Dict[str, Any]], ttl: int = CACHE_TTL_CASE_DOCS) -> None:
-    """V282.18: Ruan dokumentet e case-it në cache."""
     client = await _get_redis()
     if not client:
         return
@@ -129,7 +128,6 @@ async def _set_cached_case_docs(case_id: str, docs: List[Dict[str, Any]], ttl: i
         payload = json.dumps(_serialize_docs_for_cache(docs), ensure_ascii=False, default=str)
         await client.setex(cache_key, ttl, payload)
     except Exception as e:
-        # V282.21: info — cache është best-effort
         logger.info(f"[Cache] set case_docs failed (best-effort): {e}")
 
 
@@ -139,14 +137,12 @@ def _chunks_cache_key(
     query: str,
     document_ids: Optional[List[str]],
 ) -> str:
-    """V282.18: Gjenero key të deterministik për chunks."""
     src = f"{case_id}|{user_id}|{query.lower().strip()}|{','.join(sorted(document_ids or []))}"
     h = hashlib.sha1(src.encode("utf-8")).hexdigest()[:16]
     return f"case_chunks_v1:{h}"
 
 
 async def _get_cached_chunks(cache_key: str) -> Optional[List[Dict[str, Any]]]:
-    """V282.18: Lexon vector chunks nga cache."""
     client = await _get_redis()
     if not client:
         return None
@@ -155,13 +151,11 @@ async def _get_cached_chunks(cache_key: str) -> Optional[List[Dict[str, Any]]]:
         if cached:
             return json.loads(cached)
     except Exception as e:
-        # V282.21: info — fallback vector store funksionon
         logger.info(f"[Cache] get chunks failed (fallback vector): {e}")
     return None
 
 
 async def _set_cached_chunks(cache_key: str, chunks: List[Dict[str, Any]], ttl: int = CACHE_TTL_CASE_CHUNKS) -> None:
-    """V282.18: Ruan vector chunks në cache."""
     client = await _get_redis()
     if not client:
         return
@@ -169,7 +163,6 @@ async def _set_cached_chunks(cache_key: str, chunks: List[Dict[str, Any]], ttl: 
         payload = json.dumps(chunks, ensure_ascii=False, default=str)
         await client.setex(cache_key, ttl, payload)
     except Exception as e:
-        # V282.21: info — cache është best-effort
         logger.info(f"[Cache] set chunks failed (best-effort): {e}")
 
 
@@ -178,25 +171,18 @@ async def _set_cached_chunks(cache_key: str, chunks: List[Dict[str, Any]], ttl: 
 # ═══════════════════════════════════════════════════════════════════════════
 
 GLOBAL_SEARCH_TRIGGERS = [
-    "precedent",
-    "precedente",
-    "precedentë",
+    "precedent", "precedente", "precedentë",
     "jurisprudenc",
-    "gjykata supreme",
-    "gjykatës supreme",
-    "praktikë gjyqësore",
-    "praktike gjyqesore",
-    "praktikën gjyqësore",
+    "gjykata supreme", "gjykatës supreme",
+    "praktikë gjyqësore", "praktike gjyqesore", "praktikën gjyqësore",
     "vendime gjyqësore",
     "aktgjykim supreme",
     "mendim juridik",
-    "qëndrim parimor",
-    "qendrim parimor",
+    "qëndrim parimor", "qendrim parimor",
 ]
 
 
 def _user_wants_global_search(query_lower: str) -> bool:
-    """V282.12: Kontrollo nëse përdoruesi kërkon eksplicitisht precedentë."""
     return any(trigger in query_lower for trigger in GLOBAL_SEARCH_TRIGGERS)
 
 
@@ -215,10 +201,8 @@ _STEM_SUFFIXES = [
 
 
 def _stem_albanian(word: str) -> str:
-    """V282.17: Stemming i thjeshtë për shqip."""
     if not word or len(word) < 4:
         return word.lower()
-
     w = word.lower()
     for suf in _STEM_SUFFIXES:
         if w.endswith(suf) and len(w) - len(suf) >= 3:
@@ -227,16 +211,12 @@ def _stem_albanian(word: str) -> str:
 
 
 def _words_match(w1: str, w2: str) -> bool:
-    """V282.17: Kontrollo nëse dy fjalë kanë rrënjë të përbashkët."""
     if not w1 or not w2:
         return False
-
     s1 = _stem_albanian(w1)
     s2 = _stem_albanian(w2)
-
     if s1 == s2:
         return True
-
     if len(s1) >= 4 and len(s2) >= 4:
         if s1 in s2 or s2 in s1:
             return True
@@ -263,7 +243,6 @@ _MATCH_STOPWORDS = {
 
 
 def _extract_meaningful_words(text: str, min_len: int = 5) -> set:
-    """Nxjerr fjalë me kuptim nga një tekst (normalizuar)."""
     raw = re.findall(r'\b\w{' + str(min_len) + r',}\b', text.lower())
     return {w for w in raw if w not in _MATCH_STOPWORDS}
 
@@ -273,7 +252,6 @@ def _detect_relevant_documents(
     documents: List[Dict[str, Any]],
     max_match: int = 3,
 ) -> Tuple[List[Dict[str, Any]], bool]:
-    """V282.17: Zbulon dokumentet që përmenden në pyetje (me stemming)."""
     if not documents or not query:
         return documents, False
 
@@ -373,55 +351,56 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
 10. ZERO SHABLLONE TË PËRGJITHSHME:
     - ÇDO fjali duhet të ketë lidhje me shkresat ose pyetjen e avokatit.
 
-11. ⚠️ LIGJE TË DYFISHTA / TË NDRYSHME (KRITIKE — V280.0):
+11. ⚠️ LIGJE TË DYFISHTA / TË NDRYSHME (KRITIKE):
     - NËSE dokumentet e fashikullit citojnë DY OSE MË SHUMË ligje të ndryshme për të njëjtën çështje → LISTOJI TË GJITHA me burimin e saktë.
-    - SHEMBULL i saktë:
-        "Vendimi i shkallës së parë (16.02.2024) bazohet në Ligjin Nr. 03/L-182.
-         Vendimi i Apelit (26.03.2024) citon Ligjin Nr. 08/L-185."
     - NUK LEJOHET të zgjedhësh vetëm një ligj pa përmendur tjetrin.
-    - KUR pyetja i referohet një dokumenti specifik (vendim, apel, aktvendim) → cito ligjin e atij dokumenti.
-    - NËSE pyetja nuk specifikon dokument → cito ligjin e dokumentit më të hershëm (origjinal) dhe përmend versionin e apelit si referencë.
 
-12. ⚠️ NENE TË PAVERIFIKUAR (KRITIKE — V282.0):
-    - KUR në kontekstin e mësipërm shfaqet paralajmërimi "⚠️ Neni X ... nuk u gjet në bazën e verifikuar ligjore":
+12. ⚠️ NENE TË PAVERIFIKUAR (KRITIKE):
+    - KUR në kontekst shfaqet "⚠️ Neni X ... nuk u gjet në bazën e verifikuar ligjore":
        → NUK LEJOHET të përshkruash, përgjithësosh, ose spekulosh përmbajtjen e atij neni.
-       → Vetëm njofto mungesën dhe vazhdo me pjesën tjetër të pyetjes (nëse ekziston).
+       → Vetëm njofto mungesën dhe vazhdo me pjesën tjetër të pyetjes.
        → NËSE pyetja kishte vetëm atë nen → rekomando verifikim me tekstin zyrtar.
 
-13. ⚠️ NENE QË EKZISTOJNË NË DISA LIGJE (KRITIKE — V282.10):
+13. ⚠️ NENE QË EKZISTOJNË NË DISA LIGJE:
     - KUR në kontekst shfaqet "⚠️ Neni X ekziston në disa ligje", NUK LEJOHET të zgjedhësh vetëm një ligj.
-    - LISTO TË GJITHA alternativat e gjetura dhe kërko sqarim nga përdoruesi cili ligj synohet.
-    - SHEMBULL i saktë:
-        "Neni 42 ekziston në: Ligji Nr. 03/L-006, Ligji Nr. 04/L-077, Kodi Penal Nr. 06/L-074.
-         Ju lutem specifikoni se cilën ligj synoni të citoni."
+    - LISTO TË GJITHA alternativat e gjetura dhe kërko sqarim.
 
-14. ⚠️ PRECEDENTËT E GJYKATËS SUPREME (KRITIKE — V282.13):
+14. ⚠️ PRECEDENTËT E GJYKATËS SUPREME:
     - NËSE në kontekst shfaqet seksioni "<<< JURISPRUDENCA DHE DITURIA GLOBALE E KOSOVËS >>>":
        → PËRDOR VETËM numrat e lëndëve që shfaqen Aty (të etiketuar "🏛️ BURIMI:").
-       → NUK LEJOHET të shpikësh numra lëndësh (p.sh. "REV.Nr.43/2022") që nuk shfaqen në kontekst.
-       → NËSE nuk gjendet precedent relevant → thuaj SAKTËSISHT:
-           "Nuk u identifikua precedent relevant në bazën e Gjykatës Supreme për këtë pyetje."
-    - NËSE NUK ka seksion "<<< JURISPRUDENCA DHE DITURIA GLOBALE E KOSOVËS >>>" në kontekst:
+       → NUK LEJOHET të shpikësh numra lëndësh që nuk shfaqen në kontekst.
+    - NËSE NUK ka seksion "JURISPRUDENCA" në kontekst:
        → NUK LEJOHET të përmendësh asnjë numër precedenti.
-       - Thuaj: "Për kërkim precedentësh, specifikoni eksplicitisht 'precedent' ose
-         'jurisprudencë' në pyetjen tuaj."
-    - NUK LEJOHET të përmendësh vendime gjykate që nuk shfaqen në kontekst.
 
-15. ⚠️ KRAHASIMI MIDIS DOKUMENTEVE (KRITIKE — V282.19):
+15. ⚠️ KRAHASIMI MIDIS DOKUMENTEVE:
     - KUR në kontekst shfaqet seksioni "<<< KRAHASIM MIDIS DOKUMENTEVE >>>":
        → Bazohu EKSPLICITISHT në tabelën e dhënë.
-       → Thekso nenet e përbashkëta (shënuar me ✅ në të gjitha kolonat).
-       → Thekso nenet unike (shënuar me ✅ vetëm në një dokument).
        → Mos shpik nene që nuk janë në tabelë.
-       → Struktura e përgjigjes: (a) nenet e përbashkëta, (b) dallimet, (c) implikimet.
 
-16. ⚠️ KRONOLOGJIA (KRITIKE — V282.19):
+16. ⚠️ KRONOLOGJIA:
     - KUR në kontekst shfaqet seksioni "<<< KRONOLOGJIA E NGJARJEVE >>>":
        → Bazohu EKSPLICITISHT në datat e dhëna.
-       → Rendit ngjarjet sipas datës.
        → NUK LEJOHET të shpikësh data që nuk shfaqen në listë.
-       → Përmend afatet procedurale kur dokumenti i përmend.
-       → Struktura: kronologji lineare me burime të qarta.
+
+17. ⚠️ KONTRADIKTA TË BRENDSHME TË DOKUMENTEVE (KRITIKE):
+    - KUR në kontekst shfaqet seksioni "⚠️ KONTRADIKTA TË BRENDSHME TË DOKUMENTEVE":
+       → Këto janë FAKTE KRITIKE të zbuluara automatikisht nga sistemi.
+       → DUHET T'I PËRMENDËSH në përgjigje nëse janë relevante.
+       → KUR përdoruesi pyet për kontradikta → LISTOJI TË GJITHA me zonën
+         (dispozitiv/arsyetim/propozim) dhe vlerat kontradiktore.
+       → NUK LEJOHET të thuash "nuk u identifikuan kontradikta" nëse ky seksion
+         përmban kontradikta.
+
+18. ⚠️ PERSONA TË DYSHUAR / TË AKUZUAR (KRITIKE):
+    - KUR në kontekst shfaqet seksioni "👥 PERSONA TË IDENTIFIKUAR NË DOKUMENTE":
+       → Kjo listë përmban TË GJITHË personat e identifikuar automatikisht nga
+         strukturat e dokumenteve (GRUPI I/II/III, lista të numëruara, etj.).
+       → KUR përdoruesi pyet "Kush janë personat e dyshuar?" → LISTOJI TË GJITHË
+         personat nga ky seksion me pozicionin/rolin e tyre.
+       → NUK LEJOHET të listosh vetëm 2-3 persona nëse seksioni ka më shumë.
+       → Citon numrin TOTAL (p.sh. "12 persona të identifikuar në dokument").
+       → NËSE pyetja kërkon vetëm kategori specifike (p.sh. "gjyqtarët") →
+         filtro sipas fjalëve kyçe në pozicion_hint.
 """
 
 
@@ -469,18 +448,143 @@ def _format_alternative_laws(v: Dict[str, Any]) -> str:
     return "; ".join(titles[:5]) + (" ..." if len(titles) > 5 else "")
 
 
+def _build_contradictions_block(
+    internal: List[Dict[str, Any]],
+    reported: List[Dict[str, Any]],
+) -> str:
+    if not internal and not reported:
+        return ""
+
+    parts: List[str] = []
+
+    if internal:
+        parts.append("\n\n═══════════════════════════════════════════════════════════════════════════")
+        parts.append("⚠️ KONTRADIKTA TË BRENDSHME TË DOKUMENTEVE (zbuluar automatikisht)")
+        parts.append("═══════════════════════════════════════════════════════════════════════════")
+        parts.append("")
+        parts.append("⚠️ Këto janë mosputhje FAKTIKE brenda TË NJËJTIT dokument. DUHET PËRMENDUR.")
+        parts.append("")
+        for c in internal:
+            values = " vs ".join(str(v) for v in c.get("values", []))
+            src = c.get("_source_file", "?")
+            zone = c.get("zone_label", "?")
+            parts.append(f"📌 [{src}] {c.get('type', '?')}")
+            parts.append(f"   Zona: {zone}")
+            parts.append(f"   Vlerat kontradiktore: **{values} {c.get('unit', '')}**")
+            for ex in c.get("examples", [])[:3]:
+                parts.append(f"   Shembull: {ex[:250]}")
+            parts.append("")
+        parts.append("⚠️ KËTO JANË FAKTE KRITIKE — DUHET TË PËRMENDEN NË PËRGJIGJE.")
+
+    if reported:
+        parts.append("\n\n═══════════════════════════════════════════════════════════════════════════")
+        parts.append("ℹ️ KONTRADIKTA TË RAPORTUARA (jo të vetë dokumenteve tona)")
+        parts.append("═══════════════════════════════════════════════════════════════════════════")
+        parts.append("")
+        for c in reported:
+            values = " vs ".join(str(v) for v in c.get("values", []))
+            src = c.get("_source_file", "?")
+            parts.append(f"📌 [{src}] {c.get('type', '?')}")
+            parts.append(f"   Vlerat: **{values} {c.get('unit', '')}**")
+            parts.append("")
+
+    return "\n".join(parts)
+
+
+def _build_suspects_block(
+    suspects: List[Dict[str, Any]],
+) -> str:
+    """
+    V282.23: Ndërton bllokun e personave të identifikuar për system_prompt.
+    """
+    if not suspects:
+        return ""
+
+    parts: List[str] = []
+    parts.append("\n\n═══════════════════════════════════════════════════════════════════════════")
+    parts.append(f"👥 PERSONA TË IDENTIFIKUAR NË DOKUMENTE ({len(suspects)} total)")
+    parts.append("═══════════════════════════════════════════════════════════════════════════")
+    parts.append("")
+    parts.append("⚠️ Kjo listë është nxjerrë automatikisht nga strukturat e dokumenteve")
+    parts.append("   (lista të numëruara, GRUPI I/II/III, sektorë të tjerë).")
+    parts.append("⚠️ DUHET T'U PËRGJIGJESH me TË GJITHË personat kur pyetet.")
+    parts.append("")
+
+    # Grupim sipas source file
+    by_file: Dict[str, List[Dict[str, Any]]] = {}
+    for s in suspects:
+        src = s.get("_source_file", "?")
+        by_file.setdefault(src, []).append(s)
+
+    for src, items in by_file.items():
+        parts.append(f"📄 Nga dokumenti: {src}")
+        for s in items:
+            name = s.get("name", "?")
+            pos = s.get("position_hint", "") or "(pa rol të specifikuar)"
+            parts.append(f"   • {name} — {pos[:120]}")
+        parts.append("")
+
+    return "\n".join(parts)
+
+
+def _build_cited_precedents_block(
+    db_documents: List[Dict[str, Any]],
+) -> str:
+    """
+    V282.23: Nxjerr numrat e lëndëve të CITUAR NË DOKUMENTE (jo own).
+    Injektohet në system_prompt kur përdoruesi kërkon precedentë.
+    """
+    from app.services.document_review.citation_extractor import extract_case_numbers
+
+    if not db_documents:
+        return ""
+
+    cited_by_doc: Dict[str, List[str]] = {}
+    for doc in db_documents:
+        text = doc.get("content") or doc.get("extracted_text") or doc.get("text") or ""
+        if not text.strip():
+            continue
+        fname = doc.get("file_name") or doc.get("title") or "?"
+        cases = extract_case_numbers(text)
+        cited = [c["case_number"] for c in cases if not c.get("is_likely_own")]
+        if cited:
+            cited_by_doc[fname] = cited
+
+    if not cited_by_doc:
+        return ""
+
+    parts = [
+        "\n\n═══════════════════════════════════════════════════════════════════════════",
+        "📚 PRECEDENTË TË CITUAR NË DOKUMENTET E FASHIKULLIT",
+        "═══════════════════════════════════════════════════════════════════════════",
+        "",
+        "⚠️ Këta numra janë CITUAR NË TEKSTIN E DOKUMENTEVE të fashikullit.",
+        "NUK janë shpikje — dokumenti i referon si precedentë të Gjykatës Supreme.",
+        "DUHET T'I LISTOSH në përgjigje kur përdoruesi pyet për precedentë.",
+        "",
+    ]
+    for fname, cases in cited_by_doc.items():
+        parts.append(f"📄 {fname}:")
+        for cn in cases:
+            parts.append(f"   • {cn}")
+        parts.append("")
+
+    return "\n".join(parts)
+
+
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
         logger.info(
-            f"✅ [RAG] Juristi AI Natural Client Service V282.21 Initialized "
+            f"✅ [RAG] Juristi AI Natural Client Service V282.23 Initialized "
             f"(chat model: {FAST_SEARCH_MODEL}, "
             f"judicial-docs whitelist: ON, dual-law rule: ON, query-depth: ON, "
             f"pre-verify: ON, fast-path: DIRECT, dynamic-cleaner: ON, timing: ON, "
             f"multi-law-chat: ON, global-on-demand: ON, no-fake-precedents: ON, "
             f"pure-chat: ON, query-aware-docs: ON, stemming: ON, caching: ON, "
-            f"comparison: ON, timeline: ON, chat-history: DELEGATED)."
+            f"comparison: ON, timeline: ON, contradiction-scan: ON, "
+            f"suspects-injection: ON, chat-history: DELEGATED)."
         )
 
     def _optimize_query(self, query: str) -> str:
@@ -548,21 +652,17 @@ class AlbanianRAGService:
         stripped = line.strip()
         if len(stripped) < 25:
             return False
-
         if stripped.endswith("."):
             return False
-
         letters = [c for c in stripped if c.isalpha()]
         if len(letters) < 15:
             return False
         upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
         if upper_ratio < 0.7:
             return False
-
         words = stripped.split()
         if len(words) < 4:
             return False
-
         return True
 
     def _is_law_header_candidate(self, line: str) -> bool:
@@ -571,15 +671,12 @@ class AlbanianRAGService:
             return False
         if stripped.endswith("."):
             return False
-
         letters = [c for c in stripped if c.isalpha()]
         if len(letters) < 15:
             return False
-
         upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
         if upper_ratio < 0.7:
             return False
-
         words = stripped.split()
         has_nr = bool(re.search(r'\bNR\.?\b', stripped, re.IGNORECASE))
         if has_nr or len(words) >= 4:
@@ -728,7 +825,6 @@ class AlbanianRAGService:
         _t0 = time.time()
 
         def _lap(label: str):
-            # V282.20: INFO — timing nuk është warning
             logger.info(f"⏱️ [TIMING] {label}: {time.time() - _t0:.2f}s")
 
         current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
@@ -755,7 +851,6 @@ class AlbanianRAGService:
                     case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
 
             except Exception as ex:
-                # V282.21: info — fallback defaults
                 logger.info(f"Could not read client case (fallback defaults): {ex}")
 
         _lap("load_case")
@@ -870,7 +965,7 @@ class AlbanianRAGService:
                         )
 
             logger.info(
-                f"🔎 [PreVerify V282.21] articles total={len(verification_results)} "
+                f"🔎 [PreVerify V282.23] articles total={len(verification_results)} "
                 f"verified={len(verified_articles)} ambiguous={len(ambiguous_articles)} "
                 f"missing={len(missing_articles)} has_general={legal_query['has_general_query']}"
             )
@@ -886,13 +981,13 @@ class AlbanianRAGService:
         if not user_wants_global:
             if should_fetch_global:
                 logger.info(
-                    f"⏭️ [V282.21] Skip global — pyetje faktuale pa kërkesë eksplicite "
+                    f"⏭️ [V282.23] Skip global — pyetje faktuale pa kërkesë eksplicite "
                     f"për precedentë."
                 )
             should_fetch_global = False
         else:
             logger.info(
-                f"🌐 [V282.21] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
+                f"🌐 [V282.23] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
             )
 
         logger.info(
@@ -931,7 +1026,7 @@ class AlbanianRAGService:
 
         if is_factual_legal_query:
             logger.info(
-                f"⚡ [FastPath V282.21 DIRECT] Skip LLM — return verified text directly "
+                f"⚡ [FastPath V282.23 DIRECT] Skip LLM — return verified text directly "
                 f"({len(verified_articles)} verified articles)"
             )
 
@@ -948,7 +1043,7 @@ class AlbanianRAGService:
                 if cached_docs is not None:
                     db_documents = cached_docs
                     logger.info(
-                        f"⚡ [Cache HIT V282.21] case_docs: {len(db_documents)} docs "
+                        f"⚡ [Cache HIT V282.23] case_docs: {len(db_documents)} docs "
                         f"(saved ~2.5s)"
                     )
                     _lap("load_docs")
@@ -970,23 +1065,88 @@ class AlbanianRAGService:
 
                     if db_documents:
                         await _set_cached_case_docs(str(case_id), db_documents, ttl=CACHE_TTL_CASE_DOCS)
-                        logger.info(f"💾 [Cache MISS V282.21] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
+                        logger.info(f"💾 [Cache MISS V282.23] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
             except Exception as ex:
-                # V282.21: info — fallback empty docs
                 logger.info(f"Could not read client documents (fallback empty): {ex}")
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # V282.23: STRUCTURAL CONTRADICTION + SUSPECTS SCAN
+        # ═══════════════════════════════════════════════════════════════════════
+        internal_contradictions: List[Dict[str, Any]] = []
+        reported_contradictions: List[Dict[str, Any]] = []
+        all_suspects: List[Dict[str, Any]] = []
+
+        if db_documents and len(db_documents) <= MAX_DOCS_FOR_CONTRADICTION_SCAN:
+            t_contr = time.time()
+            for doc in db_documents:
+                d_text = (
+                    doc.get("content")
+                    or doc.get("extracted_text")
+                    or doc.get("text")
+                    or ""
+                )
+                if not d_text.strip():
+                    continue
+                d_fname = doc.get("file_name") or doc.get("title") or "?"
+
+                try:
+                    cit = build_citation_profile(d_text)
+                    own_cns = set(cit.get("own_case_numbers", []) or [])
+
+                    fp = build_fact_profile(
+                        d_text,
+                        source_document=d_fname,
+                        own_case_numbers=own_cns,
+                    )
+
+                    for c in fp.get("contradictions", []):
+                        c["_source_file"] = d_fname
+                        internal_contradictions.append(c)
+
+                    for c in fp.get("reported_contradictions", []):
+                        c["_source_file"] = d_fname
+                        reported_contradictions.append(c)
+
+                    for s in fp.get("suspects", []):
+                        s["_source_file"] = d_fname
+                        all_suspects.append(s)
+                except Exception as e:
+                    logger.info(f"[Contradiction/suspect scan] {d_fname}: {e}")
+                    continue
+
+            logger.info(
+                f"⏱️ [TIMING]   contradiction_scan ({len(db_documents)} docs): "
+                f"{time.time() - t_contr:.2f}s | "
+                f"internal={len(internal_contradictions)}, "
+                f"reported={len(reported_contradictions)}, "
+                f"suspects={len(all_suspects)}"
+            )
+        else:
+            logger.info(
+                f"⏭️ [V282.23] Skip contradiction scan — "
+                f"{len(db_documents)} docs > limit {MAX_DOCS_FOR_CONTRADICTION_SCAN}"
+            )
+
+        contradictions_block = _build_contradictions_block(
+            internal_contradictions,
+            reported_contradictions,
+        )
+        suspects_block = _build_suspects_block(all_suspects)
+
+        _lap("contradiction_scan")
 
         context_documents = db_documents
         if db_documents and len(db_documents) > 1:
             context_documents, was_filtered = _detect_relevant_documents(query, db_documents, max_match=3)
             if was_filtered:
                 logger.info(
-                    f"🎯 [V282.21] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
+                    f"🎯 [V282.23] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
                     f"dokumente të zgjedhura për kontekst LLM: "
                     f"{[d.get('file_name', '?') for d in context_documents]}"
                 )
             else:
                 logger.info(
-                    f"📚 [V282.21] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
+                    f"📚 [V282.23] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
                     f"{len(db_documents)} dokumentet"
                 )
 
@@ -1001,11 +1161,10 @@ class AlbanianRAGService:
                 comparison_block = build_comparison_table(context_documents)
                 if comparison_block:
                     logger.info(
-                        f"📊 [V282.21] Tabelë krahasuese aktivizuar "
+                        f"📊 [V282.23] Tabelë krahasuese aktivizuar "
                         f"({len(comparison_block)} chars)"
                     )
         except Exception as e:
-            # V282.21: info — feature opsional
             logger.info(f"Comparison build skipped (feature opsional): {e}")
 
         try:
@@ -1014,11 +1173,15 @@ class AlbanianRAGService:
                 timeline_block = build_timeline(events)
                 if timeline_block:
                     logger.info(
-                        f"📅 [V282.21] Timeline aktivizuar ({len(events)} ngjarje)"
+                        f"📅 [V282.23] Timeline aktivizuar ({len(events)} ngjarje)"
                     )
         except Exception as e:
-            # V282.21: info — feature opsional
             logger.info(f"Timeline build skipped (feature opsional): {e}")
+
+        # V282.23: Cited precedents (kur përdoruesi kërkon precedentë)
+        cited_precedents_block = ""
+        if user_wants_global:
+            cited_precedents_block = _build_cited_precedents_block(db_documents)
 
         single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
 
@@ -1048,7 +1211,7 @@ class AlbanianRAGService:
 
         if case_docs is not None:
             logger.info(
-                f"⚡ [Cache HIT V282.21] vector_case: {len(case_docs)} chunks "
+                f"⚡ [Cache HIT V282.23] vector_case: {len(case_docs)} chunks "
                 f"(saved ~4s)"
             )
             _lap("vector_case")
@@ -1063,7 +1226,7 @@ class AlbanianRAGService:
             _lap("vector_case")
             if case_docs:
                 await _set_cached_chunks(case_docs_cache_key, case_docs, ttl=CACHE_TTL_CASE_CHUNKS)
-                logger.info(f"💾 [Cache MISS V282.21] vector_case cached (TTL={CACHE_TTL_CASE_CHUNKS}s)")
+                logger.info(f"💾 [Cache MISS V282.23] vector_case cached (TTL={CACHE_TTL_CASE_CHUNKS}s)")
 
         if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             if should_fetch_global:
@@ -1085,6 +1248,12 @@ class AlbanianRAGService:
             LËNDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
 
             {NATURAL_COUNSEL_INSTRUCTION}
+
+            {contradictions_block}
+
+            {suspects_block}
+
+            {cited_precedents_block}
 
             {comparison_block}
             {timeline_block}
@@ -1120,6 +1289,10 @@ class AlbanianRAGService:
                 db=self.db
             )
             system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
+            if contradictions_block:
+                system_prompt += "\n\n" + contradictions_block
+            if suspects_block:
+                system_prompt += "\n\n" + suspects_block
 
         elif user_intent == "DRAFTING":
             if should_fetch_global:
@@ -1129,7 +1302,7 @@ class AlbanianRAGService:
                 _lap("vector_global")
             else:
                 global_docs = []
-                logger.info(f"⏭️ [V282.21] Skip global_docs në DRAFTING")
+                logger.info(f"⏭️ [V282.23] Skip global_docs në DRAFTING")
 
             manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
@@ -1150,6 +1323,12 @@ class AlbanianRAGService:
                 case_id=case_id
             )
             system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
+            if contradictions_block:
+                system_prompt += "\n\n" + contradictions_block
+            if suspects_block:
+                system_prompt += "\n\n" + suspects_block
+            if cited_precedents_block:
+                system_prompt += "\n\n" + cited_precedents_block
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
             if should_fetch_global:
@@ -1159,7 +1338,7 @@ class AlbanianRAGService:
                 _lap("vector_global")
             else:
                 global_docs = []
-                logger.info(f"⏭️ [V282.21] Skip global_docs (chat i thjeshtë)")
+                logger.info(f"⏭️ [V282.23] Skip global_docs (chat i thjeshtë)")
 
             manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
@@ -1173,6 +1352,12 @@ class AlbanianRAGService:
             {NATURAL_COUNSEL_INSTRUCTION}
 
             {pre_verify_disclaimer}{verified_context}
+
+            {contradictions_block}
+
+            {suspects_block}
+
+            {cited_precedents_block}
 
             {comparison_block}
             {timeline_block}
@@ -1211,7 +1396,7 @@ class AlbanianRAGService:
 
         if llm_failed:
             logger.warning(
-                f"⚠️ [V282.21] LLM dështoi. "
+                f"⚠️ [V282.23] LLM dështoi. "
                 f"Output: {full_generated_response[:100]}..."
             )
             _lap("total")
