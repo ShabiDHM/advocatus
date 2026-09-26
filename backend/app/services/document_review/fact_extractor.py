@@ -1,11 +1,10 @@
 # FILE: backend/app/services/document_review/fact_extractor.py
-# PHOENIX PROTOCOL - FACT EXTRACTOR V3.15
-# V3.15: SENTENCE-BOUNDED CONTEXT — Konteksti i topic-check prerë në kufijtë
-#        e fjalisë (pas '. ', '; ', ': ', '! ', '? ', '\n'). Shmang
-#        false-positive edhe në tekste të shkurtra ku vlerat janë brenda
-#        1-2 fjalive.
-# V3.14: NARROW CONTEXT (u hoq — u zëvendësua nga sentence_context).
-# V3.13: CONTEXT-AWARE CONTRADICTIONS.
+# PHOENIX PROTOCOL - FACT EXTRACTOR V3.17
+# V3.17: EXPANDED PERIOD/DEADLINE PATTERN — Prano mbarime rasore shqipe:
+#        "muaj"/"muajsh"/"muajve", "ditë"/"ditësh"/"ditëve", "javë"/"javësh"/"javëve",
+#        "vjet"/"vite"/"vitesh"/"vitit". Zbulo kontradikta "6 muaj" vs "12 muajve".
+# V3.16: PREFIX-BASED ROOTS.
+# V3.15: SENTENCE-BOUNDED CONTEXT.
 # V3.12: ROLE-BASED SUSPECT EXTRACTION.
 
 import re
@@ -41,6 +40,29 @@ from .helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V3.17: EXPANDED PERIOD/DEADLINE PATTERN — override lokal
+# ═══════════════════════════════════════════════════════════════════════════
+
+# V3.17: Prano të gjitha mbarimet rasore shqipe:
+#   ditë / ditësh / ditëve / dite / ditesh / diteve
+#   muaj / muajsh / muajve
+#   javë / javësh / javëve / jave / javesh / javeve
+#   vit / vjet / vite / vitesh / viteve / vitit
+_EXPANDED_PERIOD_PATTERN = re.compile(
+    r'\b(\d+)\s*'
+    r'('
+    r'dit(?:ë|e)?(?:sh|ve)?'
+    r'|muaj(?:sh|ve)?'
+    r'|jav(?:ë|e)?(?:sh|ve)?'
+    r'|vjet(?:sh|ve)?'
+    r'|vit(?:e|esh|eve|it)?'
+    r')'
+    r'\b',
+    re.IGNORECASE | re.UNICODE,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -182,19 +204,9 @@ def _extract_sentence_context(
     max_lookback: int = 120,
     max_lookahead: int = 120,
 ) -> str:
-    """
-    V3.15: Konteksti i prerë në kufijtë e fjalisë.
-
-    Fillimi: pas separatorit të fundit fjalie ('. ', '; ', ': ', '! ', '? ', '\\n')
-    Fundi:   para separatorit të parë fjalie pas vlerës
-
-    Kufiri maksimal: ±max_lookback/max_lookahead karaktere, në rast se nuk
-    ka separator.
-    """
     if not text:
         return ""
 
-    # ─── Fillimi ───
     back_start = max(0, position - max_lookback)
     pre_segment = text[back_start:position]
 
@@ -208,7 +220,6 @@ def _extract_sentence_context(
 
     start = best_start
 
-    # ─── Fundi ───
     value_end = position + value_length
     forward_end = min(len(text), value_end + max_lookahead)
     post_segment = text[value_end:forward_end]
@@ -304,7 +315,8 @@ def extract_deadlines(
 
     results: List[Dict[str, Any]] = []
 
-    for match in DEADLINE_PATTERN.finditer(text):
+    # V3.17: Përdor _EXPANDED_PERIOD_PATTERN (pranon muajve/ditëve/javëve)
+    for match in _EXPANDED_PERIOD_PATTERN.finditer(text):
         num = int(match.group(1))
         unit_norm = _normalize_unit(match.group(2))
         context = extract_context(text, match.start(), window=120)
@@ -681,7 +693,8 @@ def _extract_all_periods(
         return []
     exclude = exclude_positions or set()
     results: List[Dict[str, Any]] = []
-    for match in PERIOD_PATTERN.finditer(text):
+    # V3.17: Përdor _EXPANDED_PERIOD_PATTERN
+    for match in _EXPANDED_PERIOD_PATTERN.finditer(text):
         if match.start() in exclude:
             continue
         num = int(match.group(1))
@@ -730,7 +743,7 @@ def _extract_all_distances(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V3.15: CONTEXT-AWARE CONTRADICTION HELPER
+# V3.16: PREFIX-BASED ROOT MATCHING (Albanian morphology)
 # ═══════════════════════════════════════════════════════════════════════════
 
 _CONTEXT_STOPWORDS = frozenset([
@@ -751,34 +764,36 @@ _CONTEXT_STOPWORDS = frozenset([
     "sipas", "të", "te", "i", "e", "a", "u",
 ])
 
+ROOT_PREFIX_LEN = 5
 
-def _extract_context_keywords(ctx: str) -> Set[str]:
-    """V3.15: Nxjerr fjalët me kuptim nga konteksti (>= 5 shkronja, jo stopwords)."""
+
+def _extract_context_roots(ctx: str, prefix_len: int = ROOT_PREFIX_LEN) -> Set[str]:
     if not ctx:
         return set()
     words = re.findall(r'[a-zA-ZëçËÇ]{5,}', ctx.lower())
-    return {w for w in words if w not in _CONTEXT_STOPWORDS}
+    roots: Set[str] = set()
+    for w in words:
+        if w in _CONTEXT_STOPWORDS:
+            continue
+        roots.add(w[:prefix_len] if len(w) > prefix_len else w)
+    return roots
 
 
 def _contexts_share_topic(
     items: List[Dict[str, Any]],
     min_shared: int = 1,
 ) -> bool:
-    """
-    V3.15: Përdor `sentence_context` (kufijtë e fjalisë) nëse ekziston.
-    Nëse nuk ka, kthen False (safe default) — shmang false-positive.
-    """
     if len(items) < 2:
         return False
 
-    kw_sets = []
-    for it in items:
-        ctx = it.get("sentence_context", "")
-        kw_sets.append(_extract_context_keywords(ctx))
+    root_sets = [
+        _extract_context_roots(it.get("sentence_context", ""))
+        for it in items
+    ]
 
-    for i in range(len(kw_sets)):
-        for j in range(i + 1, len(kw_sets)):
-            if len(kw_sets[i] & kw_sets[j]) >= min_shared:
+    for i in range(len(root_sets)):
+        for j in range(i + 1, len(root_sets)):
+            if len(root_sets[i] & root_sets[j]) >= min_shared:
                 return True
 
     return False
@@ -792,10 +807,6 @@ def detect_contradictions(
     text: Optional[str] = None,
     own_case_numbers: Optional[Set[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    V3.15: Kërkohet kontekst i ngjashëm (min 1 fjalë e përbashkët mbi 5 shkronja)
-    mes vlerave kontradiktore — përdor sentence_context (kufijtë e fjalisë).
-    """
     contradictions: List[Dict[str, Any]] = []
 
     zone_anchors: List[Tuple[int, str]] = []
@@ -830,7 +841,7 @@ def detect_contradictions(
 
         if not _contexts_share_topic(items, min_shared=1):
             logger.info(
-                f"⏭️ [V3.15 CONTRADICTION SKIP] deadline {unit} "
+                f"⏭️ [V3.17 CONTRADICTION SKIP] deadline {unit} "
                 f"{sorted(unique_nums)} — kontekst i ndryshëm."
             )
             continue
@@ -869,7 +880,7 @@ def detect_contradictions(
 
             if not _contexts_share_topic(items, min_shared=1):
                 logger.info(
-                    f"⏭️ [V3.15 CONTRADICTION SKIP] period {unit} "
+                    f"⏭️ [V3.17 CONTRADICTION SKIP] period {unit} "
                     f"{sorted(unique_nums)} — kontekst i ndryshëm."
                 )
                 continue
@@ -906,7 +917,7 @@ def detect_contradictions(
 
             if not _contexts_share_topic(items, min_shared=1):
                 logger.info(
-                    f"⏭️ [V3.15 CONTRADICTION SKIP] distance {unit} "
+                    f"⏭️ [V3.17 CONTRADICTION SKIP] distance {unit} "
                     f"{sorted(unique_distances)} — kontekst i ndryshëm."
                 )
                 continue
@@ -933,7 +944,7 @@ def detect_contradictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BUILD FACT PROFILE — V3.15
+# BUILD FACT PROFILE — V3.17
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_fact_profile(
@@ -1014,7 +1025,7 @@ def build_fact_profile(
     }
 
     logger.info(
-        f"🔬 [FACT_EXTRACTOR V3.15] dates={stats['total_dates']}, "
+        f"🔬 [FACT_EXTRACTOR V3.17] dates={stats['total_dates']}, "
         f"deadlines={stats['total_deadlines']} "
         f"(legal={stats['legal_deadlines']}), "
         f"parties={stats['total_parties']}, "
