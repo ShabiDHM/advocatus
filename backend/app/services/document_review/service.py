@@ -1,12 +1,12 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.17
-# V5.17: VERIFICATION_DETAILS REMOVED — Hequr blloku `verification_details`
-#        nga result (write-only, zero konsumatorë backend/frontend).
-#        Statistikat mbeten në `stats.citation_stats`, `stats.fact_stats`,
-#        `stats.verification_stats`. Redukton ~200-500KB per dokument në Mongo.
-# V5.16: CLIENT POSITION — review() pranon client_position, e kalon te
-#        build_verified_context() per klasifikim te dyfishe (case + doc).
-# V5.15: CLIENT CONTEXT — client_name.
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.18
+# V5.18: TIMING LOGS CLEANUP — logger.warning → logger.info për timing dhe
+#        phase markers (_lap, PARALLEL, SECTION START/DONE, BATCH, HALLUCINATION
+#        summary). Warning-et e vërteta mbeten warning (GATE blocked sections,
+#        Future failed, batch errors). Zero ndryshim funksional.
+# V5.17: VERIFICATION_DETAILS REMOVED — hequr blloku write-only ~200-500KB.
+# V5.16: CLIENT POSITION.
+# V5.15: CLIENT CONTEXT.
 # V5.14: ARTICLE_VERIFICATION_BATCHES 3.
 # V5.13: BATCH ARTICLE_VERIFICATION.
 
@@ -65,8 +65,9 @@ class DocumentReviewService:
         start = time.time()
 
         def _lap(label: str, t_start: float) -> float:
+            # V5.18: INFO — timing nuk është warning
             elapsed = time.time() - t_start
-            logger.warning(f"⏱️ [TIMING] {label}: {elapsed:.2f}s")
+            logger.info(f"⏱️ [TIMING] {label}: {elapsed:.2f}s")
             return elapsed
 
         # ═══ 1. LOAD ═══
@@ -96,7 +97,7 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.17] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.18] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, "
             f"len={len(doc_text)} chars, client={client_name or '?'} "
             f"({client_position or '?'}), parallel x{MAX_CONCURRENT_SECTIONS}"
@@ -157,8 +158,9 @@ class DocumentReviewService:
 
         sections_start = time.time()
 
-        logger.warning(
-            f"🚀 [PARALLEL V5.17] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
+        # V5.18: INFO — start marker, jo warning
+        logger.info(
+            f"🚀 [PARALLEL V5.18] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
             f"seksione me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -203,7 +205,7 @@ class DocumentReviewService:
             ]
 
             logger.info(
-                f"⚡ [V5.17 BATCH] article_verification: {total_articles} nene "
+                f"⚡ [V5.18 BATCH] article_verification: {total_articles} nene "
                 f"→ {len(batches)} batches (size≈{batch_size})"
             )
 
@@ -224,8 +226,9 @@ class DocumentReviewService:
                     client_position=client_position,
                 )
 
-                logger.warning(
-                    f"▶️ [V5.17 BATCH {batch_idx + 1}/{len(batches)}] "
+                # V5.18: INFO — start i një batch
+                logger.info(
+                    f"▶️ [V5.18 BATCH {batch_idx + 1}/{len(batches)}] "
                     f"article_verification — {len(batch_articles)} nene, "
                     f"context={len(partial_context)} chars"
                 )
@@ -239,14 +242,16 @@ class DocumentReviewService:
                         document_type=document_type,
                         stream_callback=None,
                     )
-                    logger.warning(
-                        f"✅ [V5.17 BATCH {batch_idx + 1}/{len(batches)}] "
+                    # V5.18: INFO — done batch
+                    logger.info(
+                        f"✅ [V5.18 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Përfundoi: {len(content)} chars"
                     )
                     return content
                 except Exception as e:
+                    # Mbetet ERROR — dështim real
                     logger.error(
-                        f"❌ [V5.17 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"❌ [V5.18 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Dështoi: {e}"
                     )
                     return f"[Seksioni batch {batch_idx + 1} dështoi: {e}]"
@@ -265,14 +270,15 @@ class DocumentReviewService:
                     try:
                         contents[idx] = fut.result()
                     except Exception as e:
-                        logger.error(f"❌ [V5.17 BATCH] Future {idx} error: {e}")
+                        logger.error(f"❌ [V5.18 BATCH] Future {idx} error: {e}")
                         contents[idx] = f"[Batch {idx + 1} dështoi]"
 
             combined = "\n\n".join(c for c in contents if c).strip()
             elapsed = round(time.time() - section_start, 2)
 
-            logger.warning(
-                f"✅ [SECTION DONE V5.17] {section_key}: {elapsed}s, "
+            # V5.18: INFO — section done
+            logger.info(
+                f"✅ [SECTION DONE V5.18] {section_key}: {elapsed}s, "
                 f"{len(combined)} chars combined (batches={len(batches)})"
             )
 
@@ -383,7 +389,8 @@ class DocumentReviewService:
 
             context_build_time = time.time() - t_ctx
 
-            logger.warning(
+            # V5.18: INFO — section start
+            logger.info(
                 f"▶️ [SECTION START] {section_key} "
                 f"(max_tokens={section_max_tokens}, context={len(verified_context)} chars, "
                 f"ctx_build={context_build_time*1000:.1f}ms, "
@@ -407,7 +414,8 @@ class DocumentReviewService:
 
                 elapsed = round(time.time() - section_start, 2)
 
-                logger.warning(
+                # V5.18: INFO — section done
+                logger.info(
                     f"✅ [SECTION DONE] {section_key}: {elapsed}s, "
                     f"{len(content)} chars out (context={len(verified_context)} in, "
                     f"max_tokens={section_max_tokens})"
@@ -467,11 +475,11 @@ class DocumentReviewService:
                                 "content_length": stat_entry.get("content_length", 0),
                             })
                     except Exception as e:
-                        logger.error(f"❌ [PARALLEL V5.17] Future failed for {section_key}: {e}")
+                        logger.error(f"❌ [PARALLEL V5.18] Future failed for {section_key}: {e}")
 
         except Exception as e:
-            logger.error(f"❌ [PARALLEL V5.17] ThreadPoolExecutor failed: {e}")
-            logger.warning(f"🔄 [PARALLEL V5.17] Fallback në sequential mode")
+            logger.error(f"❌ [PARALLEL V5.18] ThreadPoolExecutor failed: {e}")
+            logger.info("🔄 [PARALLEL V5.18] Fallback në sequential mode")
             for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
                 try:
                     key, sec_entry, stat_entry, _timing = _run_section(section_key, section_cfg)
@@ -486,10 +494,14 @@ class DocumentReviewService:
         section_stats = {k: section_stats[k] for k in DOCUMENT_REVIEW_PROMPTS.keys() if k in section_stats}
 
         sections_total_time = round(time.time() - sections_start, 2)
-        logger.warning(f"⏱️ [TIMING] sections_total (parallel x{MAX_CONCURRENT_SECTIONS}): {sections_total_time}s")
+        # V5.18: INFO — timing total
+        logger.info(
+            f"⏱️ [TIMING] sections_total (parallel x{MAX_CONCURRENT_SECTIONS}): "
+            f"{sections_total_time}s"
+        )
 
         logger.info(
-            f"🏛️ [V5.17] Precedent cases qe do te lejohen: "
+            f"🏛️ [V5.18] Precedent cases qe do te lejohen: "
             f"{len(found_precedent_cases)} -> {sorted(found_precedent_cases)[:5]}"
         )
 
@@ -513,7 +525,8 @@ class DocumentReviewService:
         )
         hallucination_time = _lap("hallucination_check", t0)
 
-        logger.warning(
+        # V5.18: INFO — summary, jo warning
+        logger.info(
             f"🧪 [HALLUCINATION] status={hallucination_report['status']}, "
             f"issues={hallucination_report['total_issues']} "
             f"(high={hallucination_report['severity_totals']['high']}, "
@@ -557,7 +570,8 @@ class DocumentReviewService:
                 )
                 blocked_count += 1
 
-            logger.warning(f"🛡️ [V5.17 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
+            # V5.18: Ky MBETET warning — bllokim real i seksioneve
+            logger.warning(f"🛡️ [V5.18 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
 
         # MONTIMI FINAL
         document_meta = {"file_name": file_name, "document_type": document_type}
@@ -605,7 +619,7 @@ class DocumentReviewService:
                 "sections_blocked": len(hallucination_report.get("suspicious_sections", [])),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.17",
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.18",
                 "hallucination_status": hallucination_report["status"],
                 "hallucination_issues": hallucination_report["total_issues"],
                 "hallucination_suspicious_sections": hallucination_report["suspicious_sections"],
@@ -633,7 +647,7 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.17] Complete: "
+            f"✅ [DOC_REVIEW V5.18] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"blocked={result['stats']['sections_blocked']}, "
             f"articles_verified={verification_report['stats']['articles_verified']}, "

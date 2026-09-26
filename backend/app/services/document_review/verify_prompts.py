@@ -1,17 +1,24 @@
 # FILE: backend/app/services/document_review/verify_prompts.py
-# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.9
+# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.10
+# V1.10: LOW CLEANUP —
+#        - Hequr `common_issues: []` (dead field) nga 7 doc types.
+#        - _block_cited_articles: context tani [:MAX_CONTEXT_CHARS] (=300),
+#          sinkron me citation_extractor dhe constants.MAX_CONTEXT_CHARS
+#          (ishte [:200], humbte 100 chars).
+#        - _truncate_draft: koment i qartë mbi rolin e max_chars.
 # V1.9: THRESHOLD UNIFIED — MIN_PRECEDENT_SIMILARITY 0.50 → 0.70 për
 #       konsistencë me PRECEDENT_SIMILARITY_THRESHOLD në precedent_search/config.
-# V1.8: HYBRID SECTION 3 — Python generon 3.A (faktet e precedentëve) direkt
-#       nga MongoDB; LLM shkruan PSE_RELEVANT + 3.B + 3.C. Zero hallucination.
-# V1.7: HYBRID SECTION 2 — Python generon 2.A (Nenet e verifikuara).
-# V1.6: SHEMBUJ KONKRETË — Section 5 (Rekomandime).
+# V1.8: HYBRID SECTION 3.
+# V1.7: HYBRID SECTION 2.
+# V1.6: SHEMBUJ KONKRETË — Section 5.
 # V1.5: HEQUR "Rendi i prioriteteve".
 # V1.4: CROSS-SECTION DEDUP + "Pse relevant".
 # V1.3: READINESS SHQIP.
 # V1.2: ALTERNATIVE_LAWS display.
 
 from typing import Dict, Any, List, Optional
+
+from .constants import MAX_CONTEXT_CHARS
 
 
 VERIFY_SECTION_KEYS = (
@@ -73,7 +80,6 @@ DOC_TYPE_CHECKLISTS: Dict[str, Dict[str, Any]] = {
             "Nënshkrimi i paditësit ose përfaqësuesit ligjor",
             "Numri i kopjeve për palët",
         ],
-        "common_issues": [],
     },
 
     "pergjigje_padi": {
@@ -92,7 +98,6 @@ DOC_TYPE_CHECKLISTS: Dict[str, Dict[str, Any]] = {
             "Nënshkrimi i përgjigjësit ose përfaqësuesit",
             "Data dhe vendi",
         ],
-        "common_issues": [],
     },
 
     "kallzim_penal": {
@@ -113,7 +118,6 @@ DOC_TYPE_CHECKLISTS: Dict[str, Dict[str, Any]] = {
             "Statusi i kallëzuesit (viktimë/dëshmitar)",
             "Data dhe nënshkrimi",
         ],
-        "common_issues": [],
     },
 
     "kontrate": {
@@ -134,7 +138,6 @@ DOC_TYPE_CHECKLISTS: Dict[str, Dict[str, Any]] = {
             "Konfidencialiteti (ku aplikohet)",
             "Data, vendi dhe nënshkrimet e palëve",
         ],
-        "common_issues": [],
     },
 
     "kerkese_propozim": {
@@ -150,7 +153,6 @@ DOC_TYPE_CHECKLISTS: Dict[str, Dict[str, Any]] = {
             "Provat mbështetëse",
             "Nënshkrimi dhe data",
         ],
-        "common_issues": [],
     },
 
     "ankese_kundershtim": {
@@ -166,7 +168,6 @@ DOC_TYPE_CHECKLISTS: Dict[str, Dict[str, Any]] = {
             "Provat e reja (nëse ka)",
             "Nënshkrimi dhe data",
         ],
-        "common_issues": [],
     },
 
     "tjeter": {
@@ -183,7 +184,6 @@ DOC_TYPE_CHECKLISTS: Dict[str, Dict[str, Any]] = {
             "Nënshkrimi i autorit",
             "Struktura formale e dokumentit",
         ],
-        "common_issues": [],
     },
 }
 
@@ -539,6 +539,17 @@ RREGULLA:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _truncate_draft(doc_text: str, max_chars: int = DEFAULT_MAX_DRAFT_CHARS) -> str:
+    """
+    V1.10: Truncon draftin nëse kalon max_chars.
+
+    Komportament:
+      - Nëse len(doc_text) <= max_chars → kthen tekstin e plotë.
+      - Nëse kalon → kthen HEAD (45000) + marker + TAIL (10000) = ~55000 chars.
+
+    Parametri `max_chars` shërben VETËM si prag (threshold) për të vendosur
+    nëse truncohet. Madhësia e output-it nuk varet nga `max_chars`, por nga
+    konstantet DRAFT_HEAD_CHARS dhe DRAFT_TAIL_CHARS.
+    """
     if not doc_text:
         return ""
     if len(doc_text) <= max_chars:
@@ -686,8 +697,9 @@ def _block_cited_articles(
                 for alt in alts[:5]:
                     lines.append(f"     - {alt[:100]}")
 
+        # V1.10: [:MAX_CONTEXT_CHARS] = 300 (sinkron me extractor)
         if a.get("context"):
-            lines.append(f"  Cituar në draft: {a['context'][:200]}")
+            lines.append(f"  Cituar në draft: {a['context'][:MAX_CONTEXT_CHARS]}")
         lines.append("")
 
     return lines
@@ -814,7 +826,7 @@ def get_checklist(doc_type: str) -> Optional[Dict[str, Any]]:
 
 def _cli_test():
     print("=" * 70)
-    print("VERIFY PROMPTS V1.9 — DIAGNOSTIKË")
+    print("VERIFY PROMPTS V1.10 — DIAGNOSTIKË")
     print("=" * 70)
 
     print(f"\nLlojet e dokumenteve ({len(VERIFY_DOC_TYPES)}):")
@@ -828,14 +840,10 @@ def _cli_test():
         needs = cfg.get("needs", [])
         print(f"  - {k:25s} max_tokens={cfg.get('max_tokens')} needs={needs}")
 
-    print(f"\nV1.9 Konstante:")
+    print(f"\nV1.10 Konstante:")
     print(f"  - DEFAULT_MAX_DRAFT_CHARS: {DEFAULT_MAX_DRAFT_CHARS}")
-    print(f"  - MIN_PRECEDENT_SIMILARITY: {MIN_PRECEDENT_SIMILARITY} (V1.9 unified)")
-    print(f"  - Section 2: HYBRID (A nga Python, B/C/D nga LLM)")
-    print(f"  - Section 2 max_tokens: 2000")
-    print(f"  - Section 3: HYBRID (3.A nga Python, PSE_RELEVANT + B/C nga LLM)")
-    print(f"  - Section 3 max_tokens: 2000")
-    print(f"  - Section 5: 4 fusha (Ku / Pse / Si / Shembull)")
+    print(f"  - MIN_PRECEDENT_SIMILARITY: {MIN_PRECEDENT_SIMILARITY}")
+    print(f"  - MAX_CONTEXT_CHARS (nga constants): {MAX_CONTEXT_CHARS}")
 
 
 if __name__ == "__main__":

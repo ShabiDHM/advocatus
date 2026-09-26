@@ -1,13 +1,12 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V88.1
-# V88.1: STREAM RETRY FIX — stream_text_async() nuk retry pasi ka filluar të
-#        yield-ojë chunks. Përpara: nëse lidhja binte MES stream-it, retry
-#        fillonte nga e para dhe yield-on të njëjtat chunks përsëri →
-#        tekst i dublikuar në UI. Tani: flag stream_started bllokon retry.
-# V88.0: CLAUDE OVERRIDE REMOVED + MAX_TOKENS PARAMETRIZED —
-#        - Hequr override-i silent "claude" → "deepseek" në _get_target_model.
-#        - Shtuar parametri max_tokens në _call_llm, _call_llm_async,
-#          stream_text_async. Default: 8192 për backward compat.
+# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V88.2
+# V88.2: EMBEDDING FAILURE HARDENING — get_embedding / get_embeddings_batch
+#        kthejnë [] (listë bosh) në dështim, jo [0.0]*1536 (vector zero).
+#        Vector zero shkaktonte kërkime me cosine undefined → rezultate të
+#        rastësishme/bosh në Atlas Vector Search. Tani dështimi është i
+#        dallueshëm dhe konsumatorët (precedent_search) e kapin me `if not`.
+# V88.1: STREAM RETRY FIX — stream_text_async nuk retry pas yield-imit.
+# V88.0: CLAUDE OVERRIDE REMOVED + MAX_TOKENS PARAMETRIZED.
 # V87.0: Shtuar DEEP_ANALYSIS_MODEL për analiza të thella.
 # V86.0: Hequr konstantja e vdekur TEMP_FORENSIC.
 
@@ -33,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
+EMBEDDING_DIMENSIONS = 1536   # V88.2: konstantë referimi (dokumentim)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # MODEL STRATEGY (V87.0 — Hybrid)
@@ -47,7 +47,6 @@ TEMP_ANALYSIS = 0.0
 TEMP_DRAFTING = 0.0
 TEMP_CHAT = 0.05
 
-# V88.0: Default max_tokens (mbetet 8192 për backward compat)
 DEFAULT_MAX_TOKENS = 8192
 
 OPENROUTER_HEADERS = {
@@ -69,8 +68,7 @@ def _get_target_model() -> str:
     V88.0: Lexon modelin e parazgjedhur global (DeepSeek).
 
     Heq override-in silent "claude" → "deepseek". Claude nuk përdoret më;
-    model-i i ENV respektohet verbatim. Nëse ENV ka model të pavlefshëm,
-    kërkesa do të dështojë në OpenRouter me gabim të qartë — jo fshehtë.
+    model-i i ENV respektohet verbatim.
     """
     model = (
         getattr(settings, "LLM_MODEL", None)
@@ -160,7 +158,7 @@ def _call_llm(
     json_mode: bool = False,
     temperature: float = TEMP_ANALYSIS,
     model: Optional[str] = None,
-    max_tokens: int = DEFAULT_MAX_TOKENS,   # V88.0: parametrizuar
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> str:
     key = _get_api_key()
     if not key:
@@ -178,7 +176,7 @@ def _call_llm(
             {"role": "user", "content": sanitized_user_content}
         ],
         "temperature": temperature,
-        "max_tokens": max_tokens,   # V88.0
+        "max_tokens": max_tokens,
         "extra_body": _get_provider_routing_payload()
     }
     if json_mode:
@@ -209,7 +207,7 @@ async def _call_llm_async(
     json_mode: bool = False,
     temperature: float = TEMP_ANALYSIS,
     model: Optional[str] = None,
-    max_tokens: int = DEFAULT_MAX_TOKENS,   # V88.0: parametrizuar
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> str:
     key = _get_api_key()
     if not key:
@@ -227,7 +225,7 @@ async def _call_llm_async(
             {"role": "user", "content": sanitized_user_content}
         ],
         "temperature": temperature,
-        "max_tokens": max_tokens,   # V88.0
+        "max_tokens": max_tokens,
         "extra_body": _get_provider_routing_payload()
     }
     if json_mode:
@@ -253,30 +251,55 @@ async def _call_llm_async(
 
 
 def get_embedding(text: str) -> List[float]:
+    """
+    V88.2: Kthen [] në dështim (jo [0.0]*1536).
+
+    Vector zero shkaktonte kërkime me cosine undefined → rezultate të
+    rastësishme/bosh në Atlas Vector Search. [] kalon `if not query_vector`
+    te konsumatorët dhe shmang kërkime të pavlefshme.
+    """
     key = _get_api_key()
     if not text or not key:
-        return [0.0] * 1536
+        return []
     try:
         client = _get_sync_client()
         res = client.embeddings.create(input=[text.replace("\n", " ")], model=EMBEDDING_MODEL)
-        return res.data[0].embedding
+        vec = res.data[0].embedding if res.data else None
+        if vec:
+            return vec
+        logger.warning("⚠️ [Embedding] Përgjigjja pa vector — kthim []")
+        return []
     except Exception as e:
-        logger.error(f"❌ Embedding Failure: {e}")
-        return [0.0] * 1536
+        logger.warning(f"⚠️ [Embedding] Dështoi — kthim []: {e}")
+        return []
 
 
 def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
+    """
+    V88.2: Kthen [[] for _ in texts] në dështim total (jo retry një-nga-një
+    me fallback zero).
+
+    Konsumatorët mund të kontrollojnë `if not vec` për çdo element.
+    """
     key = _get_api_key()
-    if not texts or not key:
-        return [[0.0] * 1536 for _ in texts]
+    if not texts:
+        return []
+    if not key:
+        return [[] for _ in texts]
     try:
         clean_inputs = [t.replace("\n", " ").strip() or " " for t in texts]
         client = _get_sync_client()
         res = client.embeddings.create(input=clean_inputs, model=EMBEDDING_MODEL)
-        return [item.embedding for item in res.data]
+        if res and res.data and len(res.data) == len(texts):
+            return [item.embedding if item.embedding else [] for item in res.data]
+        logger.warning(
+            f"⚠️ [Batch Embedding] Përgjigjje me {len(res.data) if res and res.data else 0} "
+            f"elemente për {len(texts)} input — kthim [[] ...]"
+        )
+        return [[] for _ in texts]
     except Exception as e:
-        logger.error(f"❌ Batch Embedding Failure: {e}")
-        return [get_embedding(t) for t in texts]
+        logger.warning(f"⚠️ [Batch Embedding] Dështoi — kthim [[] ...]: {e}")
+        return [[] for _ in texts]
 
 
 async def stream_text_async(
@@ -284,15 +307,11 @@ async def stream_text_async(
     user_p: str,
     temp: float = TEMP_CHAT,
     model: Optional[str] = None,
-    max_tokens: int = DEFAULT_MAX_TOKENS,   # V88.0: parametrizuar
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> AsyncGenerator[str, None]:
     """
     V88.1: Streaming me retry të sigurt.
-
-    Retry bëhet VETËM nëse stream nuk ka filluar të yield-ojë (gabim para
-    ose gjatë hapjes së lidhjes). Nëse stream ka filluar (≥1 chunk yield-uar),
-    retry nuk bëhet — yield-ohet error message + return. Kjo parandalon
-    dublimin e chunks në UI.
+    V88.2: E pandryshuar (max_tokens default nga V88.0).
     """
     client = _get_async_client()
     full_sys = _prepare_system_prompt(sys_p)
@@ -307,19 +326,18 @@ async def stream_text_async(
         ],
         "temperature": temp,
         "stream": True,
-        "max_tokens": max_tokens,   # V88.0
+        "max_tokens": max_tokens,
         "extra_body": _get_provider_routing_payload()
     }
 
     for attempt in range(1, 4):
-        # V88.1: flag per çdo attempt — reset-ohet kur fillon cikli
         stream_started = False
 
         try:
             stream = await client.chat.completions.create(**kwargs)
             async for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
-                    stream_started = True   # V88.1
+                    stream_started = True
                     yield chunk.choices[0].delta.content
 
             yield AI_DISCLAIMER
@@ -327,7 +345,6 @@ async def stream_text_async(
         except Exception as e:
             err_msg = str(e).lower()
 
-            # V88.1: Nëse tashmë kemi yield-uar chunks, retry do dublonte tekstin.
             if stream_started:
                 logger.error(
                     f"❌ [stream_text_async V88.1] Gabim MES stream-it në "
@@ -336,7 +353,6 @@ async def stream_text_async(
                 yield f"\n\n[Gabim i rrjetit mes përgjigjes. Ju lutem rifreskoni faqen dhe provoni përsëri.]"
                 return
 
-            # Retry vetëm nëse stream nuk ka filluar (lidhja nuk u hap fare ose dështoi para chunk-ut të parë)
             if "429" in err_msg or "rate limit" in err_msg:
                 logger.warning(f"⚠️ [Rate Limit 429] në {target_model} stream. Po pres {2 * attempt}s...")
                 await asyncio.sleep(2.0 * attempt)

@@ -1,12 +1,9 @@
 # FILE: backend/app/services/document_review/fact_extractor.py
-# PHOENIX PROTOCOL - FACT EXTRACTOR V3.4
-# V3.4: MEDICAL_TESTS DEDUPE — Refactor i dedup-it në extract_medical_tests:
-#       - Ndau në 2 faza: (1) mblidh indeksat për heqje, (2) apliko heqjen
-#         në fund, descending. Eliminon mutimin e listës gjatë iterimit
-#         (`deduped.remove(existing)` brenda `for existing in deduped`).
-#       - Sjellja: e njëjtë me V3.3 për shkak të `break`-it, por kodi tani
-#         është idiomatik dhe robust ndaj refactor-eve.
-# V3.3: REPORTED CONTEXT UNIFIED — deadlines tani kanë flag `is_reported`.
+# PHOENIX PROTOCOL - FACT EXTRACTOR V3.5
+# V3.5: UNUSED IMPORT REMOVED — Hequr AMOUNT_PATTERN nga importet
+#       (importohej por nuk përdorej askund). Zero ndryshim funksional.
+# V3.4: MEDICAL_TESTS DEDUPE — refactor 2-fazë.
+# V3.3: REPORTED CONTEXT UNIFIED — deadlines me flag `is_reported`.
 # V3.2: FIX KONTRADIKTA EKSTERNE.
 # V3.1: SOURCE DOCUMENT.
 # V3.0: ZONES.
@@ -35,7 +32,6 @@ from .patterns import (
     APPEAL_DEADLINE_PATTERN,
     PERIOD_PATTERN,
     DISTANCE_PATTERN,
-    AMOUNT_PATTERN,
 )
 from .helpers import (
     parse_date,
@@ -419,14 +415,12 @@ def extract_medical_tests(text: str) -> List[Dict[str, Any]]:
                 continue
             existing = results[j]
             if abs(r["position"] - existing["position"]) < DEDUPE_DISTANCE:
-                # Prefero result-in me specific (jo "unknown")
                 if r["result"] != "unknown" and existing["result"] == "unknown":
                     to_remove.add(j)
                 elif r["result"] == "unknown" and existing["result"] != "unknown":
                     to_remove.add(i)
-                    break  # i u hoq → ndalo krahasimin për i
+                    break
 
-    # Apliko heqjet descending për indeksa të sigurt
     for idx in sorted(to_remove, reverse=True):
         results.pop(idx)
 
@@ -576,7 +570,7 @@ def detect_contradictions(
         for it in items:
             it["zone"] = _zone_at(zone_anchors, it.get("position", 0))
 
-    # 1. Deadlines — V3.3 me is_reported
+    # 1. Deadlines
     _annotate(deadlines)
     deadlines_by_zone_unit: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     for d in deadlines:
@@ -657,14 +651,14 @@ def detect_contradictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BUILD FACT PROFILE — V3.4
+# BUILD FACT PROFILE — V3.5
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_fact_profile(
     text: str,
     source_document: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """V3.4: Nderton profilin e plote te fakteve + source_document."""
+    """V3.5: Nderton profilin e plote te fakteve + source_document."""
     if not text:
         return {
             "dates": [],
@@ -724,7 +718,7 @@ def build_fact_profile(
     }
 
     logger.info(
-        f"🔬 [FACT_EXTRACTOR V3.4] dates={stats['total_dates']}, "
+        f"🔬 [FACT_EXTRACTOR V3.5] dates={stats['total_dates']}, "
         f"deadlines={stats['total_deadlines']} "
         f"(legal={stats['legal_deadlines']}), "
         f"parties={stats['total_parties']}, "

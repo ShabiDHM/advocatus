@@ -1,14 +1,9 @@
 # FILE: backend/app/services/case_analysis_orchestrator.py
-# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.9
-# V1.9: SYNTHESIS REMOVED — Hequr dega CASE MODE dhe varësitë nga synthesis:
-#       - Importi get_synthesis_service dhe atributi self.synthesis
-#       - Importi get_cross_reference_service dhe self.xref_service
-#       - Konstantet SECTION_ORDER, CROSS_REF_COLLECTION
-#       - Metodat _get_existing_xref, _get_existing_case_synthesis
-#       - Metoda _build_markdown_from_case_synthesis
-#       - Dega CASE MODE në run() — tani vetëm single-document mode.
-#       Router V1.12 e bllokon analizën pa document_ids me 400; orchestratori
-#       ka mbrojtje të brendshme në rast thirrjeje direkte.
+# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.10
+# V1.10: DEAD CONSTANT REMOVED — Hequr EXTRACTION_COLLECTION (i papërdorur).
+#        SYNTHESIS_COLLECTION mbetet për document-review caching (shih
+#        _run_single_document).
+# V1.9: SYNTHESIS REMOVED — Hequr dega CASE MODE dhe varësitë nga synthesis.
 # V1.8.2: RIGOROUS ANALYSIS — shtuar "analiza_e_thelluar" ne
 #         DOCUMENT_REVIEW_SECTION_ORDER per ta shfaqur ne raport.
 # V1.8.1: NO HARDCODE — _normalize_client_position kthen raw value.
@@ -33,7 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 QUEUE_POLL_INTERVAL_SEC = 0.3
-EXTRACTION_COLLECTION = "case_extractions"
+
+# V1.10: SYNTHESIS_COLLECTION mbetet — përdoret për document-review caching
+# (fusha docs_fingerprint) në _run_single_document. Emri historik "synthesis"
+# ruhet për kompatibilitet me të dhënat ekzistuese në Mongo.
 SYNTHESIS_COLLECTION = "case_synthesis"
 
 # V1.8.2: Renditja e seksioneve për raportin e document review
@@ -76,7 +74,7 @@ class CaseAnalysisOrchestrator:
                 name = (user.get("username") or "").strip()
             return name or None
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH V1.9] Could not load client_name: {e}")
+            logger.warning(f"⚠️ [ORCH V1.10] Could not load client_name: {e}")
             return None
 
     # ────────────────────────────────────────────────────────────────────
@@ -86,7 +84,6 @@ class CaseAnalysisOrchestrator:
     def _normalize_client_position(self, raw: Optional[str]) -> Optional[str]:
         """
         V1.8.1: Kthen raw value (case.client_position) pa interpretim.
-        Nuk hardcode-ojmë mapping sepse rastet mund të kenë vlera të tjera.
         LLM-i do ta interpretojë vlerën raw në kontekstin e dokumentit.
         """
         if not raw:
@@ -125,7 +122,7 @@ class CaseAnalysisOrchestrator:
             raw = "|".join(parts)
             return hashlib.md5(raw.encode("utf-8")).hexdigest()
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH V1.9] fingerprint compute failed: {e}")
+            logger.warning(f"⚠️ [ORCH V1.10] fingerprint compute failed: {e}")
             return ""
 
     def _is_cache_valid(
@@ -143,11 +140,11 @@ class CaseAnalysisOrchestrator:
             or cached.get("stats", {}).get("docs_fingerprint")
         )
         if not stored_fp:
-            logger.info(f"🔄 [ORCH V1.9] {label} pa docs_fingerprint → invalidate")
+            logger.info(f"🔄 [ORCH V1.10] {label} pa docs_fingerprint → invalidate")
             return False
         if stored_fp != current_fp:
             logger.info(
-                f"🔄 [ORCH V1.9] {label} INVALIDATED — docs changed "
+                f"🔄 [ORCH V1.10] {label} INVALIDATED — docs changed "
                 f"(stored={stored_fp[:8]}... current={current_fp[:8]}...)"
             )
             return False
@@ -170,11 +167,10 @@ class CaseAnalysisOrchestrator:
         case = self._load_case(case_id)
         case_title = case.get("title") or case.get("case_name") or "Lënda"
 
-        # V1.9: document_ids i detyrueshëm. Router V1.12 e bllokon me 400,
-        # por mbrohemi edhe këtu për thirrje direkte.
+        # V1.9: document_ids i detyrueshëm. Router V1.12 e bllokon me 400.
         if not document_ids:
             logger.error(
-                f"❌ [ORCH V1.9] run() called without document_ids: case={case_id}"
+                f"❌ [ORCH V1.10] run() called without document_ids: case={case_id}"
             )
             yield {
                 "event": "start",
@@ -189,7 +185,7 @@ class CaseAnalysisOrchestrator:
             yield {
                 "event": "error",
                 "phase": "start",
-                "message": "document_ids required (orchestrator V1.9).",
+                "message": "document_ids required (orchestrator V1.10).",
             }
             yield self._final_error(start_time, "start", "document_ids required")
             return
@@ -201,11 +197,11 @@ class CaseAnalysisOrchestrator:
 
         if client_name:
             logger.info(
-                f"👤 [ORCH V1.9] Client: name={client_name}, "
+                f"👤 [ORCH V1.10] Client: name={client_name}, "
                 f"case_position={client_position or '?'}"
             )
         else:
-            logger.warning(f"⚠️ [ORCH V1.9] Client name unavailable (user_id={user_id})")
+            logger.warning(f"⚠️ [ORCH V1.10] Client name unavailable (user_id={user_id})")
 
         current_fp = self._compute_docs_fingerprint(case_id)
 
@@ -379,7 +375,7 @@ class CaseAnalysisOrchestrator:
                         {"$set": {"docs_fingerprint": doc_fp}},
                     )
                 except Exception as fp_err:
-                    logger.warning(f"⚠️ [ORCH V1.9] review fp save failed: {fp_err}")
+                    logger.warning(f"⚠️ [ORCH V1.10] review fp save failed: {fp_err}")
 
                 yield {
                     "event": "phase_completed",
@@ -426,7 +422,7 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH V1.9] Complete: case={case_id}, scope=document, "
+            f"✅ [ORCH V1.10] Complete: case={case_id}, scope=document, "
             f"doc={document_id}, duration={total_duration}s, from_cache={is_cache_hit}"
         )
         yield {"event": "complete", "summary": final_summary}

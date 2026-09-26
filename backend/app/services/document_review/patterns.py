@@ -1,13 +1,13 @@
 # FILE: backend/app/services/document_review/patterns.py
-# PHOENIX PROTOCOL - REGEX PATTERNS V2.7
-# V2.7: CASE_NUMBER_PATTERN EXPANDED — shtuar prefikse reale të Kosovës që
-#       mungonin: PP, PP.I, PP.II, PPII, PPI, PA, PA2, PP1, PP2, KML, KM,
-#       CML, CM, GJ, GJK, KI, KZ. Renditur nga më i gjati → më i shkurtri
-#       (Python regex alternation = first match, jo longest match).
-#       Sinkronizuar me citation_extractor.CASE_NUMBER_PREFIXES.
-# V2.6: LAW_NUMBER_LEGACY_PATTERN — kap formatin "Ligji Nr. 2004/32"
-#       (4-digit / 1-4-digit) që nuk përputhet me format XX/L-XXX.
-# V2.5: ARTICLE_PATTERN — kap listat me presje.
+# PHOENIX PROTOCOL - REGEX PATTERNS V2.8
+# V2.8: LOW CLEANUP —
+#       - DATE_ALBANIAN_PATTERN: presje opsionale pas muajit ("5 janarit, 2024").
+#       - DISPOSITIVE_POINT_PATTERN: kap romakët I-XXX (jo "IIV"/"IIIV").
+#       - JUDGE_NAME_PATTERN: alternativë all-caps ("FATMIR KRASNIQI").
+#       - PRIOR_CONVICTION_PATTERN: renditje specific→general (backtracking).
+# V2.7: CASE_NUMBER_PATTERN EXPANDED — shtuar prefikse reale të Kosovës.
+# V2.6: LAW_NUMBER_LEGACY_PATTERN — "Ligji Nr. 2004/32".
+# V2.5: ARTICLE_PATTERN — listat me presje.
 
 import re
 
@@ -35,7 +35,6 @@ LAW_NUMBER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# V2.6: Formati legjacy "Ligji Nr. 2004/32"
 LAW_NUMBER_LEGACY_PATTERN = re.compile(
     r'(?:Ligj(?:it|i|ji)?|Kodi)\s+'
     r'(?:Nr\.?\s*)?'
@@ -61,22 +60,16 @@ LAW_NAME_PATTERN = re.compile(
 ABBREV_PATTERN = re.compile(r'\b([A-ZËÇ]{2,6})\b')
 
 # V2.7: CASE_NUMBER_PATTERN — prefikse të plota, longest-first
-# Konvencionet e Kosovës:
-#   - Forma me pikë: PP.II, PP.I, A.NR (numri i seksionit të brendshëm)
-#   - Forma pa pikë: PPII, PPI, KMLP, PML, ANR, PZR
-#   - Forma 3-karakterëshe: PA1, PA2, PKR, PP1, PP2, REV, KML, CML, GJK
-#   - Forma 2-karakterëshe: PP, PA, KM, GJ, KI, KZ, KE, PN, KP, CA, CM
-#   - Forma 1-karakterëshe: P, K, C
 CASE_NUMBER_PATTERN = re.compile(
     r'\b('
-    r'PP\.II|PP\.I|'                          # PP.II, PP.I (me pikë)
-    r'A\.NR|'                                 # A.NR (me pikë)
-    r'PPII|PPI|'                              # PPII, PPI (pa pikë)
-    r'KMLP|PML|ANR|PZR|'                      # 4-karakterësh
-    r'PA1|PA2|PKR|PP1|PP2|'                   # 3-karakterësh me numër
-    r'REV|KML|CML|GJK|'                       # 3-karakterësh shkronja
-    r'PP|PA|KM|GJ|KI|KZ|KE|PN|KP|CA|CM|'     # 2-karakterësh
-    r'P|K|C'                                  # 1-karakterësh
+    r'PP\.II|PP\.I|'
+    r'A\.NR|'
+    r'PPII|PPI|'
+    r'KMLP|PML|ANR|PZR|'
+    r'PA1|PA2|PKR|PP1|PP2|'
+    r'REV|KML|CML|GJK|'
+    r'PP|PA|KM|GJ|KI|KZ|KE|PN|KP|CA|CM|'
+    r'P|K|C'
     r')'
     r'\.?\s*[Nn]r\.?\s*'
     r'(\d+[\w\/\.\-]*)',
@@ -92,8 +85,9 @@ ALBANIAN_MONTHS = [
     'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor',
 ]
 
+# V2.8: Presje opsionale pas muajit ("5 janarit, 2024" ose "5 janarit 2024")
 DATE_ALBANIAN_PATTERN = re.compile(
-    r'(?<!\w)(\d{1,2})\s+(' + '|'.join(ALBANIAN_MONTHS) + r')(?:it|i|t)?\s+(\d{2,4})(?!\w)',
+    r'(?<!\w)(\d{1,2})\s+(' + '|'.join(ALBANIAN_MONTHS) + r')(?:it|i|t)?,?\s+(\d{2,4})(?!\w)',
     re.IGNORECASE | re.UNICODE,
 )
 
@@ -121,8 +115,14 @@ PARTY_LABEL_PATTERN = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
+# V2.8: Fix bug romak — "IIV" dhe "IIIV" ishin të pranuara gabimisht.
+# Renditja: IV para I{1,3}, shtuar XI-XIX-XX-XXX.
 DISPOSITIVE_POINT_PATTERN = re.compile(
-    r'^\s*(I{1,3}V?|IV|V|VI{0,3}|IX|X{1,3})\s*\.\s*(.+?)$',
+    r'^\s*('
+    r'IV|V|VI{0,3}|IX|'
+    r'XI{0,3}|XX{0,3}|XXX|'
+    r'I{1,3}'
+    r')\s*\.\s*(.+?)$',
     re.MULTILINE,
 )
 
@@ -153,9 +153,12 @@ NEGATIVE_RESULT_KEYWORDS = [
     "nuk e kanë konstatuar", "nuk e kane konstatuar",
 ]
 
+# V2.8: Renditje specific→general për të shmangur backtracking të panevojshëm.
+# "Dënuar me kusht" para "Dënuar" (specific para general).
 PRIOR_CONVICTION_PATTERN = re.compile(
-    r'(?:Aktgjykim(?:i)?|Vendim(?:i)?|Dënuar|Denuar|'
-    r'Dënuar\s+me\s+kusht|Gjykatë)\s+'
+    r'(?:Aktgjykim(?:i)?|Vendim(?:i)?|'
+    r'Dënuar\s+me\s+kusht|Denuar\s+me\s+kusht|'
+    r'Dënuar|Denuar|Gjykatë)\s+'
     r'(?:me\s+)?'
     r'(P\.nr\.|K\.nr\.|C\.nr\.)[\s]*'
     r'(\d+[\w\/\.\-]*)',
@@ -168,9 +171,14 @@ CONVICTION_KEYWORDS = [
     "aktgjykim", "aktgjykimi", "është dënuar", "eshte denuar",
 ]
 
+# V2.8: Alternativë për all-caps — "GJYQTARI FATMIR KRASNIQI"
 JUDGE_NAME_PATTERN = re.compile(
     r'(?:gjyqtar(?:in|i)?|gjyqtarja)\s+'
-    r'([A-ZËÇ][a-zëç]+(?:\s+[A-ZËÇ][a-zëç]+){1,3})',
+    r'('
+    r'[A-ZËÇ][a-zëç]+(?:\s+[A-ZËÇ][a-zëç]+){1,3}'        # Normal Case
+    r'|'
+    r'[A-ZËÇ]{2,}(?:\s+[A-ZËÇ]{2,}){1,3}'                # ALL CAPS
+    r')',
     re.IGNORECASE | re.UNICODE,
 )
 

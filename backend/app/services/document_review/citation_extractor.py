@@ -1,8 +1,11 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.16
-# V1.16: NAMED LAW PATTERNS — njoh Kushtetutën, KEDNJ, Konventa OKB si ligje.
-#        FIX për mis-attribution kur nenet 24, 53, 54, 3, 6, 8, 12, 13, 19
-#        caktoheshin gabimisht në KODI PENAL (fallback i heading-ut të mëparshëm).
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.17
+# V1.17: LOW CLEANUP —
+#        - GENITIVE_SUFFIX_PATTERN: {3,7} → {3,5} (sinkron me
+#          LAW_CODE_MAX_LENGTH=5 në constants; shmang dead code).
+#        - _looks_like_law_code: hequr kontroll redundant, shtuar njohja
+#          e formatit legacy "2004/32" me kontroll konteksti (ligj/kodi).
+# V1.16: NAMED LAW PATTERNS — njoh Kushtetutën, KEDNJ, Konventa OKB.
 # V1.15: MAX_LAW_DISTANCE 500 → 5000.
 # V1.14: CASE-NUMBER-PREFIX EXCLUSION.
 # V1.13: SUPER CLOSE AFTER — prefiks "të/i/e".
@@ -51,8 +54,8 @@ MAX_LAW_DISTANCE = 5000
 MAX_CLOSE_AFTER_DISTANCE = 35
 
 # V1.14: Prefikse numrash çështjesh që NUK janë ligje.
-# Nga praktika gjyqësore e Kosovës: P, PML, PA, PA1, PP, PP.I, PP.II,
-# Rev, KML, KM, C, CA, CML, GJ, GJK, K, KI, KŽ, etj.
+# Nga praktika gjyqësore e Kosovës: P, PML, PA, PA1, PP, PP.I, PP.II, Rev,
+# KML, KM, C, CA, CML, GJ, GJK, K, KI, KŽ, etj.
 CASE_NUMBER_PREFIXES: Set[str] = {
     "P", "PML", "PA", "PA1", "PA2",
     "PP", "PP1", "PP2", "PPI", "PPII",
@@ -61,22 +64,17 @@ CASE_NUMBER_PREFIXES: Set[str] = {
     "GJ", "GJK", "KI", "KZ",
 }
 
-# V1.14: Pattern për "KPRK-së", "KPRK-t" (genitive suffix albanian)
+# V1.17: {3,7} → {3,5} për konsistencë me LAW_CODE_MAX_LENGTH = 5.
+# Akronimet reale kosovare: KPRK (4), KPK (3), LPK (3), LMD (3), LMDHF (5),
+# LFK (3), LSHT (4). Maksimumi është 5 — pattern nuk duhet të lejojë më shumë.
 GENITIVE_SUFFIX_PATTERN = re.compile(
-    r'\b([A-ZËÇ]{3,7})[-–](?:së|s|t|të|it|in|ut|ve|vet)\b'
+    r'\b([A-ZËÇ]{3,5})[-–](?:së|s|t|të|it|in|ut|ve|vet)\b'
 )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V1.16: NAMED LAW PATTERNS — ligje pa numër (Kushtetuta, KEDNJ, Konventa)
 # ═══════════════════════════════════════════════════════════════════════════
-#
-# Pse: Draftet citojnë shpesh "Nenet 24, 53, 54 të Kushtetutës" ose
-# "Nenet 6, 8, 13 të KEDNJ". Pa këto patterns, extractor-i bie fallback në
-# heading-un e mëparshëm (shpesh "KODI PENAL") dhe atribuon gabimisht.
-#
-# Zgjidhja: Regjistro këto si ligje me emër kanonik në law_index.
-#
 
 NAMED_LAW_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (
@@ -126,9 +124,7 @@ def _is_case_number_prefix(abbr_upper: str, text: str, end_pos: int) -> bool:
     V1.14: Kontrollo nëse akronimi i gjetur është prefiks numri çështjeje.
     Shembull: "PML" në "PML.Nr. 122/2025" → True.
     """
-    # 1. Kontrollo listën e prefiksave të njohur
     if abbr_upper in CASE_NUMBER_PREFIXES:
-        # Verifiko që ndiqet nga ".Nr." ose "Nr." ose " nr"
         after = text[end_pos:end_pos + 12]
         if re.match(r'^\s*\.?\s*[Nn]r\.?', after):
             return True
@@ -172,10 +168,9 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
             continue
         abbr_upper = abbr.upper()
 
-        # V1.14: Përjashto prefikset e numrave të çështjeve (PML, P, PA1, ...)
         if _is_case_number_prefix(abbr_upper, text, match.end()):
             logger.debug(
-                f"[V1.14] Skip abbrev '{abbr}' — case number prefix"
+                f"[V1.17] Skip abbrev '{abbr}' — case number prefix"
             )
             continue
 
@@ -329,7 +324,7 @@ def _dedupe_articles_by_number(
     removed = len(citations) - len(deduped)
     if removed > 0:
         logger.info(
-            f"🧹 [V1.16 Dedup] Hequr {removed} nene te dyfishuara "
+            f"🧹 [V1.17 Dedup] Hequr {removed} nene te dyfishuara "
             f"({len(citations)} → {len(deduped)})"
         )
     return deduped
@@ -433,7 +428,7 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
         })
 
     logger.info(
-        f"🔬 [V1.16] extract_law_numbers: {len(results)} ligje"
+        f"🔬 [V1.17] extract_law_numbers: {len(results)} ligje"
     )
     return results
 
@@ -466,14 +461,12 @@ def extract_abbreviations(text: str) -> List[str]:
         abbr = match.group(1)
         abbr_upper = abbr.upper()
 
-        # V1.14: Përjashto prefikset e numrave të çështjeve
         if _is_case_number_prefix(abbr_upper, text, match.end()):
             continue
 
         if is_valid_law_abbrev(abbr):
             abbrevs.add(abbr_upper)
 
-    # V1.14: Shto "KPRK-së" etj. si akronime
     for match in GENITIVE_SUFFIX_PATTERN.finditer(text):
         abbr = match.group(1)
         abbr_upper = abbr.upper()
@@ -501,10 +494,29 @@ def _is_likely_own_case(text: str, position: int, context: str) -> bool:
 
 
 def _looks_like_law_code(case_number: str, context: str) -> bool:
-    if "/L-" in case_number or "/l-" in case_number.lower():
-        return True
+    """
+    V1.17: Kontrollo nëse "case_number" i kapur është në fakt numër ligji.
+
+    Njeh:
+      - XX/L-YYY (08/L-185) — gjithmonë kod ligji.
+      - Legacy YYYY/N (2004/32) — vetëm kur konteksti përmend "ligj"/"kodi".
+
+    Hequr kontroll redundant `"/L-" in x or "/l-" in x.lower()` — regex
+    e mbulon të njëjtën gjë me case-insensitive.
+    """
+    if not case_number:
+        return False
+
+    # XX/L-YYY — gjithmonë kod ligji
     if re.search(r'\d{2}/L-\d+', case_number, re.IGNORECASE):
         return True
+
+    # V1.17: Legacy YYYY/N — vetëm kur konteksti e mbështet
+    if re.search(r'\b\d{4}/\d{1,4}\b', case_number):
+        ctx_lower = (context or "").lower()
+        if any(k in ctx_lower for k in ("ligj", "kodi")):
+            return True
+
     return False
 
 
@@ -527,7 +539,7 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
         context = extract_context(text, position, window=100)
 
         if _looks_like_law_code(normalized, context):
-            logger.debug(f"[V1.16] Skip case_number '{normalized}' — ne fakt kod ligji")
+            logger.debug(f"[V1.17] Skip case_number '{normalized}' — ne fakt kod ligji")
             continue
 
         seen.add(normalized)
@@ -577,7 +589,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR V1.16] Profile built: "
+        f"🔬 [EXTRACTOR V1.17] Profile built: "
         f"articles={stats['total_articles']} "
         f"(with_law_hint={stats['articles_with_law_hint']}, "
         f"with_paragraph={stats['articles_with_paragraph']}), "

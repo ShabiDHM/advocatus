@@ -1,17 +1,12 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V59.0 (CASCADE CLEANUP EXPANDED)
-# V59.0: CASCADE CLEANUP EXPANDED — Shtuar fshirje e sub-collections që
-#        mbeteshin pas delete/purge:
-#          - case_extractions (NER + metadata)
-#          - case_synthesis (document review cache + synthesis legacy)
-#          - case_chat_history (RAG chat)
-#          - case_cross_references (orchestrator V1.8.2 legacy)
-#        Plus $unset i case_document_verifications në purge (ishte vetëm në
-#        hard delete). Fix për storage leak + GDPR concern.
-# V58.0: REFACTOR — heq `org_id` (legacy). Canonical: `organization_id`.
-# V57.1: FIX Pydantic validation.
-# V57.0: ORG-AWARE ACCESS.
-# V56.0: CASCADE CLEANUP FIX.
+# PHOENIX PROTOCOL - CASE SERVICE V59.2
+# V59.2: HEADER CLEANUP — Konsoliduar shënimet historike të versioneve.
+# V59.1: ACCESS QUERY CLARITY — personal_clauses me komente për defensive
+#        klauzolat str/ObjectId (legacy compatibility).
+# V59.0: CASCADE CLEANUP EXPANDED — Shtuar fshirje e sub-collections:
+#        case_extractions, case_synthesis, case_chat_history,
+#        case_cross_references + $unset case_document_verifications në purge.
+# V58.0: ORG-ID REFACTOR — Canonical: `organization_id`. Heq `org_id` (legacy).
 
 import re
 import urllib.parse
@@ -34,8 +29,6 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 # V59.0: SUB-COLLECTION NAMES (për cascade cleanup)
 # ═══════════════════════════════════════════════════════════════════════════
-# Këto collections ruajnë `case_id` si STRING (str(case_id)) — të gjeneruara
-# nga pipeline i ekstraktimit, document_review, RAG chat, orchestrator.
 
 SUBCOLLECTION_CASE_EXTRACTIONS = "case_extractions"
 SUBCOLLECTION_CASE_SYNTHESIS = "case_synthesis"
@@ -58,7 +51,7 @@ def _safe_str(oid: Any) -> Optional[str]:
 
 
 def _get_user_org_id(user: UserInDB) -> Optional[str]:
-    """V58.0: Lexon vetëm `organization_id` (canonical)."""
+    """Lexon vetëm `organization_id` (canonical)."""
     val = getattr(user, "organization_id", None)
     if val:
         return str(val)
@@ -66,7 +59,7 @@ def _get_user_org_id(user: UserInDB) -> Optional[str]:
 
 
 def _get_case_org_id(case_doc: Dict[str, Any]) -> Optional[str]:
-    """V58.0: Lexon vetëm `organization_id` nga case."""
+    """Lexon vetëm `organization_id` nga case."""
     val = case_doc.get("organization_id")
     if val:
         return str(val)
@@ -75,19 +68,25 @@ def _get_case_org_id(case_doc: Dict[str, Any]) -> Optional[str]:
 
 def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
     """
-    V58.0: Ndërton query MongoDB për aksesin e user-it në case.
-    Përdor vetëm `organization_id` për org clauses.
+    V59.1: Ndërton query MongoDB për aksesin e user-it në case.
+
+    Personal clauses:
+      - Për çdo fushë (`owner_id`, `user_id`), kërkojmë EDHE si ObjectId EDHE
+        si string. Historikisht disa dokumente kanë ruajtur fusha si string
+        (migrime të vjetra), disa si ObjectId. Kjo është defensive — jo bug.
+      - Në një DB të pastër me vetëm ObjectId, klauzolat str janë no-op.
     """
     access_level = getattr(user, 'org_access_level', 'FULL') or 'FULL'
     organization_id = _get_user_org_id(user)
     user_id_obj = user.id
     user_id_str = str(user.id)
 
+    # V59.1: Defensive — ObjectId dhe str për të dyja fushat
     personal_clauses: List[Dict[str, Any]] = [
         {"owner_id": user_id_obj},
-        {"owner_id": user_id_str},
+        {"owner_id": user_id_str},   # legacy string format
         {"user_id": user_id_obj},
-        {"user_id": user_id_str}
+        {"user_id": user_id_str},    # legacy string format
     ]
 
     if access_level == "SELECTIVE":
@@ -235,7 +234,7 @@ def _cleanup_case_subcollections(
     db: Database, case_id: Any, case_id_str: str,
 ) -> Dict[str, int]:
     """
-    V59.0: Fshin sub-collections e analizave për një case.
+    Fshin sub-collections e analizave për një case.
 
     Collections: case_extractions, case_synthesis, case_chat_history,
                  case_cross_references.
@@ -246,17 +245,16 @@ def _cleanup_case_subcollections(
 
     for coll_name in CASCADE_SUBCOLLECTIONS:
         try:
-            # Fshij me STRING (canonical në të gjitha këto collections)
             result = db[coll_name].delete_many({"case_id": case_id_str})
             counts[coll_name] = result.deleted_count
             if result.deleted_count > 0:
                 logger.info(
-                    f"🗑️ [Cascade V59.0] {coll_name}: "
+                    f"🗑️ [Cascade V59.2] {coll_name}: "
                     f"{result.deleted_count} dokument(e) fshirë për case={case_id_str}"
                 )
         except Exception as e:
             logger.warning(
-                f"⚠️ [Cascade V59.0] {coll_name} cleanup failed për "
+                f"⚠️ [Cascade V59.2] {coll_name} cleanup failed për "
                 f"case={case_id_str}: {e}"
             )
             counts[coll_name] = 0
@@ -329,7 +327,7 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
 
 
 def get_case_for_user(db: Database, case_id: ObjectId, user: UserInDB) -> Optional[Dict[str, Any]]:
-    """V58.0: Helper publik — kontrollon aksesin dhe kthen case_doc (raw)."""
+    """Helper publik — kontrollon aksesin dhe kthen case_doc (raw)."""
     query_filter = _build_case_access_query(user, case_id=case_id)
     return db.cases.find_one(query_filter)
 
@@ -374,18 +372,7 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
 
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    """
-    V59.0: CASCADE CLEANUP I PLOTË — storage + vector + sub-collections.
-
-    Fshin:
-      - Storage files (documents, media, archives)
-      - Vector embeddings (documents, media)
-      - Collections: documents, media_evidence, archives, findings,
-                     calendar_events, alerts
-      - V59.0: case_extractions, case_synthesis, case_chat_history,
-               case_cross_references
-      - Case doc (përfshirë case_document_verifications subfield)
-    """
+    """CASCADE CLEANUP I PLOTË — storage + vector + sub-collections."""
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
     if not case:
@@ -453,7 +440,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     except Exception as e:
         logger.warning(f"⚠️ Findings cleanup failed për {case_id_str}: {e}")
 
-    # --- V59.0: CASCADE SUBCOLLECTIONS ---
+    # --- CASCADE SUBCOLLECTIONS ---
     cascade_counts = _cleanup_case_subcollections(db, case_id, case_id_str)
 
     # --- Final: case doc + primary collections ---
@@ -467,19 +454,14 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
 
     cascade_total = sum(cascade_counts.values())
     logger.info(
-        f"🧹 [Case Delete V59.0] Lënda {case_id_str} u fshi me sukses. "
+        f"🧹 [Case Delete V59.2] Lënda {case_id_str} u fshi me sukses. "
         f"Sub-collections: {cascade_total} dokument(e) të fshirë "
         f"({cascade_counts})."
     )
 
 
 def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, Any]:
-    """
-    V59.0: RREGULLI I DYFISHTË I PASTRIMIT.
-
-    Soft delete (is_purged=True) + cascade cleanup i sub-collections +
-    $unset i case_document_verifications.
-    """
+    """RREGULLI I DYFISHTË I PASTRIMIT — soft purge + cascade."""
     now = datetime.now(timezone.utc)
     cutoff_date = now - timedelta(days=expiry_days)
 
@@ -570,7 +552,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                     pass
             db.media_evidence.delete_many(any_id_query)
 
-            # --- Documents: mark as PURGED (soft) ---
+            # --- Documents: mark as PURGED ---
             db.documents.update_many(
                 any_id_query,
                 {"$set": {
@@ -581,7 +563,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
                 }}
             )
 
-            # --- V59.0: CASCADE SUBCOLLECTIONS + unset verifications ---
+            # --- CASCADE SUBCOLLECTIONS + unset verifications ---
             cascade_counts = _cleanup_case_subcollections(db, case_id, case_id_str)
             for k, v in cascade_counts.items():
                 total_subcollection_cleanup[k] += v
@@ -603,7 +585,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
             )
             purged_cases_count += 1
             logger.info(
-                f"🧹 [Auto-Purge V59.0] Lënda {case_id_str} u pastrua. "
+                f"🧹 [Auto-Purge V59.2] Lënda {case_id_str} u pastrua. "
                 f"Sub-collections fshirë: {cascade_counts}"
             )
 
