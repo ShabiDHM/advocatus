@@ -1,6 +1,13 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V51.0 (ADDED download_file_as_bytes)
-# 100% COMPLETE CODE • CLEAN IMPORTS • TOTAL WIPEOUT
+# PHOENIX PROTOCOL - STORAGE SERVICE V51.2 (PRE-READ SIZE CHECK + STARLETTE FIX)
+# V51.2: STARLETTE DEPRECATION FIX — HTTP_413_REQUEST_ENTITY_TOO_LARGE →
+#        HTTP_413_CONTENT_TOO_LARGE (deprecation në Starlette versionin e ri).
+# V51.1: MEMORY DOS PROTECTION — Kontrollo size-in e file-ut PARA leximit në
+#        memorie. Përpara: klienti mund të upload-onte 2GB dhe `.read()` e
+#        lexonte të gjithë në RAM → server OOM. Fix-i kontrollon size-in me
+#        seek(0,2)+tell() (pa lexim) dhe hedh 413 nëse kalon MAX_FILE_SIZE.
+#        Kontrolli pas leximit mbetet si defensive layer.
+# V51.0: ADDED download_file_as_bytes.
 
 import os
 import re
@@ -46,6 +53,7 @@ transfer_config = TransferConfig(
     use_threads=True
 )
 
+
 def _get_b2_region() -> str:
     if B2_REGION_NAME:
         return B2_REGION_NAME
@@ -54,6 +62,7 @@ def _get_b2_region() -> str:
         if match:
             return match.group(1)
     return "eu-central-003"
+
 
 def _infer_content_type(filename: str, fallback: str = "application/pdf") -> str:
     ext = os.path.splitext(filename or "")[1].lower()
@@ -67,6 +76,7 @@ def _infer_content_type(filename: str, fallback: str = "application/pdf") -> str
         ".jpeg": "image/jpeg",
     }
     return mapping.get(ext, fallback)
+
 
 def sanitize_filename(filename: str) -> str:
     if not filename:
@@ -89,16 +99,59 @@ def sanitize_filename(filename: str) -> str:
     
     return clean or f"file_{uuid.uuid4().hex[:8]}"
 
+
 def check_file_size_bytes(size: int):
     if size > MAX_FILE_SIZE_BYTES:
         logger.error(f"!!! REFUSED: File size ({size / (1024*1024):.2f} MB) exceeds limit of {MAX_FILE_SIZE_MB} MB.")
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Skedari është shumë i madh. Limiti maksimal është {MAX_FILE_SIZE_MB} MB."
         )
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V51.1: PRE-READ SIZE DETECTION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _get_size_without_reading(file_obj: Any) -> Optional[int]:
+    """
+    V51.1: Kthen size-in e file_obj PA lexuar përmbajtjen në memorie.
+    Kthen None nëse size nuk mund të përcaktohet (bëhet kontrolli pas leximit).
+
+    Radha:
+      1. bytes/bytearray → len() (tashmë në memorie, i shpejtë)
+      2. file-like me .seek() + .tell() → seek(0, 2) + tell() + seek(0)
+      3. Fallback → None
+    """
+    # Rasti 1 — bytes/bytearray (zero-kosto)
+    if isinstance(file_obj, (bytes, bytearray)):
+        return len(file_obj)
+
+    # Rasti 2 — file-like me seek/tell (SpooledTemporaryFile, etc.)
+    if hasattr(file_obj, "seek") and hasattr(file_obj, "tell"):
+        try:
+            file_obj.seek(0, 2)   # seek to end
+            size = file_obj.tell()
+            file_obj.seek(0)      # reset to start
+            return int(size)
+        except Exception as e:
+            logger.warning(f"⚠️ [Storage V51.2] Could not detect size via seek/tell: {e}")
+            # Defensive: provo të reset-osh në 0
+            try:
+                file_obj.seek(0)
+            except Exception:
+                pass
+
+    # Rasti 3 — file-like me .size (fastapi UploadFile.size)
+    if hasattr(file_obj, "size") and isinstance(file_obj.size, int):
+        return file_obj.size
+
+    return None
+
+
 def _remove_expect_header(request, **kwargs):
     request.headers.pop('Expect', None)
+
 
 def _build_fresh_s3_client():
     if not all([B2_KEY_ID, B2_APPLICATION_KEY, B2_ENDPOINT_URL, B2_BUCKET_NAME]):
@@ -128,11 +181,13 @@ def _build_fresh_s3_client():
     client.meta.events.register_first('before-send.s3.*', _remove_expect_header)
     return client
 
+
 def get_s3_client(force_refresh: bool = False):
     global _s3_client
     if _s3_client is None or force_refresh:
         _s3_client = _build_fresh_s3_client()
     return _s3_client
+
 
 # --- GENERIC UTILS ---
 
@@ -149,6 +204,7 @@ def generate_presigned_url(storage_key: str, expiration: int = 3600) -> Optional
         logger.warning(f"Failed to generate presigned URL: {e}")
         return None
 
+
 def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
     clean_filename = sanitize_filename(filename)
     prefix = f"{user_id}/{case_id}".strip("/")
@@ -156,6 +212,16 @@ def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: st
     resolved_content_type = content_type or _infer_content_type(filename, "application/pdf")
     
     try:
+        # V51.1: Kontrollo size-in PARA leximit (shmang OOM për files të mëdha)
+        pre_size = _get_size_without_reading(file_obj)
+        if pre_size is not None:
+            check_file_size_bytes(pre_size)
+            logger.info(
+                f"📏 [Storage V51.2] Pre-read size OK: {pre_size / 1024:.1f} KB "
+                f"({storage_key})"
+            )
+
+        # Tani lexo (file-i tashmë i verifikuar)
         if hasattr(file_obj, "seek"):
             file_obj.seek(0)
             data = file_obj.read()
@@ -167,6 +233,7 @@ def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: st
         if isinstance(data, str):
             data = data.encode('utf-8')
             
+        # V51.1: Kontrolli pas leximit (defensive, për rastet kur pre_size=None)
         check_file_size_bytes(len(data))
     except HTTPException:
         raise
@@ -195,10 +262,12 @@ def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: st
 
     raise HTTPException(status_code=500, detail="Could not upload converted file.")
 
+
 def upload_original_document(file: UploadFile, user_id: str, case_id: str) -> str:
     clean_filename = sanitize_filename(file.filename or "document")
     content_type = file.content_type or _infer_content_type(file.filename or "", 'application/pdf')
     return upload_bytes_as_file(file.file, clean_filename, user_id, case_id, content_type)
+
 
 def upload_file_raw(file: UploadFile, folder: str) -> str:
     clean_folder = sanitize_filename(folder)
@@ -207,12 +276,14 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
     content_type = file.content_type or _infer_content_type(file.filename or "")
     return upload_bytes_as_file(file.file, unique_filename, clean_folder, "", content_type)
 
+
 def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File path does not exist.")
     with open(file_path, "rb") as f:
         data = f.read()
     return upload_bytes_as_file(data, filename, user_id, case_id, content_type)
+
 
 def get_file_stream(storage_key: str) -> Any:
     for attempt in range(2):
@@ -224,6 +295,7 @@ def get_file_stream(storage_key: str) -> Any:
             if attempt == 1:
                 logger.error(f"Failed to retrieve file stream: {e}")
                 raise HTTPException(status_code=404, detail="File not found in storage.")
+
 
 def get_file_stream_with_meta(storage_key: str) -> Tuple[Any, int]:
     for attempt in range(2):
@@ -237,11 +309,13 @@ def get_file_stream_with_meta(storage_key: str) -> Tuple[Any, int]:
                 logger.error(f"Failed to retrieve file stream with meta: {e}")
                 raise HTTPException(status_code=404, detail="File not found in storage.")
 
+
 def upload_processed_text(text_content: str, user_id: str, case_id: str, original_doc_id: str) -> str:
     clean_doc_id = sanitize_filename(original_doc_id)
     file_name = f"{clean_doc_id}_processed.txt"
     data = text_content.encode('utf-8')
     return upload_bytes_as_file(data, file_name, user_id, f"{case_id}/processed", "text/plain; charset=utf-8")
+
 
 def upload_document_preview(file_path: str, user_id: str, case_id: str, original_doc_id: str) -> str:
     clean_doc_id = sanitize_filename(original_doc_id)
@@ -252,11 +326,14 @@ def upload_document_preview(file_path: str, user_id: str, case_id: str, original
         data = f.read()
     return upload_bytes_as_file(data, file_name, user_id, f"{case_id}/previews", "application/pdf")
 
+
 def download_preview_document_stream(storage_key: str) -> Any:
     return get_file_stream(storage_key)
 
+
 def download_original_document_stream(storage_key: str) -> Any:
     return get_file_stream(storage_key)
+
 
 def download_processed_text(storage_key: str) -> bytes | None:
     for attempt in range(2):
@@ -272,6 +349,7 @@ def download_processed_text(storage_key: str) -> bytes | None:
         except Exception:
             if attempt == 1:
                 raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+
 
 def delete_file(storage_key: str):
     if not storage_key or '\n' in storage_key or '**' in storage_key or len(storage_key) > 300:
@@ -306,6 +384,7 @@ def delete_file(storage_key: str):
     except Exception as e:
         logger.error(f"!!! ERROR: Delete failed for {storage_key}: {e}")
 
+
 def copy_s3_object(source_key: str, dest_folder: str) -> str:
     s3_client = get_s3_client()
     filename = os.path.basename(source_key)
@@ -322,9 +401,7 @@ def copy_s3_object(source_key: str, dest_folder: str) -> str:
         logger.error(f"!!! ERROR: S3 Copy failed: {e}")
         raise HTTPException(status_code=500, detail="Storage copy failed.")
 
-# ==========================================================
-# NEW METHOD: download_file_as_bytes
-# ==========================================================
+
 def download_file_as_bytes(storage_key: str) -> bytes:
     """
     Retrieve the entire file content as bytes from storage.

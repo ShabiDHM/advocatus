@@ -1,5 +1,10 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V32.0 (SINGLE-CHANNEL PERSISTENCE)
+# PHOENIX PROTOCOL - CHAT SERVICE V32.1 (ORG-AWARE ACCESS)
+# V32.1: ACCESS CHECK FIX — Zëvendësuar query inline me _build_case_access_query
+#        nga case_service. Tani respekton org (FULL) + SELECTIVE (assigned) access
+#        njësoj si get_case_by_id / get_cases_for_user.
+#        Përpara: vetëm owner_id/user_id — anëtarët e org-ut dhe SELECTIVE users
+#        merrnin "Qasja u refuzua" në chat edhe pse shihnin case-in në listë.
 # V32.0: Hequr kanali forensic (is_forensic) — feature e fshirë.
 #        Tani vetëm kanali i klientit: chat_history.
 
@@ -7,11 +12,13 @@ from __future__ import annotations
 import logging
 import asyncio
 import structlog
+from types import SimpleNamespace
 from typing import AsyncGenerator, Optional, List, Dict, Any
 from bson import ObjectId
 from datetime import datetime, timezone
 from pymongo.database import Database
 from app.models.case import ChatMessage
+from app.services.case_service import _build_case_access_query
 
 logger = structlog.get_logger(__name__)
 
@@ -29,12 +36,34 @@ async def stream_chat_response(
     """
     Shërbimi Qendror i Bisedës për klientin.
     Historiku ruhet dhe lexohet nga `case.chat_history`.
+
+    V32.1: Aksesi kontrollohet nga `_build_case_access_query` (org-aware,
+    SELECTIVE-aware) — njësoj si pjesa tjetër e case endpoints.
     """
     try:
         from app.services.albanian_rag_service import AlbanianRAGService
 
-        oid, user_oid = ObjectId(case_id), ObjectId(user_id)
-        case = db.cases.find_one({"_id": oid, "$or": [{"owner_id": user_oid}, {"user_id": user_oid}, {"owner_id": str(user_oid)}]})
+        oid = ObjectId(case_id)
+        user_oid = ObjectId(user_id)
+
+        # V32.1: Ngarko user-in për org-aware access
+        user_doc = db.users.find_one({"_id": user_oid})
+        if not user_doc:
+            yield "Gabim: Përdoruesi nuk u gjet."
+            return
+
+        # V32.1: Duck-typed user context — mjafton për _build_case_access_query
+        user_ctx = SimpleNamespace(
+            id=user_oid,
+            organization_id=user_doc.get("organization_id"),
+            org_access_level=user_doc.get("org_access_level", "FULL") or "FULL",
+            assigned_case_ids=user_doc.get("assigned_case_ids", []) or [],
+        )
+
+        # V32.1: Query org-aware (owner + org + assigned) + _id constraint
+        access_query = _build_case_access_query(user_ctx, case_id=oid)
+        case = db.cases.find_one(access_query)
+
         if not case:
             yield "Gabim: Qasja u refuzua ose lënda nuk u gjet."
             return

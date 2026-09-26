@@ -1,15 +1,21 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.19
-# V282.19: SPECIALIZIM — dy veçori të reja:
-#          1. CROSS-DOC COMPARISON: kur user kërkon "krahaso X me Y", ndërto
-#             tabelë krahasuese të neneve + ligjeve per dokument.
-#          2. TIMELINE BUILDER: kur user kërkon "kronologji"/"kur ka ndodhur",
-#             ekstrakto datat + ngjarjet nga të gjitha dokumentet.
-# V282.18: Redis caching (case_docs TTL 600s, vector_chunks TTL 300s).
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.20
+# V282.20: DUAL HISTORY UNIFIED — Hequr shkrimet dhe leximet nga
+#          `case_chat_history` collection. Chat history ruhet EKSKLUZIVISHT
+#          nga chat_service.py në `cases.chat_history` (frontend e lexon
+#          prej atje). Kjo eliminon:
+#          - 4 write calls per mesazh → 1 (vetëm në chat_service)
+#          - ~50% storage waste për chat
+#          - konfuzion arkitekturor (dy skema për të njëjtin koncept)
+#          Konsumatorët e `case_chat_history` u verifikuan me grep: zero
+#          të jashtëm. Cascade cleanup (case_service V59.2) mbetet për
+#          të dhënat e vjetra historike në DB.
+# V282.19: SPECIALIZIM — CROSS-DOC COMPARISON + TIMELINE.
+# V282.18: Redis caching.
 # V282.17: Stemming i thjeshtë për shqip.
 # V282.16: Riformulim i rule #8.
 # V282.15: Query-aware document selection.
-# V282.14: Chat = Q&A e pastër (pa korrigjime).
+# V282.14: Chat = Q&A e pastër.
 # V282.13: Rule 14 — ndalim hallucination precedentësh.
 
 import os
@@ -50,7 +56,7 @@ from app.services.llm.llm_client import DEEP_ANALYSIS_MODEL, FAST_SEARCH_MODEL
 
 logger = logging.getLogger(__name__)
 
-CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
+# V282.20: CASE_CHAT_HISTORY_COLLECTION u hoq (shih header).
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V282.18: REDIS CACHE
@@ -472,13 +478,13 @@ class AlbanianRAGService:
         self.db = db
         self.response_generator = ResponseGenerator()
         logger.info(
-            f"✅ [RAG] Juristi AI Natural Client Service V282.19 Initialized "
+            f"✅ [RAG] Juristi AI Natural Client Service V282.20 Initialized "
             f"(chat model: {FAST_SEARCH_MODEL}, "
             f"judicial-docs whitelist: ON, dual-law rule: ON, query-depth: ON, "
             f"pre-verify: ON, fast-path: DIRECT, dynamic-cleaner: ON, timing: ON, "
             f"multi-law-chat: ON, global-on-demand: ON, no-fake-precedents: ON, "
             f"pure-chat: ON, query-aware-docs: ON, stemming: ON, caching: ON, "
-            f"comparison: ON, timeline: ON)."
+            f"comparison: ON, timeline: ON, chat-history: DELEGATED)."
         )
 
     def _optimize_query(self, query: str) -> str:
@@ -726,7 +732,8 @@ class AlbanianRAGService:
         _t0 = time.time()
 
         def _lap(label: str):
-            logger.warning(f"⏱️ [TIMING] {label}: {time.time() - _t0:.2f}s")
+            # V282.20: INFO — timing nuk është warning
+            logger.info(f"⏱️ [TIMING] {label}: {time.time() - _t0:.2f}s")
 
         current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
@@ -743,7 +750,7 @@ class AlbanianRAGService:
 
                 _q1 = time.time()
                 case_doc = self.db.cases.find_one({"_id": c_oid})
-                logger.warning(f"⏱️ [TIMING]   mongo_case_query: {time.time() - _q1:.2f}s")
+                logger.info(f"⏱️ [TIMING]   mongo_case_query: {time.time() - _q1:.2f}s")
 
                 if case_doc:
                     if case_doc.get("client_position") or case_doc.get("client_role"):
@@ -756,32 +763,17 @@ class AlbanianRAGService:
 
         _lap("load_case")
 
-        if history is None and self.db is not None and case_id and user_id:
-            try:
-                past_cursor = self.db[CASE_CHAT_HISTORY_COLLECTION].find({
-                    "user_id": str(user_id),
-                    "case_id": str(case_id)
-                }).sort("created_at", -1).limit(10)
-
-                raw_hist = list(past_cursor)
-                raw_hist.reverse()
-
-                history = []
-                for h in raw_hist:
-                    history.append({
-                        "role": h.get("role", "user"),
-                        "content": h.get("content", "")
-                    })
-            except Exception as e:
-                logger.warning(f"Could not load case chat history: {e}")
-                history = []
+        # V282.20: Hequr bllokun që lexonte nga CASE_CHAT_HISTORY_COLLECTION.
+        # Chat history vjen EKSKLUZIVISHT si parametër `history` nga chat_service
+        # (i cili e lexon nga cases.chat_history).
+        if history is None:
+            history = []
 
         _lap("load_history")
 
         from app.services import vector_store_service
         query_lower = query.lower()
         optimized_query = self._optimize_query(query)
-        req_pillar = detect_requested_pillar(query_lower)
 
         legal_query = extract_legal_query(query)
         _lap("extract_legal_query")
@@ -827,17 +819,8 @@ class AlbanianRAGService:
 
                 yield refusal_text
 
-                if self.db is not None and case_id and user_id:
-                    try:
-                        self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
-                            "user_id": str(user_id),
-                            "case_id": str(case_id),
-                            "role": "assistant",
-                            "content": refusal_text,
-                            "created_at": datetime.now(timezone.utc)
-                        })
-                    except Exception as e:
-                        logger.warning(f"Could not save refusal message: {e}")
+                # V282.20: Hequr insert_one në CASE_CHAT_HISTORY_COLLECTION.
+                # Refusal nuk ruhet në DB (chat_service e trajton persistenën).
 
                 _lap("refusal_total")
                 return
@@ -897,24 +880,15 @@ class AlbanianRAGService:
                         )
 
             logger.info(
-                f"🔎 [PreVerify V282.19] articles total={len(verification_results)} "
+                f"🔎 [PreVerify V282.20] articles total={len(verification_results)} "
                 f"verified={len(verified_articles)} ambiguous={len(ambiguous_articles)} "
                 f"missing={len(missing_articles)} has_general={legal_query['has_general_query']}"
             )
 
         _lap("pre_verify")
 
-        if self.db is not None and case_id and user_id:
-            try:
-                self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
-                    "user_id": str(user_id),
-                    "case_id": str(case_id),
-                    "role": "user",
-                    "content": query,
-                    "created_at": datetime.now(timezone.utc)
-                })
-            except Exception as e:
-                logger.warning(f"Could not save user chat message: {e}")
+        # V282.20: Hequr insert_one për user message në CASE_CHAT_HISTORY_COLLECTION.
+        # chat_service e ruan në cases.chat_history.
 
         has_document_selection = bool(document_ids and len(document_ids) > 0)
         should_fetch_global = QueryDepthDetector.should_fetch_global_docs(query, has_document_selection)
@@ -925,13 +899,13 @@ class AlbanianRAGService:
         if not user_wants_global:
             if should_fetch_global:
                 logger.info(
-                    f"⏭️ [V282.19] Skip global — pyetje faktuale pa kërkesë eksplicite "
+                    f"⏭️ [V282.20] Skip global — pyetje faktuale pa kërkesë eksplicite "
                     f"për precedentë."
                 )
             should_fetch_global = False
         else:
             logger.info(
-                f"🌐 [V282.19] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
+                f"🌐 [V282.20] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
             )
 
         logger.info(
@@ -970,24 +944,14 @@ class AlbanianRAGService:
 
         if is_factual_legal_query:
             logger.info(
-                f"⚡ [FastPath V282.19 DIRECT] Skip LLM — return verified text directly "
+                f"⚡ [FastPath V282.20 DIRECT] Skip LLM — return verified text directly "
                 f"({len(verified_articles)} verified articles)"
             )
 
             direct_answer = self._format_direct_answer(verified_articles, pre_verify_disclaimer)
             yield direct_answer
 
-            if self.db is not None and case_id and user_id and direct_answer.strip():
-                try:
-                    self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
-                        "user_id": str(user_id),
-                        "case_id": str(case_id),
-                        "role": "assistant",
-                        "content": direct_answer.strip(),
-                        "created_at": datetime.now(timezone.utc)
-                    })
-                except Exception as e:
-                    logger.warning(f"Could not save direct answer: {e}")
+            # V282.20: Hequr insert_one në CASE_CHAT_HISTORY_COLLECTION.
 
             _lap("direct_total")
             return
@@ -999,7 +963,7 @@ class AlbanianRAGService:
                 if cached_docs is not None:
                     db_documents = cached_docs
                     logger.info(
-                        f"⚡ [Cache HIT V282.19] case_docs: {len(db_documents)} docs "
+                        f"⚡ [Cache HIT V282.20] case_docs: {len(db_documents)} docs "
                         f"(saved ~2.5s)"
                     )
                     _lap("load_docs")
@@ -1016,12 +980,12 @@ class AlbanianRAGService:
 
                     _q2 = time.time()
                     db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("_id", 1)]))
-                    logger.warning(f"⏱️ [TIMING]   mongo_docs_query ({len(db_documents)} docs): {time.time() - _q2:.2f}s")
+                    logger.info(f"⏱️ [TIMING]   mongo_docs_query ({len(db_documents)} docs): {time.time() - _q2:.2f}s")
                     _lap("load_docs")
 
                     if db_documents:
                         await _set_cached_case_docs(str(case_id), db_documents, ttl=CACHE_TTL_CASE_DOCS)
-                        logger.info(f"💾 [Cache MISS V282.19] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
+                        logger.info(f"💾 [Cache MISS V282.20] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
             except Exception as ex:
                 logger.warning(f"Could not read client documents: {ex}")
 
@@ -1030,13 +994,13 @@ class AlbanianRAGService:
             context_documents, was_filtered = _detect_relevant_documents(query, db_documents, max_match=3)
             if was_filtered:
                 logger.info(
-                    f"🎯 [V282.19] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
+                    f"🎯 [V282.20] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
                     f"dokumente të zgjedhura për kontekst LLM: "
                     f"{[d.get('file_name', '?') for d in context_documents]}"
                 )
             else:
                 logger.info(
-                    f"📚 [V282.19] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
+                    f"📚 [V282.20] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
                     f"{len(db_documents)} dokumentet"
                 )
 
@@ -1051,7 +1015,7 @@ class AlbanianRAGService:
                 comparison_block = build_comparison_table(context_documents)
                 if comparison_block:
                     logger.info(
-                        f"📊 [V282.19] Tabelë krahasuese aktivizuar "
+                        f"📊 [V282.20] Tabelë krahasuese aktivizuar "
                         f"({len(comparison_block)} chars)"
                     )
         except Exception as e:
@@ -1063,7 +1027,7 @@ class AlbanianRAGService:
                 timeline_block = build_timeline(events)
                 if timeline_block:
                     logger.info(
-                        f"📅 [V282.19] Timeline aktivizuar ({len(events)} ngjarje)"
+                        f"📅 [V282.20] Timeline aktivizuar ({len(events)} ngjarje)"
                     )
         except Exception as e:
             logger.warning(f"Timeline build failed: {e}")
@@ -1096,7 +1060,7 @@ class AlbanianRAGService:
 
         if case_docs is not None:
             logger.info(
-                f"⚡ [Cache HIT V282.19] vector_case: {len(case_docs)} chunks "
+                f"⚡ [Cache HIT V282.20] vector_case: {len(case_docs)} chunks "
                 f"(saved ~4s)"
             )
             _lap("vector_case")
@@ -1111,7 +1075,7 @@ class AlbanianRAGService:
             _lap("vector_case")
             if case_docs:
                 await _set_cached_chunks(case_docs_cache_key, case_docs, ttl=CACHE_TTL_CASE_CHUNKS)
-                logger.info(f"💾 [Cache MISS V282.19] vector_case cached (TTL={CACHE_TTL_CASE_CHUNKS}s)")
+                logger.info(f"💾 [Cache MISS V282.20] vector_case cached (TTL={CACHE_TTL_CASE_CHUNKS}s)")
 
         if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             if should_fetch_global:
@@ -1177,7 +1141,7 @@ class AlbanianRAGService:
                 _lap("vector_global")
             else:
                 global_docs = []
-                logger.info(f"⏭️ [V282.19] Skip global_docs në DRAFTING")
+                logger.info(f"⏭️ [V282.20] Skip global_docs në DRAFTING")
 
             manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
@@ -1207,7 +1171,7 @@ class AlbanianRAGService:
                 _lap("vector_global")
             else:
                 global_docs = []
-                logger.info(f"⏭️ [V282.19] Skip global_docs (chat i thjeshtë)")
+                logger.info(f"⏭️ [V282.20] Skip global_docs (chat i thjeshtë)")
 
             manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
@@ -1243,7 +1207,7 @@ class AlbanianRAGService:
         ):
             if not _first_token_logged:
                 _first_token_logged = True
-                logger.warning(f"⏱️ [TIMING]   llm_first_token: {time.time() - _t0:.2f}s")
+                logger.info(f"⏱️ [TIMING]   llm_first_token: {time.time() - _t0:.2f}s")
             full_generated_response += content
             yield content
 
@@ -1259,22 +1223,13 @@ class AlbanianRAGService:
 
         if llm_failed:
             logger.warning(
-                f"⚠️ [V282.19] LLM dështoi — nuk ruaj në history. "
+                f"⚠️ [V282.20] LLM dështoi. "
                 f"Output: {full_generated_response[:100]}..."
             )
             _lap("total")
             return
 
-        if self.db is not None and case_id and user_id and full_generated_response.strip():
-            try:
-                self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
-                    "user_id": str(user_id),
-                    "case_id": str(case_id),
-                    "role": "assistant",
-                    "content": full_generated_response.strip(),
-                    "created_at": datetime.now(timezone.utc)
-                })
-            except Exception as e:
-                logger.warning(f"Could not save assistant chat message: {e}")
+        # V282.20: Hequr insert_one për assistant response në CASE_CHAT_HISTORY_COLLECTION.
+        # chat_service e ruan në cases.chat_history.
 
         _lap("total")

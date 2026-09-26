@@ -1,9 +1,22 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V38.2 (CASE-AWARE SSE + BATCH INGESTION)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V38.3 (CASE-AWARE SSE + BATCH INGESTION)
+# V38.3: FIX ALL —
+#        - STORAGE DEDUP: hequr fusha redundante `text` nga $set (mbajtur
+#          `content` + `extracted_text` — të dyja janë në zinxhirin e fallback
+#          në extraction_pipeline / persistence / document_review). Kursen
+#          ~33% storage per dokument në Mongo Atlas.
+#        - OWNER_ID GUARD: nëse mungon, user_id="" dhe Redis broadcast
+#          personal skip-ohet (pa "user:None:updates" junk).
+#        - GLOBAL REDIS: client lazy-init global (jo per thirrje). Ishte 6
+#          connections per dokument për shkak të 5 faseve + final broadcast.
+#        - TASK ERRORS: exception-e në asyncio.gather tani logohen
+#          individualisht (edhe pse tasks kanë try/except brenda).
+#        - CHUNK OVERLAP: koment i qartë për fallback chunking (step vs slice).
+#        - TOTAL_PAGES: metadata e chunks tani përfshin total_pages në të
+#          dyja rrugët (EnhancedDocumentProcessor + fallback).
 # V38.2: CASE-AWARE SSE — _update_db_and_broadcast publikon në:
 #          - user:{uploader_id}:updates (personal)
 #          - case:{case_id}:updates (case-scoped)
-#        Kjo lejon që admin + guest + anëtarë org të shohin progres në kohë reale.
 # V38.1: Summary timeout 40s -> 120s.
 # V38.0: task_embeddings kontrollon rezultatin e ingestion (dict, jo bool).
 
@@ -29,6 +42,46 @@ from app.services.vector_store_service import create_and_store_embeddings_from_c
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V38.3: GLOBAL REDIS CLIENT (lazy-init)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_redis_client: Optional[aioredis.Redis] = None
+
+
+async def _get_redis() -> Optional[aioredis.Redis]:
+    """
+    V38.3: Kthen Redis client global (lazy-init). Kthen None nëse dështon.
+
+    Përpara: çdo broadcast krijonte një client të ri (~6 per dokument) →
+    shumë connections ndaj Redis Cloud. Tani vetëm 1 për shërbimin.
+    """
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+
+    try:
+        redis_url = getattr(settings, "REDIS_URL", None) or os.getenv("REDIS_URL", "")
+        if not redis_url:
+            logger.warning("[Redis] REDIS_URL nuk është konfiguruar — broadcast skip")
+            return None
+
+        _redis_client = aioredis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_timeout=1.0,
+            socket_connect_timeout=1.0,
+            max_connections=20,
+        )
+        await _redis_client.ping()
+        logger.info("✅ [Redis] Global client initialized (orchestrator)")
+        return _redis_client
+    except Exception as e:
+        logger.warning(f"⚠️ [Redis] Init failed — broadcast skip: {e}")
+        _redis_client = None
+        return None
 
 
 def _safe_remove_temp_file(file_path: str):
@@ -59,10 +112,13 @@ async def _update_db_and_broadcast(
     case_id_str: Optional[str] = None,
 ):
     """
-    V38.2: Përditëson DB + publikon në Redis në:
-      - user:{user_id}:updates (uploader)
+    V38.3: Përditëson DB + publikon në Redis në:
+      - user:{user_id}:updates (uploader) — skip nëse user_id bosh
       - case:{case_id_str}:updates (të gjithë anëtarët e case-it)
+
+    Përdor Redis client global (jo per call).
     """
+    # 1. DB update
     try:
         await asyncio.to_thread(
             db[collection].update_one,
@@ -77,6 +133,11 @@ async def _update_db_and_broadcast(
     except Exception as db_err:
         logger.warning(f"MongoDB progress update error: {db_err}")
 
+    # 2. Redis broadcast (global client)
+    client = await _get_redis()
+    if not client:
+        return
+
     try:
         payload = {
             "type": "DOCUMENT_PROGRESS",
@@ -88,21 +149,13 @@ async def _update_db_and_broadcast(
         }
         payload_json = json.dumps(payload)
 
-        redis_client = aioredis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            socket_timeout=1.0,
-            socket_connect_timeout=1.0
-        )
+        # Kanal 1: personal (vetëm nëse user_id valid)
+        if user_id:
+            await client.publish(f"user:{user_id}:updates", payload_json)
 
-        # Kanal 1: personal (uploader)
-        await redis_client.publish(f"user:{user_id}:updates", payload_json)
-
-        # Kanal 2: case-scoped (të gjithë anëtarët)
+        # Kanal 2: case-scoped
         if case_id_str:
-            await redis_client.publish(f"case:{case_id_str}:updates", payload_json)
-
-        await redis_client.close()
+            await client.publish(f"case:{case_id_str}:updates", payload_json)
     except Exception as sse_err:
         logger.warning(f"SSE progress broadcast skipped: {sse_err}")
 
@@ -126,7 +179,7 @@ async def orchestrate_document_processing_mongo(
     redis_client: Any = None,
     **kwargs
 ):
-    logger.info(f"⚡ [Orchestrator V38.2] Processing booted for doc: {document_id_str} in collection '{collection}'")
+    logger.info(f"⚡ [Orchestrator V38.3] Processing booted for doc: {document_id_str} in collection '{collection}'")
 
     if db is None:
         from app.core.db import get_db_instance
@@ -143,7 +196,15 @@ async def orchestrate_document_processing_mongo(
         logger.error(f"Document {document_id_str} not found in {collection} collection.")
         return
 
-    user_id = str(document.get("owner_id"))
+    # V38.3: OWNER_ID GUARD — mos gjenero "None" string
+    owner_id_raw = document.get("owner_id")
+    user_id = str(owner_id_raw) if owner_id_raw else ""
+    if not user_id:
+        logger.warning(
+            f"⚠️ [Orchestrator V38.3] Document {document_id_str} has no "
+            f"owner_id — Redis personal broadcast will be skipped."
+        )
+
     doc_name = document.get("file_name", "Unknown Document")
     case_id_str = str(document.get("case_id"))
 
@@ -208,7 +269,7 @@ async def orchestrate_document_processing_mongo(
                 elif real_page_count <= 1 and len(raw_text) > 2200:
                     real_page_count = max(1, round(len(raw_text) / 2200))
 
-                logger.info(f"✅ [Orchestrator V38.2] U nxorën {len(raw_text)} karaktere nga {real_page_count} faqe reale.")
+                logger.info(f"✅ [Orchestrator V38.3] U nxorën {len(raw_text)} karaktere nga {real_page_count} faqe reale.")
         except Exception as extract_err:
             logger.warning(f"OCR warning for {doc_name} (using fallback): {extract_err}")
 
@@ -229,7 +290,7 @@ async def orchestrate_document_processing_mongo(
                     )
                 else:
                     logger.warning(
-                        "⚠️ [Summary V38.2] sterilize_legal_text / process_large_document_async "
+                        "⚠️ [Summary V38.3] sterilize_legal_text / process_large_document_async "
                         "nuk ekzistojnë — përdor fallback (800 chars)."
                     )
                     return raw_text[:800]
@@ -256,10 +317,16 @@ async def orchestrate_document_processing_mongo(
                         meta = dict(c.metadata)
                         meta["page"] = current_detected_p
                         meta["source"] = doc_name
+                        meta["total_pages"] = real_page_count   # V38.3: konsistencë
                         metadatas_to_store.append(meta)
                 else:
+                    # V38.3: FALLBACK CHUNKING — step != slice → overlap i qëllimshëm
+                    # step=1200 (sa kalon në tekst), slice=1500 (sa merr) →
+                    # overlap = 1500 - 1200 = 300 chars midis chunks të njëpasnjëshëm.
+                    # Kjo ruan kontekstin për RAG në kufijtë e chunks.
                     chunk_step = 1200
-                    chunks_to_store = [raw_text[i:i+1500] for i in range(0, len(raw_text), chunk_step)]
+                    chunk_size = 1500
+                    chunks_to_store = [raw_text[i:i+chunk_size] for i in range(0, len(raw_text), chunk_step)]
                     metadatas_to_store = []
                     current_p = 1
                     for chunk in chunks_to_store:
@@ -271,7 +338,7 @@ async def orchestrate_document_processing_mongo(
                         })
 
                 logger.info(
-                    f"📦 [Orchestrator V38.2] Duke filluar ingestion për "
+                    f"📦 [Orchestrator V38.3] Duke filluar ingestion për "
                     f"{len(chunks_to_store)} chunks (doc={document_id_str})"
                 )
 
@@ -289,7 +356,7 @@ async def orchestrate_document_processing_mongo(
 
                 if not isinstance(result, dict):
                     logger.warning(
-                        f"⚠️ [Orchestrator V38.2] Ingestion ktheu {type(result).__name__} "
+                        f"⚠️ [Orchestrator V38.3] Ingestion ktheu {type(result).__name__} "
                         f"(pritet dict). Trajtoj si {'sukses' if result else 'dështim'}."
                     )
                     result = {
@@ -308,19 +375,19 @@ async def orchestrate_document_processing_mongo(
 
                 if success:
                     logger.info(
-                        f"✅ [Orchestrator V38.2] Ingestion i plotë: "
+                        f"✅ [Orchestrator V38.3] Ingestion i plotë: "
                         f"{ingested}/{total} chunks, duration={duration}s"
                     )
                 else:
                     logger.error(
-                        f"⚠️ [Orchestrator V38.2] Ingestion i pjesshëm ose dështuar: "
+                        f"⚠️ [Orchestrator V38.3] Ingestion i pjesshëm ose dështuar: "
                         f"{ingested}/{total} chunks, errors={errors[:3]}"
                     )
 
                 return result
 
             except Exception as e:
-                logger.error(f"❌ [Orchestrator V38.2] Embedding task exception: {e}")
+                logger.error(f"❌ [Orchestrator V38.3] Embedding task exception: {e}")
                 return {
                     "success": False,
                     "total_chunks": 0,
@@ -358,6 +425,16 @@ async def orchestrate_document_processing_mongo(
                 asyncio.gather(task_summary(), task_embeddings(), task_storage(), task_preview(), return_exceptions=True),
                 timeout=180.0
             )
+
+            # V38.3: Log errors në mënyrë eksplicite (edhe pse tasks kanë try/except)
+            task_names = ["summary", "embeddings", "storage", "preview"]
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    name = task_names[i] if i < len(task_names) else f"task_{i}"
+                    logger.error(
+                        f"❌ [Orchestrator V38.3] Task '{name}' raised exception: {r}"
+                    )
+
             if len(results) > 0 and isinstance(results[0], str):
                 final_summary = results[0]
             if len(results) > 1 and isinstance(results[1], dict):
@@ -391,10 +468,12 @@ async def orchestrate_document_processing_mongo(
                 final_status = DocumentStatus.READY
             status_message = "Gati (me paralajmërime — disa pjesë nuk u indeksuan)"
             logger.error(
-                f"⚠️ [Orchestrator V38.2] Dokument {document_id_str} u shënua "
+                f"⚠️ [Orchestrator V38.3] Dokument {document_id_str} u shënua "
                 f"{final_status} sepse ingestion nuk ishte i plotë."
             )
 
+        # V38.3: STORAGE DEDUP — hequr `text` (redundant). Mbajtur `content`
+        # dhe `extracted_text` (të dyja janë në zinxhirin e fallback).
         try:
             await asyncio.to_thread(
                 db[collection].update_one,
@@ -405,7 +484,6 @@ async def orchestrate_document_processing_mongo(
                         "pages": real_page_count,
                         "content": raw_text,
                         "extracted_text": raw_text,
-                        "text": raw_text,
                         "summary": final_summary,
                         "processed_text_storage_key": text_key,
                         "preview_storage_key": preview_storage_key,
@@ -418,33 +496,32 @@ async def orchestrate_document_processing_mongo(
                 }
             )
             logger.info(
-                f"✅ [Orchestrator V38.2] Document {document_id_str} "
+                f"✅ [Orchestrator V38.3] Document {document_id_str} "
                 f"({real_page_count} real pages) is {final_status} in {collection}. "
                 f"Ingestion: {ingestion_stats['ingested']}/{ingestion_stats['total_chunks']} chunks"
             )
         except Exception as db_err:
             logger.error(f"Failed to update MongoDB document status: {db_err}")
 
-        # ═══════════════════════════════════════════════════════════════════
-        # V38.2: Publiko në DY kanale — personal + case-scoped
-        # ═══════════════════════════════════════════════════════════════════
-        try:
-            payload = {
-                "type": "DOCUMENT_STATUS",
-                "document_id": document_id_str,
-                "case_id": case_id_str,
-                "status": final_status,
-                "page_count": real_page_count,
-                "ingestion_stats": ingestion_stats,
-            }
-            payload_json = json.dumps(payload, default=str)
+        # V38.3: Final broadcast — global Redis client
+        client = await _get_redis()
+        if client:
+            try:
+                payload = {
+                    "type": "DOCUMENT_STATUS",
+                    "document_id": document_id_str,
+                    "case_id": case_id_str,
+                    "status": final_status,
+                    "page_count": real_page_count,
+                    "ingestion_stats": ingestion_stats,
+                }
+                payload_json = json.dumps(payload, default=str)
 
-            redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=1.0)
-            await redis_client.publish(f"user:{user_id}:updates", payload_json)
-            if case_id_str:
-                await redis_client.publish(f"case:{case_id_str}:updates", payload_json)
-            await redis_client.close()
-        except Exception:
-            pass
+                if user_id:
+                    await client.publish(f"user:{user_id}:updates", payload_json)
+                if case_id_str:
+                    await client.publish(f"case:{case_id_str}:updates", payload_json)
+            except Exception:
+                pass
 
         _safe_remove_temp_file(temp_original_file_path)

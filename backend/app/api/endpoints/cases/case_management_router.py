@@ -1,12 +1,18 @@
 # FILE: backend/app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V22.0
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V22.1
+# V22.1: SECURITY HARDENING —
+#        - DOC_ID VALIDATION: _parse_doc_ids_param + save_audit validon
+#          ObjectId format për çdo doc_id. Parandalon MongoDB field injection
+#          përmes `document_reviews.{doc_id}` ($ dhe . prefikse).
+#        - DOC_IDS LIMIT: MAX_DOC_IDS_PER_REQUEST = 100 (parandalon 16MB
+#          BSON doc limit kur ka mijëra doc_ids në $unset).
+#        - CHAT_HISTORY LIMIT: MAX_HISTORY_MESSAGES = 500 (parandalon
+#          DocumentTooLarge në Mongo me 16MB limit nga history i pakufizuar).
+#        - DEAD CODE: hequr `unset_fields["updated_at"]` + .pop() në
+#          DOCUMENT SCOPE (ishte shtuar dhe hequr menjëherë, pa kuptim).
 # V22.0: PER-DOCUMENT AUDIT STORAGE — raporte të veçanta për çdo dokument
 #        në `cases.document_reviews.{doc_id}`. Case synthesis mbetet në
 #        `latest_dossier_analysis` (backward compat + 1 raport për case).
-#        - GET /audit?document_ids=X → lexon document_reviews[X]
-#        - POST /audit (body.document_ids) → shkruan per-doc ose case
-#        - DELETE /clear-audit?document_ids=X → fshin VETËM atë doc review
-#          (jo cascade) — case synthesis mbetet i paprekur.
 # V21.2: Log emërtimi CASE/DOCUMENT AUDIT.
 # V21.1: SECURITY FIX update_case_client_position.
 # V21.0: DOSSIER READ-ENDPOINT + SCOPE PERSISTENCE.
@@ -31,6 +37,14 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V22.1: SECURITY LIMITS
+# ═══════════════════════════════════════════════════════════════════════════
+
+MAX_HISTORY_MESSAGES = 500
+MAX_DOC_IDS_PER_REQUEST = 100
+
+
 class CaseDossierAuditPayload(BaseModel):
     content: str = Field(..., description="Përmbajtja e plotë e doktrinës forenzike")
     document_ids: Optional[List[str]] = Field(
@@ -40,11 +54,57 @@ class CaseDossierAuditPayload(BaseModel):
     )
 
 
+def _validate_doc_id_format(doc_id: str) -> str:
+    """
+    V22.1: Validon që doc_id është ObjectId hex 24-karakteresh.
+
+    Parandalon MongoDB field injection përmes `document_reviews.{doc_id}`:
+      - Prefiks `$` → refuzohet nga Mongo me OperationFailure (500 error)
+      - Pika `.` → interpretohet si nested field (korrupsion i dhënave)
+    """
+    clean = str(doc_id).strip()
+    if not clean:
+        raise HTTPException(status_code=400, detail="doc_id i zbrazët.")
+    if not ObjectId.is_valid(clean):
+        # Nuk logo çelësin e plotë — mund të përmbajë input malicious
+        safe_preview = clean[:30].replace('\n', ' ').replace('\r', ' ')
+        raise HTTPException(
+            status_code=400,
+            detail=f"doc_id i pavlefshëm: '{safe_preview}' — duhet ObjectId (24 hex)."
+        )
+    return clean
+
+
 def _parse_doc_ids_param(document_ids: Optional[str]) -> List[str]:
-    """V22.0: Parse query string 'doc1,doc2' → ['doc1', 'doc2']."""
+    """
+    V22.1: Parse query string 'doc1,doc2' → ['doc1', 'doc2'].
+    Validon format ObjectId + limit.
+    """
     if not document_ids:
         return []
-    return [d.strip() for d in document_ids.split(',') if d.strip()]
+    parts = [d.strip() for d in document_ids.split(',') if d.strip()]
+    if len(parts) > MAX_DOC_IDS_PER_REQUEST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Shumë doc_ids: max {MAX_DOC_IDS_PER_REQUEST} "
+                   f"(u dërguan {len(parts)})."
+        )
+    return [_validate_doc_id_format(d) for d in parts]
+
+
+def _validate_doc_ids_list(doc_ids: Optional[List[str]]) -> List[str]:
+    """
+    V22.1: Validon listë doc_ids nga body (jo query string).
+    """
+    if not doc_ids:
+        return []
+    if len(doc_ids) > MAX_DOC_IDS_PER_REQUEST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Shumë doc_ids: max {MAX_DOC_IDS_PER_REQUEST} "
+                   f"(u dërguan {len(doc_ids)})."
+        )
+    return [_validate_doc_id_format(d) for d in doc_ids]
 
 
 # =========================================================================
@@ -220,6 +280,17 @@ async def update_case_chat_history(
     db: Database = Depends(get_db)
 ):
     case_oid = validate_object_id(case_id)
+
+    # V22.1: LIMIT — parandalon DocumentTooLarge në Mongo (16MB) nga
+    # history i pakufizuar (100k mesazhe × 10KB = 1GB).
+    history_count = len(update.chat_history or [])
+    if history_count > MAX_HISTORY_MESSAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Historiku i bisedës është shumë i gjatë. "
+                   f"Max {MAX_HISTORY_MESSAGES} mesazhe (u dërguan {history_count})."
+        )
+
     case = await asyncio.to_thread(
         case_service.get_case_by_id,
         db=db,
@@ -245,7 +316,7 @@ async def update_case_chat_history(
 
 
 # =========================================================================
-# 📜 2.1. DOKTRINA FORENZIKE — PERSISTENCE + READ + CLEAR (V22.0)
+# 📜 2.1. DOKTRINA FORENZIKE — PERSISTENCE + READ + CLEAR (V22.1)
 # =========================================================================
 
 @router.get("/{case_id}/audit", status_code=status.HTTP_200_OK)
@@ -275,6 +346,7 @@ async def get_case_dossier_audit(
     if not case:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
 
+    # V22.1: _parse_doc_ids_param tani validon format + limit
     doc_id_list = _parse_doc_ids_param(document_ids)
 
     # ═════════════════════════════════════════════════════════════════════
@@ -384,9 +456,11 @@ async def save_case_dossier_audit(
     db: Database = Depends(get_db)
 ):
     """
-    V22.0: Ruan raportin:
+    V22.1: Ruan raportin:
     - document_ids jepet → document_reviews[doc_id] (ruan veçmas për çdo dokument)
     - document_ids None → latest_dossier_analysis (case synthesis)
+
+    Validon format + limit i doc_ids për të shmangur field injection.
     """
     case_oid = validate_object_id(case_id)
     content = (payload.content or "").strip()
@@ -402,7 +476,8 @@ async def save_case_dossier_audit(
     if not case:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
 
-    doc_ids = [str(d).strip() for d in (payload.document_ids or []) if str(d).strip()]
+    # V22.1: Validim format + limit (field injection protection)
+    doc_ids = _validate_doc_ids_list(payload.document_ids)
     now = datetime.now(timezone.utc)
 
     if doc_ids:
@@ -482,7 +557,7 @@ async def clear_case_dossier_audit(
     db: Database = Depends(get_db),
 ):
     """
-    V22.0: Fshin raportin:
+    V22.1: Fshin raportin:
     - document_ids jepet → fshin VETËM document_reviews[doc_id]. Case synthesis NUK preket.
     - document_ids None → CASCADE WIPEOUT total.
     """
@@ -498,20 +573,17 @@ async def clear_case_dossier_audit(
     if not case:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
 
+    # V22.1: _parse_doc_ids_param tani validon format + limit
     doc_id_list = _parse_doc_ids_param(document_ids)
 
     # ═════════════════════════════════════════════════════════════════════
     # V22.0: DOCUMENT SCOPE — fshin VETËM document_reviews[doc_id]
+    # V22.1: Hequr dead code për `updated_at` (ishte shtuar + hequr menjëherë)
     # ═════════════════════════════════════════════════════════════════════
     if doc_id_list:
-        unset_fields: Dict[str, str] = {}
-        for did in doc_id_list:
-            unset_fields[f"document_reviews.{did}"] = ""
-
-        unset_fields["updated_at"] = ""  # do e vendosim me $set më poshtë — s'e duam në unset
-
-        # Heq "updated_at" nga unset (gabim logjik — s'ka kuptim)
-        unset_fields.pop("updated_at", None)
+        unset_fields: Dict[str, str] = {
+            f"document_reviews.{did}": "" for did in doc_id_list
+        }
 
         result = await asyncio.to_thread(
             db.cases.update_one,
@@ -541,7 +613,7 @@ async def clear_case_dossier_audit(
         }
 
     # ═════════════════════════════════════════════════════════════════════
-    # CASE SCOPE — CASCADE WIPEOUT total (i paprekur nga V21.0)
+    # CASE SCOPE — CASCADE WIPEOUT total
     # ═════════════════════════════════════════════════════════════════════
     case_id_variants = [case_id_str]
     if ObjectId.is_valid(case_id_str):
