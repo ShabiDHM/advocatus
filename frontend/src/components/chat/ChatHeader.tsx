@@ -1,14 +1,11 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V46.4 (SYNTHESIS REMOVED)
-// V46.4: SYNTHESIS REMOVED — Hequr butoni "Analizo Rastin" (fallback për ADMIN
-//        pa dokument të zgjedhur). Tani butoni "Analizo Dokumentin" shfaqet
-//        VETËM kur ka dokument të zgjedhur. U hoq SYNTHESIS_ALLOWED_ROLES,
-//        canAnalyzeSynthesis, dhe importi Sparkles. Prop `user` mbetet në
-//        interface për kompatibilitet me parent, por nuk përdoret.
-// V46.3: MUTUAL EXCLUSION — butoni "Verifiko Draftin" fshihet plotësisht
-//        kur audit-i është duke xhiruar (isAuditGenerating=true).
-//        Kjo parandalon konfuzionin e dy treguesve paralel.
-// V46.2: VERIFY COLOR UNIFIED — primary-start.
+// PHOENIX PROTOCOL - CHAT HEADER V46.5 (SHORT LABELS)
+// V46.5: SHORT LABELS — Butoni "Analizo Dokumentin" → "Analizo";
+//        "Verifiko Draftin" → "Verifiko". Për hapësirë më të mirë në mobile
+//        dhe UI më të pastër. Zero ndryshim funksional.
+// V46.4: SYNTHESIS REMOVED.
+// V46.3: MUTUAL EXCLUSION.
+// V46.2: VERIFY COLOR UNIFIED.
 // V46.1: MOBILE VERIFY FIX.
 // V46.0: VERIFY DRAFT PROGRESS.
 
@@ -59,7 +56,6 @@ interface ChatHeaderProps {
   verifyProgressPercent?: number;
   verifyPhaseLabel?: string;
   verifyStartTime?: number | null;
-  // V46.4: `user` mbahet për kompatibilitet me parent — nuk përdoret më.
   user?: ChatUser | null;
 }
 
@@ -80,7 +76,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   verifyProgressPercent = 0,
   verifyPhaseLabel = '',
   verifyStartTime = null,
-  // user — V46.4: nuk përdoret më (hequr synthesis).
 }) => {
   const hasSelectedDoc = !!selectedDocName && selectedDocName.trim().length > 0;
   const [elapsed, setElapsed] = useState(0);
@@ -89,7 +84,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [showVerifyDropdown, setShowVerifyDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // V46.4: Butoni "Analizo Dokumentin" shfaqet VETËM me dokument të zgjedhur.
   const showAnalyzeButton = hasSelectedDoc;
   const showVerifyButton = hasSelectedDoc && !!onVerifyDraft;
 
@@ -182,7 +176,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-        {/* ANALIZO DOKUMENTIN — V46.4: vetëm me dokument të zgjedhur */}
+        {/* V46.5: ANALIZO — vetëm me dokument të zgjedhur */}
         {onAnalyzeDocument && showAnalyzeButton && (
           <button
             type="button"
@@ -207,13 +201,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             ) : (
               <>
                 <FileText size={14} className="shrink-0 text-primary-start" />
-                <span className="hidden sm:inline">Analizo Dokumentin</span>
+                <span className="hidden sm:inline">Analizo</span>
               </>
             )}
           </button>
         )}
 
-        {/* VERIFIKO DRAFTIN — V46.3: mutual exclusion gjatë audit */}
+        {/* V46.5: VERIFIKO — mutual exclusion gjatë audit */}
         {showVerifyButton && !isAuditGenerating && (
           <div className="relative" ref={dropdownRef}>
             {isVerifyGenerating ? (
@@ -243,7 +237,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 title={`Verifiko draftin: ${selectedDocName}`}
               >
                 <ShieldCheck size={14} className="shrink-0" />
-                <span className="hidden sm:inline">Verifiko Draftin</span>
+                <span className="hidden sm:inline">Verifiko</span>
                 <ChevronDown size={10} className={`hidden sm:inline shrink-0 transition-transform ${showVerifyDropdown ? 'rotate-180' : ''}`} />
               </button>
             )}

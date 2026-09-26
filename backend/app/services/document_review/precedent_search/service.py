@@ -1,19 +1,18 @@
 # FILE: backend/app/services/document_review/precedent_search/service.py
-# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.8
-# V2.8: LOG CLEANUP — timing breakdown WARNING → INFO. Timing informativ
-#       nuk është problem; warning duhet rezervuar për dështime reale.
-# V2.7: TIMING INSTRUMENTED — Shtuar matje të detajuara për secilën fazë.
-# V2.6: RERANK SCALE CLARITY — _resolve_rerank_min_score().
-# V2.5: CACHE CONSISTENCY FIX.
-# V2.4: PERFORMANCE — pre-filter para rerank + cache.
-# V2.3: Cohere reranker dispatcher.
-# V2.2: _cli_test() shfaq topic_label + rerank_score.
-# V2.1: Filtrim me rerank_score >= PRECEDENT_RERANK_MIN_SCORE.
-# V2.0: Hybrid (Atlas + MongoDB text + RRF) + DeepSeek rerank.
+# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.9
+# V2.9: FALLBACK QUALITY GATE — Fallback top-3 aplikohet VETËM nëse max
+#       rerank_score >= PRECEDENT_FALLBACK_MIN_SCORE (default 4.0).
+#       Më parë, me threshold=5.5 dhe max=3.0, sistemi kthente top-3
+#       edhe pse ishin jorelevante (sim=0.000). Tani kthen [] — pa false
+#       precedents në raport.
+# V2.8: LOG CLEANUP — timing breakdown WARNING → INFO.
+# V2.7: TIMING INSTRUMENTED.
+# V2.6: RERANK SCALE CLARITY.
 
 import hashlib
 import json
 import logging
+import os
 import time
 from typing import List, Dict, Any, Optional
 
@@ -51,6 +50,12 @@ PRECEDENT_CACHE_ENABLED = True
 
 # V2.4: Sa kandidatë dërgohen në rerank (para: pa limit → 50+)
 PRECEDENT_RERANK_PRE_FILTER_TOP_N = 20
+
+# V2.9: Fallback quality gate — pragu minimal për max_rerank_score
+# që fallback-u top-3 të aktivizohet. Nën këtë → return [] (pa false precedents).
+PRECEDENT_FALLBACK_MIN_SCORE = float(
+    os.getenv("PRECEDENT_FALLBACK_MIN_SCORE", "4.0")
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -149,7 +154,7 @@ def search_relevant_precedents(
     threshold: float = PRECEDENT_SIMILARITY_THRESHOLD,
 ) -> List[Dict[str, Any]]:
     """
-    V2.8: Hybrid (Atlas + MongoDB text + RRF) + Reranker, ME TIMING.
+    V2.9: Hybrid (Atlas + MongoDB text + RRF) + Reranker, ME TIMING.
 
     Rrjedha:
       1. CACHE check
@@ -160,6 +165,8 @@ def search_relevant_precedents(
       6. PRE-FILTER — top 20 sipas RRF/cosine → rerank
       7. Rerank (deepseek | cohere | none)
       8. Filtrim me rerank_score >= _resolve_rerank_min_score()
+         → Nëse max < PRECEDENT_FALLBACK_MIN_SCORE → kthim [] (V2.9)
+         → Përndryshe fallback top-3 (edhe nën min_score)
       9. CACHE save (vetëm nëse ka rezultate)
       10. Format + log
     """
@@ -201,7 +208,7 @@ def search_relevant_precedents(
     _phase("cache_get", _t)
     if cached is not None:
         logger.info(
-            f"⏱️ [PRECEDENT TIMING V2.8] CACHE HIT — total={time.time() - _t_total:.3f}s"
+            f"⏱️ [PRECEDENT TIMING V2.9] CACHE HIT — total={time.time() - _t_total:.3f}s"
         )
         return cached
 
@@ -342,7 +349,7 @@ def search_relevant_precedents(
     _phase("pre_filter", _t)
 
     logger.info(
-        f"⚡ [PRECEDENT V2.8] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
+        f"⚡ [PRECEDENT V2.9] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
         f"kandidatë për rerank (limit={pre_filter_limit})"
     )
 
@@ -367,12 +374,28 @@ def search_relevant_precedents(
         ]
         _phase("final_filter", _t)
 
+        # V2.9: FALLBACK QUALITY GATE — vetëm nëse max_rerank është i arsyeshëm
         if not final_docs and reranked_docs:
-            logger.info(
-                f"⚠️ [RERANK] Asnje kandidat me score >= "
-                f"{min_score:.2f}. Marr top 3 si fallback."
+            max_score = max(
+                (d.get("rerank_score", 0.0) or 0.0) for d in reranked_docs
             )
-            final_docs = reranked_docs[:3]
+
+            if max_score >= PRECEDENT_FALLBACK_MIN_SCORE:
+                logger.info(
+                    f"⚠️ [RERANK V2.9] Asnje kandidat me score >= "
+                    f"{min_score:.2f}. Marr top 3 si fallback "
+                    f"(max_score={max_score:.2f} >= "
+                    f"fallback_min={PRECEDENT_FALLBACK_MIN_SCORE:.2f})."
+                )
+                final_docs = reranked_docs[:3]
+            else:
+                logger.info(
+                    f"⛔ [RERANK V2.9] Asnje kandidat me score >= "
+                    f"{min_score:.2f} DHE max_score={max_score:.2f} < "
+                    f"fallback_min={PRECEDENT_FALLBACK_MIN_SCORE:.2f}. "
+                    f"Kthim [] — pa false precedents."
+                )
+                final_docs = []
     else:
         final_docs = pre_filtered[:top_k]
 
@@ -400,9 +423,9 @@ def search_relevant_precedents(
     # ─── 10. Log ───
     total_time = round(time.time() - _t_total, 3)
 
-    # V2.8: Timing breakdown — INFO (timing nuk është warning)
+    # V2.9: Timing breakdown — INFO (timing nuk është warning)
     logger.info(
-        f"⏱️ [PRECEDENT TIMING V2.8] TOTAL={total_time}s | "
+        f"⏱️ [PRECEDENT TIMING V2.9] TOTAL={total_time}s | "
         f"embedding={timing['embedding']}s | "
         f"atlas={timing['atlas_search']}s | "
         f"mongo_text={timing['mongo_text_search']}s | "
@@ -418,7 +441,7 @@ def search_relevant_precedents(
     )
 
     logger.info(
-        f"🏛️ [PRECEDENT V2.8] Strategjia={strategy}, "
+        f"🏛️ [PRECEDENT V2.9] Strategjia={strategy}, "
         f"reranker={PRECEDENT_RERANKER}, "
         f"reranked={reranked}, "
         f"kandidate={len(candidates)}, "
@@ -469,10 +492,11 @@ def _cli_test():
     )
 
     print(f"\n{'=' * 70}")
-    print(f"TEST V2.8 - Query: '{test_query}'")
+    print(f"TEST V2.9 - Query: '{test_query}'")
     print(f"Hybrid: {PRECEDENT_USE_HYBRID}, Reranker: {PRECEDENT_RERANKER}")
     print(f"Threshold: {PRECEDENT_SIMILARITY_THRESHOLD}, Top-K: {PRECEDENT_TOP_K}")
     print(f"Pre-filter top N: {PRECEDENT_RERANK_PRE_FILTER_TOP_N}")
+    print(f"Fallback min score: {PRECEDENT_FALLBACK_MIN_SCORE}")
     print(f"Cache: {'ENABLED' if PRECEDENT_CACHE_ENABLED else 'DISABLED'} "
           f"(TTL={PRECEDENT_CACHE_TTL_SECONDS}s)")
     if PRECEDENT_RERANKER == "cohere":
