@@ -1,21 +1,9 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.14
-# V1.14: CONTEXT-AWARE ARTICLE CHECK —
-#        - Shtuar `_has_real_citation_context()`: nëse neni shfaqet VETËM në
-#          kontekst sugjerimi ("mungon", "sugjerim", "duhet shtuar",
-#          "konsiderohet", "problem:", "është shkruar si", "korrigjim" ...)
-#          → NUK flag-ohet si halluzinim. Eliminohet false positive në
-#          seksionin `legal_quality` ku LLM-ja liston nene që MUNGOJNË ose
-#          që DUHET KORRIGJUAR (nuk janë citime të rreme).
-#        - Zbutjen: nëse të paktën një hasje është citim real (jo sugjerim)
-#          → flag-ohet normalisht. Nuk humbet halluzinim real.
-# V1.13: EXTRA_ALLOWED_DATES + DATE CHECK FIX — datat e precedentëve
-#        të gjykatës nuk flag-ohen më si halluzinim.
-# V1.12: LEGACY LAW PATTERN FIX — LAW_NUMBER_LEGACY_PATTERN me kontekst.
-# V1.11: STRICT OUTPUT VALIDATION.
-# V1.10: UNCONDITIONAL LAW SCAN.
-# V1.9: STRICT LAW_TITLE SCAN.
-# V1.8: CONSERVATIVE SUCCESSOR LAWS.
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.15
+# V1.15: DETAILED ISSUE LOGGING — Çdo issue logohet individualisht me
+#        INFO, duke përfshirë type, value, message, snippet.
+# V1.14: CONTEXT-AWARE ARTICLE CHECK.
+# V1.13: EXTRA_ALLOWED_DATES + DATE CHECK FIX.
 
 import re
 import logging
@@ -51,12 +39,10 @@ CASE_NUMBER_PREFIXES: Set[str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.14: SUGGESTION CONTEXT — fjalë që tregojnë se neni është sugjerim,
-#        jo citim real në draftin origjinal.
+# V1.14: SUGGESTION CONTEXT
 # ═══════════════════════════════════════════════════════════════════════════
 
 SUGGESTION_CONTEXT_KEYWORDS: Tuple[str, ...] = (
-    # ── Missing / suggestion markers (seksioni C "Nene që mund të mungojnë")
     "mungon", "mungojnë", "mungesa",
     "sugjerim", "sugjerohet", "sugjeron",
     "duhet shtuar", "duhet të shtohet",
@@ -65,7 +51,6 @@ SUGGESTION_CONTEXT_KEYWORDS: Tuple[str, ...] = (
     "verifikim manual", "verifikohet manualisht",
     "nuk u gjet", "nuk gjendet", "nuk ekziston",
     "mund të mungojë", "mund të mungojnë",
-    # ── Problem markers (seksioni B "Nenet problematike")
     "problem:",
     "është shkruar si",
     "është cituar si",
@@ -78,14 +63,6 @@ def _has_real_citation_context(
     article_number: str,
     window: int = 200,
 ) -> bool:
-    """
-    V1.14: Kontrollo nëse neni shfaqet TË PAKTËN NJË HERË si citim real
-    (jo në kontekst sugjerimi).
-
-    Kthen:
-        True  → ka citim real → duhet flag-uar si halluzinim (nëse jashtë allowed)
-        False → të gjitha hasjet janë sugjerime → SKIP
-    """
     if not text or not article_number:
         return False
 
@@ -101,21 +78,18 @@ def _has_real_citation_context(
             ctx = text[start:end].lower()
 
             if not any(kw in ctx for kw in SUGGESTION_CONTEXT_KEYWORDS):
-                # Gjetur të paktën një citim real
                 return True
 
             idx = text.find(pat, idx + 1)
 
-    # Nuk u gjet fare në tekst → nuk ka citim real
     if not found_any:
         return False
 
-    # Të gjitha hasjet ishin në kontekst sugjerimi
     return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.11: STRICT LAW VALIDATOR
+# STRICT LAW VALIDATOR
 # ═══════════════════════════════════════════════════════════════════════════
 
 _STRICT_LAW_OUTPUT_PATTERN = re.compile(
@@ -124,17 +98,12 @@ _STRICT_LAW_OUTPUT_PATTERN = re.compile(
 
 
 def _is_valid_law_output(s: str) -> bool:
-    """V1.11: Kontrollon qe output-i eshte format i sakte ligji."""
     if not s:
         return False
     return bool(_STRICT_LAW_OUTPUT_PATTERN.match(s.strip()))
 
 
 def _safe_normalize_law(raw_value: str) -> Optional[str]:
-    """
-    V1.11: Kthen output-in VETEM nese eshte format i sakte ligji.
-    Refuzon: "LMDHF", "Ligjit për Familjen", tituj te tjere.
-    """
     if not raw_value:
         return None
     s = str(raw_value).strip()
@@ -169,7 +138,6 @@ def _safe_normalize_law(raw_value: str) -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_law_numbers_from_title_strict(title: str) -> Set[str]:
-    """V1.12: Nxjerr numra ligjesh VETEM ne formatet strikte."""
     found: Set[str] = set()
     if not title:
         return found
@@ -223,7 +191,7 @@ def _normalize_precedent_case(case_number: str) -> Optional[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.11: COLLECT SUCCESSOR LAWS (STRICT)
+# COLLECT SUCCESSOR LAWS
 # ═══════════════════════════════════════════════════════════════════════════
 
 _EXPLICIT_LAW_NUMBER_FIELDS = (
@@ -239,7 +207,6 @@ _LAW_TITLE_FIELDS = (
 
 
 def _scan_dict_for_laws(d: Dict[str, Any], context_label: str) -> Set[str]:
-    """V1.11: Skanon dict per numra ligjesh VETEM ne format strikte."""
     found: Set[str] = set()
     if not isinstance(d, dict):
         return found
@@ -309,10 +276,10 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.14] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.15] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.14] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.15] No successor laws collected.")
 
     return successors
 
@@ -322,11 +289,6 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_dates_iso(text: str) -> Set[str]:
-    """
-    V1.13: Funksion publik — nxerr datat ISO nga tekst.
-    Përdoret edhe nga draft_verifier.py për të nxjerrë datat nga
-    precedent excerpts (trusted sources).
-    """
     found: Set[str] = set()
     if not text:
         return found
@@ -460,7 +422,7 @@ class HallucinationChecker:
             extra_allowed_dates=extra_allowed_dates,
         )
         logger.info(
-            f"[HALLUCINATION V1.14] Allowed values: "
+            f"[HALLUCINATION V1.15] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
@@ -481,7 +443,6 @@ class HallucinationChecker:
             if d.get("iso"):
                 dates_iso.add(d["iso"])
 
-        # V1.13: Datat nga excerpts e precedentëve (trusted, Python-generated)
         if extra_allowed_dates:
             for d in extra_allowed_dates:
                 if d:
@@ -507,7 +468,7 @@ class HallucinationChecker:
         laws.update(successors)
 
         logger.info(
-            f"[HALLUCINATION V1.14] Laws: base={len(base_laws)}, "
+            f"[HALLUCINATION V1.15] Laws: base={len(base_laws)}, "
             f"successors={len(successors)}, total={len(laws)}"
         )
 
@@ -560,14 +521,10 @@ class HallucinationChecker:
         unknown = found - self.allowed["articles"]
         issues = []
         for a in sorted(unknown):
-            # V1.14: Skip nëse neni shfaqet VETËM në kontekst sugjerimi
-            # (mungon / duhet shtuar / problem / korrigjim ...).
-            # Vetëm citimet REALE konsiderohen halluzinim.
             if not _has_real_citation_context(content, a):
                 logger.info(
-                    f"[HALLUCINATION V1.14] Skip article '{a}' — "
-                    f"shfaqet vetëm në kontekst sugjerimi (mungon/duhet "
-                    f"shtuar/korrigjim), jo si citim real."
+                    f"[HALLUCINATION V1.15] Skip article '{a}' — "
+                    f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
 
@@ -684,6 +641,9 @@ def check_all_sections(
     extra_allowed_cases: Optional[Set[str]] = None,
     extra_allowed_dates: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
+    """
+    V1.15: Kontrollon të gjitha section-t + log i detajuar për secilin issue.
+    """
     checker = HallucinationChecker(
         citation_profile, fact_profile, verification_report,
         extra_allowed_cases=extra_allowed_cases,
@@ -704,6 +664,25 @@ def check_all_sections(
         for s in ("high", "medium", "low"):
             sev_totals[s] += report["severity_counts"].get(s, 0)
 
+        # V1.15: Log i detajuar për secilin issue
+        for issue in report["issues"]:
+            sev = issue.get("severity", "?")
+            itype = issue.get("type", "?")
+            ival = issue.get("value", "?")
+            imsg = issue.get("message", "")
+            isnip = (issue.get("snippet", "") or "")[:160]
+            logger.info(
+                f"[HALLUCINATION V1.15] 📌 section={key} severity={sev} "
+                f"type={itype} value='{ival}'"
+            )
+            logger.info(
+                f"[HALLUCINATION V1.15]    message: {imsg}"
+            )
+            if isnip:
+                logger.info(
+                    f"[HALLUCINATION V1.15]    snippet: {isnip}"
+                )
+
         if report["status"] == "suspect":
             suspicious.append(key)
 
@@ -715,7 +694,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.14] Status={global_status}, "
+        f"[HALLUCINATION V1.15] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

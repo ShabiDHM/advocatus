@@ -1,20 +1,12 @@
 # FILE: backend/app/services/document_review/fact_extractor.py
-# PHOENIX PROTOCOL - FACT EXTRACTOR V3.12
-# V3.12: ROLE-BASED EXTRACTION — Filozofia e re:
-#        - Suspect pranohet VETËM nëse ka rol pas ndarësit (—/–/-).
-#        - Përjashtim: lista me presje (>= 2 emra) pa rol.
-#        - Kjo filtron automatikisht:
-#          * "GRUPI II" (nuk ka rol)
-#          * "REPUBLIKA KOSOVA" (nuk ka rol)
-#          * "Qendra Klinike Universitare e Kosovës" (nuk ka rol)
-#          * "BTB Holding" (nuk ka rol)
-#          * "KËSHILLË JURIDIKE" (nuk ka rol)
-#          * "I. TË DHËNAT E PARASHTRUESIT" (fillon me X.)
-#          * "B. BAZA PROCEDURALE" (fillon me X.)
-#          * "Nr. Personal" (fillon me terma)
-#        - Nuk varet prej "GRUPI", "SEKSIONI", specifikë rastit.
-# V3.11: TRULY DYNAMIC SUSPECT EXTRACTION.
-# V3.10: FIX SUSPECT patterns.
+# PHOENIX PROTOCOL - FACT EXTRACTOR V3.15
+# V3.15: SENTENCE-BOUNDED CONTEXT — Konteksti i topic-check prerë në kufijtë
+#        e fjalisë (pas '. ', '; ', ': ', '! ', '? ', '\n'). Shmang
+#        false-positive edhe në tekste të shkurtra ku vlerat janë brenda
+#        1-2 fjalive.
+# V3.14: NARROW CONTEXT (u hoq — u zëvendësua nga sentence_context).
+# V3.13: CONTEXT-AWARE CONTRADICTIONS.
+# V3.12: ROLE-BASED SUSPECT EXTRACTION.
 
 import re
 import logging
@@ -177,6 +169,62 @@ def _normalize_unit(unit_raw: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# V3.15: SENTENCE-BOUNDED CONTEXT
+# ═══════════════════════════════════════════════════════════════════════════
+
+_SENTENCE_SEPARATORS = ('. ', '; ', ': ', '! ', '? ', '\n')
+
+
+def _extract_sentence_context(
+    text: str,
+    position: int,
+    value_length: int,
+    max_lookback: int = 120,
+    max_lookahead: int = 120,
+) -> str:
+    """
+    V3.15: Konteksti i prerë në kufijtë e fjalisë.
+
+    Fillimi: pas separatorit të fundit fjalie ('. ', '; ', ': ', '! ', '? ', '\\n')
+    Fundi:   para separatorit të parë fjalie pas vlerës
+
+    Kufiri maksimal: ±max_lookback/max_lookahead karaktere, në rast se nuk
+    ka separator.
+    """
+    if not text:
+        return ""
+
+    # ─── Fillimi ───
+    back_start = max(0, position - max_lookback)
+    pre_segment = text[back_start:position]
+
+    best_start = back_start
+    best_pre_idx = -1
+    for sep in _SENTENCE_SEPARATORS:
+        idx = pre_segment.rfind(sep)
+        if idx > best_pre_idx:
+            best_pre_idx = idx
+            best_start = back_start + idx + len(sep)
+
+    start = best_start
+
+    # ─── Fundi ───
+    value_end = position + value_length
+    forward_end = min(len(text), value_end + max_lookahead)
+    post_segment = text[value_end:forward_end]
+
+    best_end = forward_end
+    best_post_idx = -1
+    for sep in _SENTENCE_SEPARATORS:
+        idx = post_segment.find(sep)
+        if idx != -1 and (best_post_idx == -1 or idx < best_post_idx):
+            best_post_idx = idx
+            best_end = value_end + idx + len(sep)
+
+    return text[start:best_end].strip()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # EXTRACT DATES
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -260,6 +308,8 @@ def extract_deadlines(
         num = int(match.group(1))
         unit_norm = _normalize_unit(match.group(2))
         context = extract_context(text, match.start(), window=120)
+        value_len = match.end() - match.start()
+        sentence_ctx = _extract_sentence_context(text, match.start(), value_len)
         context_lower = context.lower()
         has_legal_context = any(
             kw in context_lower for kw in DEADLINE_CONTEXT_KEYWORDS
@@ -273,6 +323,7 @@ def extract_deadlines(
             "display": f"{num} {unit_norm}",
             "position": match.start(),
             "context": context[:MAX_CONTEXT_CHARS],
+            "sentence_context": sentence_ctx[:MAX_CONTEXT_CHARS],
             "has_legal_context": has_legal_context,
             "source_document": source_document or None,
             "is_reported": is_reported,
@@ -319,7 +370,6 @@ _LINE_SEPARATORS_RE = re.compile(r'\s+[—–]\s+|\s+-\s+')
 
 
 def _split_comma_names(s: str) -> List[str]:
-    """Nxjerr emra nga listë me presje. Kthen [] nëse < 2 emra valid."""
     if not s or ',' not in s:
         return []
 
@@ -327,7 +377,6 @@ def _split_comma_names(s: str) -> List[str]:
     names: List[str] = []
     for piece in pieces:
         clean = piece.strip()
-        # Heq ndonjë rol pas '-'
         clean = re.split(r'\s+[—–-]\s+', clean, maxsplit=1)[0].strip()
         if is_valid_person_name(clean):
             names.append(clean)
@@ -336,15 +385,6 @@ def _split_comma_names(s: str) -> List[str]:
 
 
 def _try_parse_line(line: str) -> List[Tuple[str, str]]:
-    """
-    V3.12: Ndan një rresht në (emri, roli) — VETËM nëse ka rol.
-
-    Radha:
-      1. Listë me presje pas ':' (listë kolektive — pa rol individual)
-      2. Listë me presje në rresht
-      3. "EMRI — roli" me ndarës
-      4. Vetëm emër + rol (në rresht me '—')
-    """
     if not line:
         return []
 
@@ -352,10 +392,8 @@ def _try_parse_line(line: str) -> List[Tuple[str, str]]:
     if len(line) < 5 or len(line) > 400:
         return []
 
-    # Heq numrin fillestar opsional
     line = re.sub(r'^\s*\d+\s*[\.\)]\s*', '', line).strip()
 
-    # 1. Nëse ka ':': provo listën me presje pas ':'
     if ':' in line:
         before, _, after = line.partition(':')
         before = before.strip()
@@ -365,18 +403,14 @@ def _try_parse_line(line: str) -> List[Tuple[str, str]]:
         if len(names) >= 2:
             return [(n, "") for n in names]
 
-        # Nëse emri + roli në një linjë me ':'
-        # Kontrollo "X: roli" — por vetëm nëse X është emër valid
         if is_valid_person_name(before) and len(after) >= 3:
             return [(before, after[:200])]
 
-    # 2. Listë me presje (pa ':')
     if ',' in line:
         names = _split_comma_names(line)
         if len(names) >= 2:
             return [(n, "") for n in names]
 
-    # 3. "EMRI — roli"
     m = _LINE_SEPARATORS_RE.split(line, maxsplit=1)
     if len(m) == 2:
         left = m[0].strip()
@@ -388,12 +422,6 @@ def _try_parse_line(line: str) -> List[Tuple[str, str]]:
 
 
 def extract_suspects(text: str) -> List[Dict[str, Any]]:
-    """
-    V3.12: Skanon linjë për linjë. Praton VETËM:
-      1. Emra + rol (me ndarës —/–/-)
-      2. Lista me presje (2+ emra)
-    Të gjitha linjat pa rol → refuzohen.
-    """
     if not text:
         return []
 
@@ -658,6 +686,7 @@ def _extract_all_periods(
             continue
         num = int(match.group(1))
         unit_norm = _normalize_unit(match.group(2))
+        value_len = match.end() - match.start()
         is_reported = _is_reported_context(
             text, match.start(), own_case_numbers=own_case_numbers
         )
@@ -666,6 +695,9 @@ def _extract_all_periods(
             "unit": unit_norm,
             "position": match.start(),
             "context": extract_context(text, match.start(), window=150),
+            "sentence_context": _extract_sentence_context(
+                text, match.start(), value_len
+            )[:MAX_CONTEXT_CHARS],
             "is_reported": is_reported,
         })
     return results
@@ -680,6 +712,7 @@ def _extract_all_distances(
     results = []
     for match in DISTANCE_PATTERN.finditer(text):
         num = int(match.group(1))
+        value_len = match.end() - match.start()
         is_reported = _is_reported_context(
             text, match.start(), own_case_numbers=own_case_numbers
         )
@@ -688,9 +721,67 @@ def _extract_all_distances(
             "unit": "metra",
             "position": match.start(),
             "context": extract_context(text, match.start(), window=100),
+            "sentence_context": _extract_sentence_context(
+                text, match.start(), value_len
+            )[:MAX_CONTEXT_CHARS],
             "is_reported": is_reported,
         })
     return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V3.15: CONTEXT-AWARE CONTRADICTION HELPER
+# ═══════════════════════════════════════════════════════════════════════════
+
+_CONTEXT_STOPWORDS = frozenset([
+    "gjykata", "gjykatës", "gjykate", "gjykatë",
+    "vendimi", "vendimit", "vendim", "vendime", "vendimet",
+    "aktvendimi", "aktvendim", "aktgjykimi", "aktgjykim",
+    "ligji", "ligjit", "ligjin", "ligje", "ligjet",
+    "kodi", "kodit", "kodin", "kodet",
+    "neni", "nenit", "nenin", "nenet", "nenët",
+    "pika", "pikat", "pikës", "pikes",
+    "paragrafi", "paragrafit", "paragrafin",
+    "këtë", "ketë", "këtij", "ketij", "kësaj", "kesaj",
+    "nga", "për", "per", "me", "pa", "në", "ne",
+    "dhe", "ose", "por", "kur", "ku", "si", "sa",
+    "është", "eshte", "janë", "jane", "ishte", "kanë", "kane",
+    "kjo", "ky", "këto", "keto", "këta", "keta", "ato", "ata",
+    "gjithashtu", "përfundimisht", "perfundimisht",
+    "sipas", "të", "te", "i", "e", "a", "u",
+])
+
+
+def _extract_context_keywords(ctx: str) -> Set[str]:
+    """V3.15: Nxjerr fjalët me kuptim nga konteksti (>= 5 shkronja, jo stopwords)."""
+    if not ctx:
+        return set()
+    words = re.findall(r'[a-zA-ZëçËÇ]{5,}', ctx.lower())
+    return {w for w in words if w not in _CONTEXT_STOPWORDS}
+
+
+def _contexts_share_topic(
+    items: List[Dict[str, Any]],
+    min_shared: int = 1,
+) -> bool:
+    """
+    V3.15: Përdor `sentence_context` (kufijtë e fjalisë) nëse ekziston.
+    Nëse nuk ka, kthen False (safe default) — shmang false-positive.
+    """
+    if len(items) < 2:
+        return False
+
+    kw_sets = []
+    for it in items:
+        ctx = it.get("sentence_context", "")
+        kw_sets.append(_extract_context_keywords(ctx))
+
+    for i in range(len(kw_sets)):
+        for j in range(i + 1, len(kw_sets)):
+            if len(kw_sets[i] & kw_sets[j]) >= min_shared:
+                return True
+
+    return False
 
 
 def detect_contradictions(
@@ -701,6 +792,10 @@ def detect_contradictions(
     text: Optional[str] = None,
     own_case_numbers: Optional[Set[str]] = None,
 ) -> List[Dict[str, Any]]:
+    """
+    V3.15: Kërkohet kontekst i ngjashëm (min 1 fjalë e përbashkët mbi 5 shkronja)
+    mes vlerave kontradiktore — përdor sentence_context (kufijtë e fjalisë).
+    """
     contradictions: List[Dict[str, Any]] = []
 
     zone_anchors: List[Tuple[int, str]] = []
@@ -718,7 +813,7 @@ def detect_contradictions(
     EXAMPLE_CHARS = 250
     EXAMPLE_LIMIT = 4
 
-    # 1. Deadlines
+    # ─── 1. Deadlines ───
     _annotate(deadlines)
     deadlines_by_unit: Dict[str, List[Dict[str, Any]]] = {}
     for d in deadlines:
@@ -730,26 +825,35 @@ def detect_contradictions(
         if len(items) < 2:
             continue
         unique_nums = set(item["num"] for item in items)
-        if len(unique_nums) > 1:
-            all_reported = all(item.get("is_reported", False) for item in items)
-            kind = "reported" if all_reported else "internal"
-            zones_present = sorted({item.get("zone", ZONE_UNKNOWN) for item in items})
-            contradictions.append({
-                "type": "deadline_inconsistency",
-                "kind": kind,
-                "zone": zones_present[0] if len(zones_present) == 1 else "cross_zone",
-                "zone_label": (
-                    _zone_label(zones_present[0])
-                    if len(zones_present) == 1
-                    else f"Cross-zone: {', '.join(_zone_label(z) for z in zones_present)}"
-                ),
-                "unit": unit,
-                "values": sorted(unique_nums),
-                "count": len(items),
-                "examples": [item["context"][:EXAMPLE_CHARS] for item in items[:EXAMPLE_LIMIT]],
-            })
+        if len(unique_nums) <= 1:
+            continue
 
-    # 2. Periods
+        if not _contexts_share_topic(items, min_shared=1):
+            logger.info(
+                f"⏭️ [V3.15 CONTRADICTION SKIP] deadline {unit} "
+                f"{sorted(unique_nums)} — kontekst i ndryshëm."
+            )
+            continue
+
+        all_reported = all(item.get("is_reported", False) for item in items)
+        kind = "reported" if all_reported else "internal"
+        zones_present = sorted({item.get("zone", ZONE_UNKNOWN) for item in items})
+        contradictions.append({
+            "type": "deadline_inconsistency",
+            "kind": kind,
+            "zone": zones_present[0] if len(zones_present) == 1 else "cross_zone",
+            "zone_label": (
+                _zone_label(zones_present[0])
+                if len(zones_present) == 1
+                else f"Cross-zone: {', '.join(_zone_label(z) for z in zones_present)}"
+            ),
+            "unit": unit,
+            "values": sorted(unique_nums),
+            "count": len(items),
+            "examples": [item["context"][:EXAMPLE_CHARS] for item in items[:EXAMPLE_LIMIT]],
+        })
+
+    # ─── 2. Periods ───
     if periods:
         _annotate(periods)
         periods_by_unit: Dict[str, List[Dict[str, Any]]] = {}
@@ -762,6 +866,14 @@ def detect_contradictions(
             unique_nums = set(item["num"] for item in items)
             if len(unique_nums) <= 1:
                 continue
+
+            if not _contexts_share_topic(items, min_shared=1):
+                logger.info(
+                    f"⏭️ [V3.15 CONTRADICTION SKIP] period {unit} "
+                    f"{sorted(unique_nums)} — kontekst i ndryshëm."
+                )
+                continue
+
             all_reported = all(item.get("is_reported", False) for item in items)
             kind = "reported" if all_reported else "internal"
             zones_present = sorted({item.get("zone", ZONE_UNKNOWN) for item in items})
@@ -780,7 +892,7 @@ def detect_contradictions(
                 "examples": [item["context"][:EXAMPLE_CHARS] for item in items[:EXAMPLE_LIMIT]],
             })
 
-    # 3. Distances
+    # ─── 3. Distances ───
     if distances:
         _annotate(distances)
         distances_by_unit: Dict[str, List[Dict[str, Any]]] = {}
@@ -789,30 +901,39 @@ def detect_contradictions(
 
         for unit, items in distances_by_unit.items():
             unique_distances = set(d["num"] for d in items)
-            if len(items) > 1 and len(unique_distances) > 1:
-                all_reported = all(item.get("is_reported", False) for item in items)
-                kind = "reported" if all_reported else "internal"
-                zones_present = sorted({item.get("zone", ZONE_UNKNOWN) for item in items})
-                contradictions.append({
-                    "type": "distance_inconsistency",
-                    "kind": kind,
-                    "zone": zones_present[0] if len(zones_present) == 1 else "cross_zone",
-                    "zone_label": (
-                        _zone_label(zones_present[0])
-                        if len(zones_present) == 1
-                        else f"Cross-zone: {', '.join(_zone_label(z) for z in zones_present)}"
-                    ),
-                    "unit": unit,
-                    "values": sorted(unique_distances),
-                    "count": len(items),
-                    "examples": [d["context"][:EXAMPLE_CHARS] for d in items[:EXAMPLE_LIMIT]],
-                })
+            if len(items) <= 1 or len(unique_distances) <= 1:
+                continue
+
+            if not _contexts_share_topic(items, min_shared=1):
+                logger.info(
+                    f"⏭️ [V3.15 CONTRADICTION SKIP] distance {unit} "
+                    f"{sorted(unique_distances)} — kontekst i ndryshëm."
+                )
+                continue
+
+            all_reported = all(item.get("is_reported", False) for item in items)
+            kind = "reported" if all_reported else "internal"
+            zones_present = sorted({item.get("zone", ZONE_UNKNOWN) for item in items})
+            contradictions.append({
+                "type": "distance_inconsistency",
+                "kind": kind,
+                "zone": zones_present[0] if len(zones_present) == 1 else "cross_zone",
+                "zone_label": (
+                    _zone_label(zones_present[0])
+                    if len(zones_present) == 1
+                    else f"Cross-zone: {', '.join(_zone_label(z) for z in zones_present)}"
+                ),
+                "unit": unit,
+                "values": sorted(unique_distances),
+                "count": len(items),
+                "examples": [d["context"][:EXAMPLE_CHARS] for d in items[:EXAMPLE_LIMIT]],
+            })
 
     return contradictions
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BUILD FACT PROFILE — V3.12
+# BUILD FACT PROFILE — V3.15
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_fact_profile(
@@ -893,7 +1014,7 @@ def build_fact_profile(
     }
 
     logger.info(
-        f"🔬 [FACT_EXTRACTOR V3.12] dates={stats['total_dates']}, "
+        f"🔬 [FACT_EXTRACTOR V3.15] dates={stats['total_dates']}, "
         f"deadlines={stats['total_deadlines']} "
         f"(legal={stats['legal_deadlines']}), "
         f"parties={stats['total_parties']}, "

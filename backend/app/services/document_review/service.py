@@ -1,14 +1,11 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.20
-# V5.20: SPLIT THRESHOLD 30 → 10 — Bazuar në matje reale (Vendimi_i_Apelit.pdf):
-#        - 14 nene < 30 threshold → article_verification NUK batched
-#        - Pa batched, concise suffix nuk aplikohet → 1 stream i vetëm me
-#          13166 chars context + 7461 chars output = 278.98s (95% e totalit!)
-#        - Me threshold=10: 14 nene → 2 batches × 7 nene → ~30-50s total
-#        - Fitimi: ~230s reduktim për dokumentet me 10-29 nene
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.21
+# V5.21: CONCISE FOR MULTIPLE SECTIONS — Bazuar në matje reale V5.20:
+#        - action_steps: 111.38s → target ~30-40s me concise
+#        - analiza_e_thelluar: 62.16s → target ~25-35s me concise
+#        Dictionary SECTION_CONCISE_SUFFIXES për konfigurim të pastër.
+# V5.20: SPLIT THRESHOLD 30 → 10.
 # V5.19: ARTICLE_VERIFICATION CONCISE.
-# V5.18: TIMING LOGS CLEANUP.
-# V5.17: VERIFICATION_DETAILS REMOVED.
 
 import os
 import time
@@ -43,8 +40,6 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT_SECTIONS = int(os.getenv("DOC_REVIEW_MAX_WORKERS", "3"))
 DEFAULT_SECTION_MAX_TOKENS = 3000
 
-# V5.20: U ul nga 30 → 10. Për dokumente me >= 10 nene, batched.
-# Bazuar në matje reale: 14 nene pa batched = 278s, me batched pritet ~40s.
 ARTICLE_VERIFICATION_SPLIT_THRESHOLD = int(
     os.getenv("ARTICLE_VERIFICATION_SPLIT_THRESHOLD", "10")
 )
@@ -52,7 +47,10 @@ ARTICLE_VERIFICATION_BATCHES = int(
     os.getenv("ARTICLE_VERIFICATION_BATCHES", "3")
 )
 
-# V5.19: Udhëzim konciz për article_verification batches.
+# ═══════════════════════════════════════════════════════════════════════════
+# V5.21: CONCISE SUFFIXES — Dictionary i pastër
+# ═══════════════════════════════════════════════════════════════════════════
+
 ARTICLE_VERIFICATION_CONCISE_SUFFIX = """
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -71,6 +69,63 @@ KUFIZIME ABSOLUTE:
   - MAKSIMUM 2 rreshta për nen.
   - MAKSIMUM 1 tabelë përmbledhëse në fund (statusi agregat).
 """
+
+ACTION_STEPS_CONCISE_SUFFIX = """
+
+═══════════════════════════════════════════════════════════════════════════
+⚡ UDHËZIM KONCIZIONI (VETËM PËR KËTË SEKSION)
+═══════════════════════════════════════════════════════════════════════════
+Për ÇDO rekomandim / veprim / hap:
+  - Emri i veprimit (5-10 fjalë)
+  - Bazë ligjore / procedurale (1 fjali, me referencë)
+  - Prioriteti (i menjëhershëm / afatgjatë)
+
+KUFIZIME ABSOLUTE:
+  - MOS shkruaj paragrafë të gjatë.
+  - MOS përsërit faktet nga konteksti — citoji vetëm si referencë.
+  - MAKSIMUM 3 rreshta për veprim.
+  - Fokus në VEPRIME, jo në analizë.
+
+STRUKTURA:
+### A. Vlerësimi i Situatës (2-3 fjali)
+### B. Hapat e Menjëhershëm (1-7 ditë) — 3-4 veprime bullet-point
+### C. Hapat Afatgjatë (1-3 muaj) — 3-4 veprime bullet-point
+### D. Mundësitë Procedurale — 3-4 veprime bullet-point
+### E. Rreziqet — 3-4 pika bullet
+### F. Referencat Konkrete — 3-4 nene me numër
+### G. Veprime Kritike që Mund të Mungojnë — 2-3 pika bullet
+"""
+
+ANALIZA_E_THELLUAR_CONCISE_SUFFIX = """
+
+═══════════════════════════════════════════════════════════════════════════
+⚡ UDHËZIM KONCIZIONI (VETËM PËR KËTË SEKSION)
+═══════════════════════════════════════════════════════════════════════════
+Për ÇDO shenjë / model / boshllëk:
+  - Titull i shkurtër (3-7 fjalë)
+  - Vëzhgimi (1-2 fjali)
+  - Baza në fakte (cito referencën e saktë)
+
+KUFIZIME ABSOLUTE:
+  - MOS përsërit analizën që gjendet në seksionet e tjera (drafting_quality, errors_corrections).
+  - MAKSIMUM 3 rreshta për shenjë.
+  - 5-7 shenja TOTAL — jo më shumë.
+  - Cilësia > Sasia.
+
+STRUKTURA:
+### A. Modele dhe Shenja të Fshehta (2-3)
+### B. Omissions dhe Boshllëqe Kritike (2-3)
+### C. Standarde Provash (1-2)
+### D. Arme të Mundshme të Kundërshtarit (1-2)
+### E. Veprime Kritike që Mund të Mungojnë (1-2)
+"""
+
+# V5.21: Dictionary — section_key → concise suffix
+SECTION_CONCISE_SUFFIXES: Dict[str, str] = {
+    "article_verification": ARTICLE_VERIFICATION_CONCISE_SUFFIX,
+    "action_steps": ACTION_STEPS_CONCISE_SUFFIX,
+    "analiza_e_thelluar": ANALIZA_E_THELLUAR_CONCISE_SUFFIX,
+}
 
 
 class DocumentReviewService:
@@ -122,11 +177,12 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.20] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.21] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, "
             f"len={len(doc_text)} chars, client={client_name or '?'} "
             f"({client_position or '?'}), parallel x{MAX_CONCURRENT_SECTIONS}, "
-            f"article_threshold={ARTICLE_VERIFICATION_SPLIT_THRESHOLD}"
+            f"article_threshold={ARTICLE_VERIFICATION_SPLIT_THRESHOLD}, "
+            f"concise_sections={list(SECTION_CONCISE_SUFFIXES.keys())}"
         )
 
         # ═══ 2. LABORATORI ═══
@@ -185,7 +241,7 @@ class DocumentReviewService:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [PARALLEL V5.20] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
+            f"🚀 [PARALLEL V5.21] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
             f"seksione me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -230,7 +286,7 @@ class DocumentReviewService:
             ]
 
             logger.info(
-                f"⚡ [V5.20 BATCH] article_verification: {total_articles} nene "
+                f"⚡ [V5.21 BATCH] article_verification: {total_articles} nene "
                 f"→ {len(batches)} batches (size≈{batch_size})"
             )
 
@@ -251,10 +307,12 @@ class DocumentReviewService:
                     client_position=client_position,
                 )
 
-                partial_context = partial_context + ARTICLE_VERIFICATION_CONCISE_SUFFIX
+                concise_suffix = SECTION_CONCISE_SUFFIXES.get(section_key, "")
+                if concise_suffix:
+                    partial_context = partial_context + concise_suffix
 
                 logger.info(
-                    f"▶️ [V5.20 BATCH {batch_idx + 1}/{len(batches)}] "
+                    f"▶️ [V5.21 BATCH {batch_idx + 1}/{len(batches)}] "
                     f"article_verification — {len(batch_articles)} nene, "
                     f"context={len(partial_context)} chars (concise=ON)"
                 )
@@ -269,13 +327,13 @@ class DocumentReviewService:
                         stream_callback=None,
                     )
                     logger.info(
-                        f"✅ [V5.20 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"✅ [V5.21 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Përfundoi: {len(content)} chars"
                     )
                     return content
                 except Exception as e:
                     logger.error(
-                        f"❌ [V5.20 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"❌ [V5.21 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Dështoi: {e}"
                     )
                     return f"[Seksioni batch {batch_idx + 1} dështoi: {e}]"
@@ -294,14 +352,14 @@ class DocumentReviewService:
                     try:
                         contents[idx] = fut.result()
                     except Exception as e:
-                        logger.error(f"❌ [V5.20 BATCH] Future {idx} error: {e}")
+                        logger.error(f"❌ [V5.21 BATCH] Future {idx} error: {e}")
                         contents[idx] = f"[Batch {idx + 1} dështoi]"
 
             combined = "\n\n".join(c for c in contents if c).strip()
             elapsed = round(time.time() - section_start, 2)
 
             logger.info(
-                f"✅ [SECTION DONE V5.20] {section_key}: {elapsed}s, "
+                f"✅ [SECTION DONE V5.21] {section_key}: {elapsed}s, "
                 f"{len(combined)} chars combined (batches={len(batches)}, concise=ON)"
             )
 
@@ -413,11 +471,18 @@ class DocumentReviewService:
 
             context_build_time = time.time() - t_ctx
 
+            # V5.21: Apliko concise suffix për section-t e konfiguruara
+            concise_suffix = SECTION_CONCISE_SUFFIXES.get(section_key, "")
+            concise_applied = bool(concise_suffix)
+            if concise_applied:
+                verified_context = verified_context + concise_suffix
+
             logger.info(
                 f"▶️ [SECTION START] {section_key} "
                 f"(max_tokens={section_max_tokens}, context={len(verified_context)} chars, "
                 f"ctx_build={context_build_time*1000:.1f}ms, "
-                f"precedent_search={precedent_search_time*1000:.1f}ms) — {section_title}"
+                f"precedent_search={precedent_search_time*1000:.1f}ms, "
+                f"concise={'ON' if concise_applied else 'off'}) — {section_title}"
             )
 
             _emit_progress("section_started", {
@@ -440,7 +505,7 @@ class DocumentReviewService:
                 logger.info(
                     f"✅ [SECTION DONE] {section_key}: {elapsed}s, "
                     f"{len(content)} chars out (context={len(verified_context)} in, "
-                    f"max_tokens={section_max_tokens})"
+                    f"max_tokens={section_max_tokens}, concise={'ON' if concise_applied else 'off'})"
                 )
 
                 return (
@@ -453,6 +518,7 @@ class DocumentReviewService:
                         "max_tokens": section_max_tokens,
                         "precedent_search_sec": round(precedent_search_time, 2),
                         "precedents_found": len(precedents) if precedents else 0,
+                        "concise_mode": concise_applied,
                     },
                     {"context_build_time": context_build_time, "precedent_search_time": precedent_search_time},
                 )
@@ -497,11 +563,11 @@ class DocumentReviewService:
                                 "content_length": stat_entry.get("content_length", 0),
                             })
                     except Exception as e:
-                        logger.error(f"❌ [PARALLEL V5.20] Future failed for {section_key}: {e}")
+                        logger.error(f"❌ [PARALLEL V5.21] Future failed for {section_key}: {e}")
 
         except Exception as e:
-            logger.error(f"❌ [PARALLEL V5.20] ThreadPoolExecutor failed: {e}")
-            logger.info("🔄 [PARALLEL V5.20] Fallback në sequential mode")
+            logger.error(f"❌ [PARALLEL V5.21] ThreadPoolExecutor failed: {e}")
+            logger.info("🔄 [PARALLEL V5.21] Fallback në sequential mode")
             for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
                 try:
                     key, sec_entry, stat_entry, _timing = _run_section(section_key, section_cfg)
@@ -522,7 +588,7 @@ class DocumentReviewService:
         )
 
         logger.info(
-            f"🏛️ [V5.20] Precedent cases qe do te lejohen: "
+            f"🏛️ [V5.21] Precedent cases qe do te lejohen: "
             f"{len(found_precedent_cases)} -> {sorted(found_precedent_cases)[:5]}"
         )
 
@@ -590,7 +656,7 @@ class DocumentReviewService:
                 )
                 blocked_count += 1
 
-            logger.warning(f"🛡️ [V5.20 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
+            logger.warning(f"🛡️ [V5.21 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
 
         # MONTIMI FINAL
         document_meta = {"file_name": file_name, "document_type": document_type}
@@ -608,6 +674,12 @@ class DocumentReviewService:
         precedents_found_total = (
             section_stats.get("supreme_court_precedents", {}).get("precedents_found", 0)
         )
+
+        # V5.21: Lista e section-eve me concise aktiv
+        concise_sections = [
+            k for k, s in section_stats.items()
+            if s.get("concise_mode")
+        ]
 
         result = {
             "case_id": case_id,
@@ -638,7 +710,7 @@ class DocumentReviewService:
                 "sections_blocked": len(hallucination_report.get("suspicious_sections", [])),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.20",
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.21",
                 "hallucination_status": hallucination_report["status"],
                 "hallucination_issues": hallucination_report["total_issues"],
                 "hallucination_suspicious_sections": hallucination_report["suspicious_sections"],
@@ -649,9 +721,7 @@ class DocumentReviewService:
                 "article_verification_batched": (
                     section_stats.get("article_verification", {}).get("batched", False)
                 ),
-                "article_verification_concise": (
-                    section_stats.get("article_verification", {}).get("concise_mode", False)
-                ),
+                "concise_sections": concise_sections,
                 "timing_breakdown": {
                     "citation_extract_sec": round(citation_time, 2),
                     "fact_extract_sec": round(fact_time, 2),
@@ -670,13 +740,14 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.20] Complete: "
+            f"✅ [DOC_REVIEW V5.21] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"blocked={result['stats']['sections_blocked']}, "
             f"articles_verified={verification_report['stats']['articles_verified']}, "
             f"precedents_found={precedents_found_total}, "
             f"hallucination={hallucination_report['status']} "
             f"({hallucination_report['total_issues']} issues), "
+            f"concise_sections={concise_sections}, "
             f"report_chars={len(full_report)}, duration={duration}s, mode={result['stats']['execution_mode']}"
         )
 
