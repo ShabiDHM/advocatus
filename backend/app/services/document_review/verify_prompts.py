@@ -1,13 +1,12 @@
 # FILE: backend/app/services/document_review/verify_prompts.py
-# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.10
-# V1.10: LOW CLEANUP —
-#        - Hequr `common_issues: []` (dead field) nga 7 doc types.
-#        - _block_cited_articles: context tani [:MAX_CONTEXT_CHARS] (=300),
-#          sinkron me citation_extractor dhe constants.MAX_CONTEXT_CHARS
-#          (ishte [:200], humbte 100 chars).
-#        - _truncate_draft: koment i qartë mbi rolin e max_chars.
-# V1.9: THRESHOLD UNIFIED — MIN_PRECEDENT_SIMILARITY 0.50 → 0.70 për
-#       konsistencë me PRECEDENT_SIMILARITY_THRESHOLD në precedent_search/config.
+# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.11
+# V1.11: LLM CONTEXT EXCERPT REDUCED — _block_precedents tani shfaq
+#        excerpt[:250] (ishte [:400]). Matje V2.7: supreme_court_precedents
+#        LLM streaming = 65.9s (bottleneck). Reduktoi input context ~25%
+#        (nga 6554 → ~5000 chars) → pritet -10-15s. Kualiteti mbetet i lartë
+#        sepse 250 chars mbulojnë faktet kyçe.
+# V1.10: LOW CLEANUP — common_issues hequr, [:MAX_CONTEXT_CHARS] unified.
+# V1.9: THRESHOLD UNIFIED — MIN_PRECEDENT_SIMILARITY 0.50 → 0.70.
 # V1.8: HYBRID SECTION 3.
 # V1.7: HYBRID SECTION 2.
 # V1.6: SHEMBUJ KONKRETË — Section 5.
@@ -37,6 +36,9 @@ DRAFT_HEAD_CHARS = 45000
 DRAFT_TAIL_CHARS = 10000
 
 MIN_PRECEDENT_SIMILARITY = 0.70
+
+# V1.11: Excerpt i precedenteve në context LLM (jo output)
+PRECEDENT_LLM_EXCERPT_CHARS = 250
 
 
 DEDUP_RULE = """
@@ -773,7 +775,8 @@ def _block_precedents(
         if topic:
             lines.append(f"     Tema: {topic}")
         if excerpt:
-            lines.append(f'     Fragment: "{excerpt[:400]}"')
+            # V1.11: Excerpt reduced 400 → 250 chars (LLM context)
+            lines.append(f'     Fragment: "{excerpt[:PRECEDENT_LLM_EXCERPT_CHARS]}"')
         lines.append(f"     Burimi: {source}, faqe {page}")
         lines.append("")
 
@@ -826,7 +829,7 @@ def get_checklist(doc_type: str) -> Optional[Dict[str, Any]]:
 
 def _cli_test():
     print("=" * 70)
-    print("VERIFY PROMPTS V1.10 — DIAGNOSTIKË")
+    print("VERIFY PROMPTS V1.11 — DIAGNOSTIKË")
     print("=" * 70)
 
     print(f"\nLlojet e dokumenteve ({len(VERIFY_DOC_TYPES)}):")
@@ -840,9 +843,10 @@ def _cli_test():
         needs = cfg.get("needs", [])
         print(f"  - {k:25s} max_tokens={cfg.get('max_tokens')} needs={needs}")
 
-    print(f"\nV1.10 Konstante:")
+    print(f"\nV1.11 Konstante:")
     print(f"  - DEFAULT_MAX_DRAFT_CHARS: {DEFAULT_MAX_DRAFT_CHARS}")
     print(f"  - MIN_PRECEDENT_SIMILARITY: {MIN_PRECEDENT_SIMILARITY}")
+    print(f"  - PRECEDENT_LLM_EXCERPT_CHARS: {PRECEDENT_LLM_EXCERPT_CHARS}")
     print(f"  - MAX_CONTEXT_CHARS (nga constants): {MAX_CONTEXT_CHARS}")
 
 

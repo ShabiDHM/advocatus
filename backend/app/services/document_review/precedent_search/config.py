@@ -1,15 +1,13 @@
 # FILE: backend/app/services/document_review/precedent_search/config.py
-# PHOENIX PROTOCOL - PRECEDENT SEARCH CONFIG V2.5
-# V2.5: CONSISTENCY FIX —
-#       - PRECEDENT_RERANK_COHERE_MIN_SCORE: 0.10 → 0.15 (sipas header-it
-#         V2.4 dhe komentit; kodi ishte në 0.10 — mospërputhje e rregulluar).
-#       - PRECEDENT_RERANK_INPUT_N: 50 → 20 (sinkron me pre-filter
-#         PRECEDENT_RERANK_PRE_FILTER_TOP_N në service.py; vlera 50 ishte
-#         konfigurim i vdekur sepse asnjëherë nuk arrihej).
-# V2.4: Kalibrim per me shume rezultate:
-#       - PRECEDENT_TOP_K: 10 -> 15
-#       - PRECEDENT_RERANK_TOP_N: 10 -> 15
-#       - PRECEDENT_RERANK_COHERE_MIN_SCORE: 0.5 -> 0.15
+# PHOENIX PROTOCOL - PRECEDENT SEARCH CONFIG V2.7
+# V2.7: TOP_K TUNING — PRECEDENT_TOP_K 15 → 8. Matje V2.7: supreme_court_precedents
+#       LLM streaming = 65.9s (bottleneck real). Reduktimi i precedenteve në
+#       context redukton input-in LLM ~30% → pritet -15-20s. Rrezik i ulët:
+#       top-8 mbulojnë precedentët më relevantë (threshold 0.70 i filtron
+#       kandidatët e dobët para se të arrijnë këtu).
+# V2.6: RERANK INPUT TUNING — PRECEDENT_RERANK_INPUT_N 20 → 12.
+# V2.5: CONSISTENCY FIX — Cohere 0.15 + INPUT_N sinkron me pre-filter.
+# V2.4: Kalibrim per me shume rezultate.
 # V2.3: Shtuar Cohere Reranker konfigurim.
 # V2.2: Shtuar PRECEDENT_ENRICH_TOPIC.
 # V2.1: Shtuar PRECEDENT_RERANK_MIN_SCORE.
@@ -26,8 +24,9 @@ PRECEDENT_SIMILARITY_THRESHOLD = float(
     os.getenv("PRECEDENT_SIMILARITY_THRESHOLD", "0.70")
 )
 
-# V2.4: Sa precedentë finalë (pas filtrim threshold).
-PRECEDENT_TOP_K = int(os.getenv("PRECEDENT_TOP_K", "15"))
+# V2.7: Sa precedentë finalë (pas filtrim threshold). Ulur 15 → 8 për
+# reduktim të context-it LLM në supporting_precedents (~30% më i shkurtër).
+PRECEDENT_TOP_K = int(os.getenv("PRECEDENT_TOP_K", "8"))
 
 # Hybrid search
 PRECEDENT_USE_HYBRID = os.getenv("PRECEDENT_USE_HYBRID", "true").lower() == "true"
@@ -37,10 +36,8 @@ PRECEDENT_RRF_K = int(os.getenv("PRECEDENT_RRF_K", "60"))
 # Reranker (deepseek | cohere | none)
 PRECEDENT_RERANKER = os.getenv("PRECEDENT_RERANKER", "deepseek").lower()
 
-# V2.5: Sa kandidate cohere/deepseek vlereson (input per reranker).
-# Sinkron me PRECEDENT_RERANK_PRE_FILTER_TOP_N në service.py (= 20).
-# Vlera e mëparshme 50 ishte e vdekur sepse pre-filter nuk dorëzonte > 20.
-PRECEDENT_RERANK_INPUT_N = int(os.getenv("PRECEDENT_RERANK_INPUT_N", "20"))
+# V2.6: Sa kandidate cohere/deepseek vlereson (input per reranker).
+PRECEDENT_RERANK_INPUT_N = int(os.getenv("PRECEDENT_RERANK_INPUT_N", "12"))
 
 # V2.4: Sa kthen reranker (top nga input).
 PRECEDENT_RERANK_TOP_N = int(os.getenv("PRECEDENT_RERANK_TOP_N", "15"))
@@ -56,8 +53,6 @@ PRECEDENT_RERANK_MIN_SCORE = float(
 )  # DeepSeek: 0-10
 
 # V2.5: Cohere threshold — i sinkronizuar me header/koment V2.4 (= 0.15).
-# Cohere rerank-v3.5 jep score 0.1-0.3 per query specifik (jo 0-1 plote).
-# 0.5 filtronte te gjitha; 0.15 lejon top 3-10 te kalojne.
 PRECEDENT_RERANK_COHERE_MIN_SCORE = float(
     os.getenv("PRECEDENT_RERANK_COHERE_MIN_SCORE", "0.15")
 )  # Cohere: 0-1

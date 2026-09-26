@@ -1,13 +1,12 @@
 # FILE: backend/app/services/document_review/precedent_search/rerank.py
-# PHOENIX PROTOCOL - PRECEDENT RERANK V2.4
-# V2.4: COHERE SCALE CLARITY — Shtuar konstantja COHERE_TO_DEEPSEEK_SCALE
-#       që eksplicite dokumenton normalizimin 0-1 → 0-10. Zero ndryshim
-#       sjelljeje, vetëm qartësi për reader-in (përpara: `* 10.0` inline).
-# V2.3: Shtuar Cohere Reranker + dispatcher:
-#       - rerank_deepseek(): i paprekur nga V2.2
-#       - rerank_cohere(): Cohere Rerank API (multilingual v3.0)
-#       - rerank(): dispatcher sipas PRECEDENT_RERANKER
-#       - Cohere score 0-1 skalohet ne 0-10 per konsistence me DeepSeek
+# PHOENIX PROTOCOL - PRECEDENT RERANK V2.5
+# V2.5: EXCERPT REDUCED — Excerpt për rerank 400 → 250 chars. Matje V2.7:
+#       rerank=4.858s për 10 kandidate × 400 chars. Ulja në 250 redukton
+#       input-in me ~37% → rerank ~3s. Kualiteti mbetet i lartë (fragmentet
+#       e para 250 chars mbulojnë fakte kyçe + topic label është gjithashtu
+#       në prompt).
+# V2.4: COHERE SCALE CLARITY — COHERE_TO_DEEPSEEK_SCALE konstantë.
+# V2.3: Shtuar Cohere Reranker + dispatcher.
 # V2.2: User prompt shton "[tema: X]" para fragmentit.
 # V2.1: Prompt me shembuj + kalibrim.
 
@@ -29,9 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 # V2.4: Faktori i shkallëzimit Cohere → DeepSeek (0-1 → 0-10).
-# DeepSeek-as-judge kthen score 0-10, Cohere kthen relevance_score 0-1.
-# Të dyja ruhen si `rerank_score` në shkallën 0-10 për konsistencë.
 COHERE_TO_DEEPSEEK_SCALE: float = 10.0
+
+# V2.5: Excerpt i dërguar reranker-it (më i vogël se ai në skeleton)
+RERANK_EXCERPT_CHARS = 250
 
 
 # ===========================================================================
@@ -111,7 +111,8 @@ def rerank_deepseek(
     user_lines = [f"LËNDA: {query_text[:500]}", "", "PRECEDENTËT:"]
     for i, c in enumerate(to_rerank):
         cn = c.get("case_number") or c.get("title") or "?"
-        excerpt = (c.get("text") or "")[:400]
+        # V2.5: Excerpt 400 → 250 chars
+        excerpt = (c.get("text") or "")[:RERANK_EXCERPT_CHARS]
         excerpt = re.sub(r'\s+', ' ', excerpt).strip()
 
         user_lines.append(f"\n[{i}] {cn}")
@@ -179,7 +180,7 @@ def rerank_deepseek(
 
 
 # ===========================================================================
-# COHERE RERANK (V2.3)
+# COHERE RERANK
 # ===========================================================================
 
 def _get_cohere_client():
@@ -213,11 +214,7 @@ def rerank_cohere(
     top_n: int = PRECEDENT_RERANK_TOP_N,
 ) -> List[Dict[str, Any]]:
     """
-    V2.4: Rerank me Cohere Rerank API (multilingual v3.0).
-
-    Cohere kthen relevance_score 0-1 per cdo dokument. Ruhet si `cohere_score`
-    (0-1) DHE `rerank_score = cohere_score * COHERE_TO_DEEPSEEK_SCALE` (0-10)
-    per konsistence me DeepSeek.
+    Rerank me Cohere Rerank API (multilingual v3.0).
     """
     if not candidates:
         return []
@@ -236,11 +233,11 @@ def rerank_cohere(
 
     to_rerank = candidates[:PRECEDENT_RERANK_INPUT_N]
 
-    # Nderto dokumentet per Cohere (case_number + excerpt + tema)
     documents = []
     for c in to_rerank:
         cn = c.get("case_number") or c.get("title") or "?"
-        excerpt = (c.get("text") or "")[:500]
+        # V2.5: Excerpt 400 → 250 chars (konsistent me DeepSeek)
+        excerpt = (c.get("text") or "")[:RERANK_EXCERPT_CHARS]
         excerpt = re.sub(r'\s+', ' ', excerpt).strip()
         topic = c.get("topic_label") or ""
 
@@ -265,9 +262,7 @@ def rerank_cohere(
             score = result.relevance_score  # 0-1
 
             if 0 <= idx < len(to_rerank):
-                # V2.4: Ruaj score origjinal 0-1
                 to_rerank[idx]["cohere_score"] = float(score)
-                # V2.4: Skalo ne 0-10 per konsistence me DeepSeek
                 to_rerank[idx]["rerank_score"] = (
                     float(score) * COHERE_TO_DEEPSEEK_SCALE
                 )
@@ -295,7 +290,7 @@ def rerank_cohere(
 
 
 # ===========================================================================
-# DISPATCHER (V2.3)
+# DISPATCHER
 # ===========================================================================
 
 def rerank(
@@ -304,12 +299,7 @@ def rerank(
     top_n: int = PRECEDENT_RERANK_TOP_N,
 ) -> List[Dict[str, Any]]:
     """
-    V2.3: Dispatcher qe zgjedh reranker sipas PRECEDENT_RERANKER.
-
-    Vlera te lejuara:
-      - "deepseek" (default): DeepSeek-as-judge (0-10)
-      - "cohere": Cohere Rerank API (0-1 -> skalohet ne 0-10)
-      - "none": nuk ben rerank, kthen candidates[:top_n]
+    Dispatcher qe zgjedh reranker sipas PRECEDENT_RERANKER.
     """
     if PRECEDENT_RERANKER == "cohere":
         return rerank_cohere(query_text, candidates, top_n=top_n)
