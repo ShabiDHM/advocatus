@@ -1,16 +1,20 @@
 # FILE: backend/app/services/document_review/mongo_verifier.py
-# PHOENIX PROTOCOL - MONGO VERIFIER V2.5 (INTERNATIONAL TREATIES)
-# V2.5: INTERNATIONAL TREATIES — Konventat ndërkombëtare (KEDNJ, Konventa
-#       e OKB-së për të Drejtat e Fëmijës) njihen si pjesë e rendit
-#       kushtetues sipas Nenit 22 të Kushtetutës. Trajtohen si "verified"
-#       me match_reason="international_treaty_constitutional" para DB lookup.
-#       Fix për false-negative ku Nenet 3, 6, 8, 9, 12, 13, 19 raportoheshin
-#       si "NUK U GJET" edhe pse janë të vlefshme në Kosovë.
+# PHOENIX PROTOCOL - MONGO VERIFIER V2.7 (LCS COMPOUND ABBREVIATIONS)
+# V2.7: LCS-BASED COMPOUND ABBREVIATION MATCHING —
+#       - Shtuar _lcs_length (Longest Common Subsequence, memory-optimized).
+#       - Shtuar _compound_abbrev_matches që krahaso sekuencën uppercase të
+#         hint-it me akronimin e plotë të gjeneruar nga titulli i DB duke
+#         përdorur LCS — jo prefix-based.
+#       - Shembull: 'LMDhFDhGDhBGJj' (uppercase 'LMDFDGDBGJ') vs DB
+#         "Ligji për Parandalimin dhe Mbrojtjen nga Dhuna në Familje..."
+#         (generated 'LPMDFDGDGBG'). LCS = 9, min_len = 10, ratio 0.9 → match.
+#       - Arsye: prefix-based V2.6 dështoi sepse titulli ka fjalë shtesë
+#         ("parandalimin") që zhvendos pozicionin e shkronjave.
+# V2.6: DYNAMIC COMPOUND ABBREVIATION MATCHING.
+# V2.5: INTERNATIONAL TREATIES.
 # V2.4: CONTEXT FIELD UNIFIED.
 # V2.3: KEYWORD_MATCH_STOPWORDS.
 # V2.2: EXCLUDES — KPRK nuk match-on "KODI PROCEDURËS PENALE".
-# V2.1: FIX akronime te gabuara.
-# V2.0: VERIFIKIM MULTI-LIGJ.
 
 import re
 import logging
@@ -27,11 +31,11 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.2: MINI STOPWORDS për gjenerimin e akronimeve
+# ABBREV_SKIP_WORDS
 # ═══════════════════════════════════════════════════════════════════════════
 
 ABBREV_SKIP_WORDS = {
-    "për", "per", "dhe", "ose", "me", "në", "ne", "nga",
+    "për", "per", "dhe", "ose", "me", "në", "ne", "nga", "ndaj",
     "të", "te", "e", "i", "së", "se", "si", "ka",
     "nr", "numri", "numrit", "numër", "numer",
     "republikës", "republike", "republikë",
@@ -49,7 +53,7 @@ ABBREV_SKIP_WORDS = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.1: LAW_ABBREV_ALIASES — akronime me variante
+# LAW_ABBREV_ALIASES
 # ═══════════════════════════════════════════════════════════════════════════
 
 LAW_ABBREV_ALIASES: Dict[str, str] = {
@@ -62,7 +66,7 @@ LAW_ABBREV_ALIASES: Dict[str, str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.4 / V2.1: KNOWN_ABBREV_KEYWORDS
+# KNOWN_ABBREV_KEYWORDS
 # ═══════════════════════════════════════════════════════════════════════════
 
 KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
@@ -106,12 +110,7 @@ KEYWORD_MATCH_STOPWORDS: Set[str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.5: INTERNATIONAL TREATIES
-# ═══════════════════════════════════════════════════════════════════════════
-# Konventat ndërkombëtare janë pjesë e rendit kushtetues të Republikës së
-# Kosovës sipas Nenit 22 të Kushtetutës, me prioritet mbi ligjet vendore.
-# NUK janë në legal_knowledge_base (nuk janë ligje të miratuara nga Kuvendi).
-# Verifikohen si "international_treaty_constitutional" me bazë kushtetuese.
+# INTERNATIONAL TREATIES
 # ═══════════════════════════════════════════════════════════════════════════
 
 INTERNATIONAL_TREATIES: Dict[str, Dict[str, str]] = {
@@ -135,12 +134,10 @@ INTERNATIONAL_TREATIES: Dict[str, Dict[str, str]] = {
 
 
 def _check_if_international_treaty(law_hint: str) -> Optional[Dict[str, str]]:
-    """V2.5: Kontrollon nëse law_hint referon konventë ndërkombëtare."""
     if not law_hint:
         return None
     h = normalize_albanian(law_hint)
 
-    # KEDNJ — Konventa Evropiane për të Drejtat e Njeriut
     if (
         "kednj" in h
         or "konventa evropiane" in h
@@ -148,7 +145,6 @@ def _check_if_international_treaty(law_hint: str) -> Optional[Dict[str, str]]:
     ):
         return INTERNATIONAL_TREATIES["KEDNJ"]
 
-    # Konventa e OKB-së për të Drejtat e Fëmijës
     if (
         ("okb" in h and ("femij" in h or "fëmij" in h))
         or "konventa e okb" in h
@@ -161,7 +157,7 @@ def _check_if_international_treaty(law_hint: str) -> Optional[Dict[str, str]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.0: LAW SUCCESSOR MAP
+# LAW SUCCESSOR MAP
 # ═══════════════════════════════════════════════════════════════════════════
 
 LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
@@ -179,7 +175,7 @@ LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.1: HELPERS — ALIAS NORMALIZER
+# HELPERS — ALIAS NORMALIZER
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _normalize_law_hint_alias(hint: str) -> str:
@@ -228,7 +224,7 @@ def _extract_keywords(text: str, min_length: int = 4) -> Set[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.7: TOC DETECTION
+# TOC DETECTION
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _looks_like_toc(text: str) -> bool:
@@ -252,10 +248,11 @@ def _looks_like_toc(text: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.2: DYNAMIC ABBREVIATION GENERATION
+# DYNAMIC ABBREVIATION GENERATION
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _generate_abbreviation_from_title(title: str) -> str:
+    """Ekstrakt i akronimit nga titulli (i kufizuar në 6 fjalë)."""
     if not title:
         return ""
     title_clean = re.sub(
@@ -269,6 +266,115 @@ def _generate_abbreviation_from_title(title: str) -> str:
         return ""
     return "".join(w[0].upper() for w in significant[:6])
 
+
+def _generate_full_abbreviation_from_title(title: str) -> str:
+    """
+    V2.6: Njësoj si _generate_abbreviation_from_title, POR pa [:6] limit.
+    Përdoret për matching me akronime të përbëra si "LMDhFDhGDhBGj".
+    """
+    if not title:
+        return ""
+    title_clean = re.sub(
+        r'\b(?:Nr\.?|nr\.?)\s*\d+\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*\d+',
+        '', title, flags=re.IGNORECASE,
+    )
+    normalized = normalize_albanian(title_clean)
+    words = re.findall(r'\b[a-zëç]+\b', normalized)
+    significant = [w for w in words if w not in ABBREV_SKIP_WORDS and len(w) >= 1]
+    if len(significant) < 2:
+        return ""
+    return "".join(w[0].upper() for w in significant)
+
+
+def _extract_uppercase_sequence(s: str) -> str:
+    """V2.6: 'LMDhFDhGDhBGj' → 'LMDFDGDBG'."""
+    if not s:
+        return ""
+    return ''.join(c for c in s if c.isupper())
+
+
+def _is_compound_abbrev_hint(s: str) -> bool:
+    """V2.6: Kontroll nëse string-u është kandidat akronimi i përbërë."""
+    if not s or len(s) < 8:
+        return False
+    upper_count = sum(1 for c in s if c.isupper())
+    lower_count = sum(1 for c in s if c.islower())
+    return upper_count >= 3 and lower_count >= 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2.7: LCS — LONGEST COMMON SUBSEQUENCE
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _lcs_length(a: str, b: str) -> int:
+    """
+    V2.7: Llogarit gjatësinë e Longest Common Subsequence (LCS).
+    Memory-optimized: mban vetëm 2 rreshta (O(min(m,n)) memory).
+    """
+    if not a or not b:
+        return 0
+    m, n = len(a), len(b)
+    # Sigurohu që rreshti i ruajtur është më i vogli
+    if n > m:
+        a, b = b, a
+        m, n = n, m
+
+    prev = [0] * (n + 1)
+    curr = [0] * (n + 1)
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if a[i - 1] == b[j - 1]:
+                curr[j] = prev[j - 1] + 1
+            else:
+                curr[j] = max(prev[j], curr[j - 1])
+        prev, curr = curr, [0] * (n + 1)
+    return prev[n]
+
+
+def _compound_abbrev_matches(cit_hint: str, db_title: str) -> Tuple[bool, str]:
+    """
+    V2.7: Match DINAMIK për akronime të përbëra (mixed-case, ≥8 chars).
+    Përdor LCS (Longest Common Subsequence) midis sekuencës uppercase të
+    hint-it dhe akronimit të plotë të gjeneruar nga titulli i DB.
+
+    Shembull:
+      - cit_hint   = 'LMDhFDhGDhBGJj'
+      - cit_seq    = 'LMDFDGDBGJ' (uppercase only)
+      - db_title   = "Ligji për Parandalimin dhe Mbrojtjen nga Dhuna në 
+                      Familje, Dhuna Ndaj Grave dhe Dhuna në Bazë Gjinore"
+      - generated  = 'LPMDFDGDGBG'
+      - LCS        = 9, min_len = 10, ratio = 0.90 ≥ 0.70 → MATCH
+    """
+    if not _is_compound_abbrev_hint(cit_hint):
+        return False, ""
+
+    cit_seq = _extract_uppercase_sequence(cit_hint)
+    if len(cit_seq) < 3:
+        return False, ""
+
+    full_generated = _generate_full_abbreviation_from_title(db_title)
+    if not full_generated or len(full_generated) < 3:
+        return False, ""
+
+    lcs_len = _lcs_length(cit_seq, full_generated)
+    min_len = min(len(cit_seq), len(full_generated))
+
+    if min_len == 0:
+        return False, ""
+
+    ratio = lcs_len / min_len
+    if ratio >= 0.7:
+        return True, (
+            f"compound_abbrev_lcs:{cit_seq}~{full_generated}"
+            f"(lcs={lcs_len},ratio={ratio:.2f})"
+        )
+
+    return False, ""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# KNOWN ABBREV MATCHING
+# ═══════════════════════════════════════════════════════════════════════════
 
 def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
     normalized_cit = _normalize_law_hint_alias(cit_upper)
@@ -291,10 +397,6 @@ def _known_abbrev_matches(cit_upper: str, db_title: str) -> bool:
                 exclude_hit = True
                 break
         if exclude_hit:
-            logger.debug(
-                f"[V2.5] Skip abbrev '{candidate}' — excluded keyword "
-                f"'{ex}' found in title: {db_title[:80]}"
-            )
             continue
 
         all_matched = True
@@ -320,6 +422,12 @@ def _reason_priority(reason: str) -> int:
         return 110
     if reason.startswith("number_match"):
         return 100
+    if reason.startswith("compound_abbrev_exact"):
+        return 99
+    if reason.startswith("compound_abbrev_lcs"):
+        return 97
+    if reason.startswith("compound_abbrev_partial"):
+        return 98
     if reason.startswith("full_name_match"):
         return 96
     if reason.startswith("abbrev_known"):
@@ -380,6 +488,12 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
         if re.search(pattern, db_upper):
             return True, f"full_name_match:{cit_upper}"
 
+    # V2.7: LCS-based compound abbreviation matching
+    if _is_compound_abbrev_hint(citation_law_hint):
+        matched, reason = _compound_abbrev_matches(citation_law_hint, db_title)
+        if matched:
+            return True, reason
+
     db_kw = _extract_keywords(db_title) - KEYWORD_MATCH_STOPWORDS
     cit_kw = _extract_keywords(citation_law_hint) - KEYWORD_MATCH_STOPWORDS
 
@@ -393,7 +507,7 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V2.0: SUCCESSOR LAW LOOKUP
+# SUCCESSOR LAW LOOKUP
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _get_successor_law(law_hint: str) -> Optional[Dict[str, str]]:
@@ -510,7 +624,7 @@ def _check_exists_in_other_laws(db, article_number: str) -> List[Dict[str, Any]]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY SINGLE ARTICLE — V2.5
+# VERIFY SINGLE ARTICLE
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _verify_single_article(
@@ -530,7 +644,6 @@ def _verify_single_article(
         "toc_filtered": 0,
     }
 
-    # V2.5: Kontrollo nëse është konventë ndërkombëtare (para DB lookup)
     treaty = _check_if_international_treaty(law_hint)
     if treaty:
         result["exists"] = True
@@ -622,7 +735,7 @@ def _verify_single_article(
             return result
 
         logger.info(
-            f"🔎 [MULTI-LAW V2.5] Neni {article_number} me hint='{law_hint}' "
+            f"🔎 [MULTI-LAW V2.7] Neni {article_number} me hint='{law_hint}' "
             f"nuk u gjet direkt — provo strategji alternative..."
         )
 
@@ -706,11 +819,16 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         1 for r in results
         if r.get("match_reason") == "law_hint_no_match_but_exists_elsewhere"
     )
+    compound_matches = sum(
+        1 for r in results
+        if r.get("match_reason", "").startswith("compound_abbrev_")
+    )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.5] Articles: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.7] Articles: {len(results)} total, "
         f"{verified} verified (including {successor_matches} in successor laws, "
-        f"{alias_matches} via alias, {treaty_matches} international treaties), "
+        f"{alias_matches} via alias, {compound_matches} via compound abbrev, "
+        f"{treaty_matches} international treaties), "
         f"{alternative_found} exist elsewhere (wrong hint), "
         f"{len(results) - verified - alternative_found} not found"
     )
@@ -801,7 +919,7 @@ def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[st
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.5] Laws by number: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.7] Laws by number: {len(results)} total, "
         f"{verified} verified, {replaced} replaced"
     )
     return results
@@ -878,7 +996,7 @@ def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str
     precedents = sum(1 for r in results if r["is_precedent"])
     cited = sum(1 for r in results if not r["is_likely_own"])
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.5] Case numbers: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.7] Case numbers: {len(results)} total, "
         f"{cited} cited, {precedents} real precedents"
     )
     return results
@@ -912,6 +1030,10 @@ def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
             if "abbrev_alias" in a.get("match_reason", "")
             or "abbrev_match_alias" in a.get("match_reason", "")
         ),
+        "articles_via_compound_abbrev": sum(
+            1 for a in articles
+            if a.get("match_reason", "").startswith("compound_abbrev_")
+        ),
         "articles_via_international_treaty": sum(
             1 for a in articles
             if a.get("match_reason") == "international_treaty_constitutional"
@@ -932,10 +1054,11 @@ def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.5] Complete: "
+        f"📚 [MONGO_VERIFIER V2.7] Complete: "
         f"articles {stats['articles_verified']}/{stats['articles_total']} "
         f"(+{stats['articles_in_successor_laws']} in successor laws, "
         f"{stats['articles_via_alias']} via alias, "
+        f"{stats['articles_via_compound_abbrev']} via compound abbrev, "
         f"{stats['articles_via_international_treaty']} via international treaties), "
         f"laws {stats['laws_verified']}/{stats['laws_total']} "
         f"({stats['laws_replaced']} replaced), "

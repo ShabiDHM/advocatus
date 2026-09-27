@@ -1,10 +1,15 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.3
-// V6.3: COLOR UNIFIED — chrome (header, banner, buttons, markdown headings)
-//       kaloi nga emerald → primary-start për konsistencë me aplikacionin.
-//       Semantikët (✅❌⚠️💡 në lista, stat-panel OK/Gabime) mbeten.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.4
+// V6.4: TIMEZONE FIX — formatAuditDate tani:
+//       (1) Nëse ISO mungon timezone (Z ose +HH:MM) → trajtoje si UTC duke
+//           shtuar 'Z'.
+//       (2) Përdor Intl.DateTimeFormat me Europe/Belgrade për të shfaqur
+//           OREN LOKALE TË KOSOVËS, pavarësisht nga timezone i browser-it.
+//       Bug-i: backend dërgonte ISO UTC pa Z → JS parse si local → UI shfaqte
+//       orë UTC (18:20) në vend të orës lokale (20:20).
+// V6.3: COLOR UNIFIED.
 // V6.2.1: HEQUR "Në Fund" button.
-// V6.2: STATS PANEL me gjetje ✅/❌/⚠️/💡.
+// V6.2: STATS PANEL.
 // V6.1.5: LAW CITATION LINK.
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -34,17 +39,38 @@ const ALBANIAN_MONTHS = [
   'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor',
 ];
 
+// V6.4: Timezone-aware formatim
 const formatAuditDate = (isoDate: string | Date | undefined | null): string => {
   if (!isoDate) return '';
   try {
-    const d = typeof isoDate === 'string' ? new Date(isoDate) : isoDate;
+    let dateStr = typeof isoDate === 'string' ? isoDate : isoDate.toISOString();
+    // V6.4: Nëse mungon timezone info → trajtoje si UTC
+    if (!/[Zz]$/.test(dateStr) && !/[+-]\d{2}:?\d{2}$/.test(dateStr)) {
+      dateStr += 'Z';
+    }
+    const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    const day = d.getDate().toString().padStart(2, '0');
-    const month = ALBANIAN_MONTHS[d.getMonth()];
-    const year = d.getFullYear();
-    const hours = d.getHours().toString().padStart(2, '0');
-    const minutes = d.getMinutes().toString().padStart(2, '0');
-    return `${day} ${month} ${year}, ${hours}:${minutes}`;
+
+    // V6.4: Forco konvertim në Europe/Belgrade (Kosovë)
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Belgrade',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+    const day = get('day');
+    const monthNum = parseInt(get('month'), 10);
+    const year = get('year');
+    const hour = get('hour');
+    const minute = get('minute');
+    const month = ALBANIAN_MONTHS[monthNum - 1] || '';
+
+    return `${day} ${month} ${year}, ${hour}:${minute}`;
   } catch {
     return '';
   }
@@ -544,7 +570,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       })
       .catch((err) => {
         if (fetchAbortRef.current) return;
-        console.warn('[CaseDossierAuditModal V6.3] Ngarkimi i raportit të ruajtur dështoi:', err);
+        console.warn('[CaseDossierAuditModal V6.4] Ngarkimi i raportit të ruajtur dështoi:', err);
         setLoadError('Ngarkimi i raportit të ruajtur dështoi.');
       })
       .finally(() => {

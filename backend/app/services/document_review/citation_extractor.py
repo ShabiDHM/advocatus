@@ -1,17 +1,18 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.17
-# V1.17: LOW CLEANUP —
-#        - GENITIVE_SUFFIX_PATTERN: {3,7} → {3,5} (sinkron me
-#          LAW_CODE_MAX_LENGTH=5 në constants; shmang dead code).
-#        - _looks_like_law_code: hequr kontroll redundant, shtuar njohja
-#          e formatit legacy "2004/32" me kontroll konteksti (ligj/kodi).
-# V1.16: NAMED LAW PATTERNS — njoh Kushtetutën, KEDNJ, Konventa OKB.
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.19
+# V1.19: DYNAMIC COMPOUND ABBREVIATIONS —
+#        - Hequr LONG_COMPOUND_ABBREV_ALIASES (hardcoded map për 
+#          "LMDhFDhGDhBGj" → "LMDHF"). Zëvendësuar me CAMELCASE_COMPOUND_PATTERN
+#          që detekton DINAMIKISHT kandidatë me strukturë mixed-case.
+#        - Kriteri: ≥8 chars, ≥3 shkronja të mëdha, ≥1 lowercase (jo KFOR, 
+#          jo EULEX, jo fjalë normale).
+#        - Akronimet e përbëra regjistrohen me formën RAW në law_index; 
+#          mongo_verifier i match-on dinamisht kundrejt titujve në DB.
+#        - Rregulli #13 PHOENIX: ZERO HARDCODING.
+# V1.18: CLOSE-AFTER DISTANCE 35 → 100.
+# V1.17: LOW CLEANUP.
+# V1.16: NAMED LAW PATTERNS.
 # V1.15: MAX_LAW_DISTANCE 500 → 5000.
-# V1.14: CASE-NUMBER-PREFIX EXCLUSION.
-# V1.13: SUPER CLOSE AFTER — prefiks "të/i/e".
-# V1.12: LEGACY LAW EXTRACTION.
-# V1.11: PRECEDING LAW PRIORITY.
-# V1.10: MAX_LAW_DISTANCE 500.
 
 import re
 import logging
@@ -42,20 +43,19 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-# V1.15: U rrit nga 500 → 5000.
-# Arsyetimi:
-#   - Draftet ligjore shqipe kanë seksione me 9-18 nene nën një heading.
-#   - Distanca reale heading → neni i fundit: 500-2000 chars.
-#   - Me 500, fallback-i AFTER merrte ligjin e seksionit pasardhës.
-#   - 5000 mbulon të gjitha rastet reale pa rrezik marrjeje nga TOC.
+# ═══════════════════════════════════════════════════════════════════════════
+# MAX_LAW_DISTANCE
+# ═══════════════════════════════════════════════════════════════════════════
+
 MAX_LAW_DISTANCE = 5000
 
-# V1.13: Distanca maksimale për "close after"
-MAX_CLOSE_AFTER_DISTANCE = 35
+# V1.18: Distanca reale midis "Neni X" dhe akronimit të ligjit
+MAX_CLOSE_AFTER_DISTANCE = 100
 
-# V1.14: Prefikse numrash çështjesh që NUK janë ligje.
-# Nga praktika gjyqësore e Kosovës: P, PML, PA, PA1, PP, PP.I, PP.II, Rev,
-# KML, KM, C, CA, CML, GJ, GJK, K, KI, KŽ, etj.
+# ═══════════════════════════════════════════════════════════════════════════
+# CASE NUMBER PREFIXES
+# ═══════════════════════════════════════════════════════════════════════════
+
 CASE_NUMBER_PREFIXES: Set[str] = {
     "P", "PML", "PA", "PA1", "PA2",
     "PP", "PP1", "PP2", "PPI", "PPII",
@@ -64,16 +64,59 @@ CASE_NUMBER_PREFIXES: Set[str] = {
     "GJ", "GJK", "KI", "KZ",
 }
 
-# V1.17: {3,7} → {3,5} për konsistencë me LAW_CODE_MAX_LENGTH = 5.
-# Akronimet reale kosovare: KPRK (4), KPK (3), LPK (3), LMD (3), LMDHF (5),
-# LFK (3), LSHT (4). Maksimumi është 5 — pattern nuk duhet të lejojë më shumë.
 GENITIVE_SUFFIX_PATTERN = re.compile(
     r'\b([A-ZËÇ]{3,5})[-–](?:së|s|t|të|it|in|ut|ve|vet)\b'
 )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.16: NAMED LAW PATTERNS — ligje pa numër (Kushtetuta, KEDNJ, Konventa)
+# V1.19: DYNAMIC COMPOUND ABBREVIATION PATTERN
+# ═══════════════════════════════════════════════════════════════════════════
+# Detekton akronime të përbëra me strukturë mixed-case si "LMDhFDhGDhBGj" 
+# (përdoret në dokumentet gjyqësore shqipe për ligje me emra të gjatë).
+#
+# Kriteri dinamik (jo hardcoded):
+#   - Length ≥ 8 characters
+#   - Fillojnë me shkronjë të madhe
+#   - Kanë ≥3 shkronja të mëdha (dallon nga fjalët normale)
+#   - Kanë ≥1 shkronjë të vogël (përjashton akronime të pastra si KFOR, EULEX)
+#
+# Shembuj të pranuar:
+#   - LMDhFDhGDhBGj  (13 chars, 9 uppercase, 4 lowercase) ✓
+#   - LPMDhFDhGDhBGj (14 chars, 10 uppercase, 4 lowercase) ✓
+#   - KPPKK          (5 chars — filtered out by length < 8) ✗
+#   - KFOR           (4 chars, all caps) ✗
+#   - EULEX          (5 chars, all caps) ✗
+#   - Kuvendi        (7 chars, 1 uppercase, all lowercase) ✗
+# ═══════════════════════════════════════════════════════════════════════════
+
+CAMELCASE_COMPOUND_PATTERN = re.compile(
+    r'\b([A-ZËÇ][a-zA-ZëçËÇ]{7,25})\b',
+    re.UNICODE,
+)
+
+
+def _is_compound_abbrev_candidate(s: str) -> bool:
+    """
+    V1.19: Kontroll DINAMIK nëse tokeni është akronim i përbërë.
+    Kriteret: length ≥8, ≥3 uppercase, ≥1 lowercase.
+    """
+    if not s or len(s) < 8:
+        return False
+    upper_count = sum(1 for c in s if c.isupper())
+    lower_count = sum(1 for c in s if c.islower())
+    return upper_count >= 3 and lower_count >= 1
+
+
+def _extract_uppercase_sequence(s: str) -> str:
+    """V1.19: 'LMDhFDhGDhBGj' → 'LMDFDGDBG'."""
+    if not s:
+        return ""
+    return ''.join(c for c in s if c.isupper())
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NAMED LAW PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════
 
 NAMED_LAW_PATTERNS: List[Tuple[re.Pattern, str]] = [
@@ -120,10 +163,6 @@ def _split_article_numbers(raw: str) -> List[str]:
 
 
 def _is_case_number_prefix(abbr_upper: str, text: str, end_pos: int) -> bool:
-    """
-    V1.14: Kontrollo nëse akronimi i gjetur është prefiks numri çështjeje.
-    Shembull: "PML" në "PML.Nr. 122/2025" → True.
-    """
     if abbr_upper in CASE_NUMBER_PREFIXES:
         after = text[end_pos:end_pos + 12]
         if re.match(r'^\s*\.?\s*[Nn]r\.?', after):
@@ -161,7 +200,7 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
             continue
         laws.append((match.start(), raw))
 
-    # 4. Akronime të pastra (KPRK, KPK, LPK, etj.)
+    # 4. Akronime të pastra
     for match in ABBREV_PATTERN.finditer(text):
         abbr = match.group(1)
         if not is_valid_law_abbrev(abbr):
@@ -169,9 +208,7 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
         abbr_upper = abbr.upper()
 
         if _is_case_number_prefix(abbr_upper, text, match.end()):
-            logger.debug(
-                f"[V1.17] Skip abbrev '{abbr}' — case number prefix"
-            )
+            logger.debug(f"[V1.19] Skip abbrev '{abbr}' — case number prefix")
             continue
 
         too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
@@ -179,7 +216,7 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
             continue
         laws.append((match.start(), abbr_upper))
 
-    # 5. V1.14: "KPRK-së", "KPRK-t" (Albanian genitive suffix)
+    # 5. Genitive suffix ("KPRK-së")
     for match in GENITIVE_SUFFIX_PATTERN.finditer(text):
         abbr = match.group(1)
         if not is_valid_law_abbrev(abbr):
@@ -202,13 +239,29 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
             continue
         laws.append((match.start(), full_match))
 
-    # V1.16: Emrat e ligjeve të njohura (Kushtetuta, KEDNJ, Konventa)
+    # 7. Emrat e ligjeve të njohura
     for pattern, canonical_name in NAMED_LAW_PATTERNS:
         for match in pattern.finditer(text):
             too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
             if too_close:
                 continue
             laws.append((match.start(), canonical_name))
+
+    # 8. V1.19: DYNAMIC compound abbreviations
+    # Kriteri: length ≥8, ≥3 uppercase, ≥1 lowercase.
+    # Regjistrohet forma RAW (jo canonical) — mongo_verifier do t'i match-ojë
+    # dinamisht kundrejt titujve në DB.
+    for match in CAMELCASE_COMPOUND_PATTERN.finditer(text):
+        raw = match.group(1)
+        if not _is_compound_abbrev_candidate(raw):
+            continue
+        too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
+        if too_close:
+            continue
+        logger.debug(
+            f"[V1.19] Compound abbrev candidate: '{raw}' @ {match.start()}"
+        )
+        laws.append((match.start(), raw))
 
     laws.sort(key=lambda x: x[0])
     return laws
@@ -221,12 +274,8 @@ def _find_nearest_law(
     text: str = "",
 ) -> str:
     """
-    V1.15: Zgjidh ligjin më të afërt për një nen.
-
-    Radha:
-      0. SUPER CLOSE AFTER — ligji menjëherë pas me connector "të/i/e".
-      1. Closest BEFORE (brenda max_distance = 5000).
-      2. Closest AFTER (fallback vetëm nëse BEFORE mungon ose është > 5000).
+    Zgjidh ligjin më të afërt për një nen.
+    Radha: SUPER CLOSE AFTER → Closest BEFORE → Closest AFTER.
     """
     if not law_index:
         return ""
@@ -246,10 +295,13 @@ def _find_nearest_law(
     if following_close:
         following_close.sort(key=lambda x: x[0] - position)
         chosen = following_close[0][1]
-        logger.debug(f"[V1.15] Neni@{position}: SUPER CLOSE AFTER → '{chosen}'")
+        logger.debug(
+            f"[V1.19] Neni@{position}: SUPER CLOSE AFTER → '{chosen}' "
+            f"(dist={following_close[0][0] - position})"
+        )
         return chosen
 
-    # FAZA 1 — Closest BEFORE (me max_distance = 5000)
+    # FAZA 1 — Closest BEFORE
     preceding: List[Tuple[int, str]] = [
         (pos, name) for pos, name in law_index if pos <= position
     ]
@@ -257,6 +309,10 @@ def _find_nearest_law(
         preceding.sort(key=lambda x: position - x[0])
         best_pos, best_law = preceding[0]
         if position - best_pos <= max_distance:
+            logger.debug(
+                f"[V1.19] Neni@{position}: CLOSEST BEFORE → '{best_law}' "
+                f"(dist={position - best_pos})"
+            )
             return best_law
 
     # FAZA 2 — Closest AFTER (fallback)
@@ -267,6 +323,10 @@ def _find_nearest_law(
         following.sort(key=lambda x: x[0] - position)
         best_pos, best_law = following[0]
         if best_pos - position <= max_distance:
+            logger.debug(
+                f"[V1.19] Neni@{position}: CLOSEST AFTER → '{best_law}' "
+                f"(dist={best_pos - position})"
+            )
             return best_law
 
     return ""
@@ -324,7 +384,7 @@ def _dedupe_articles_by_number(
     removed = len(citations) - len(deduped)
     if removed > 0:
         logger.info(
-            f"🧹 [V1.17 Dedup] Hequr {removed} nene te dyfishuara "
+            f"🧹 [V1.19 Dedup] Hequr {removed} nene te dyfishuara "
             f"({len(citations)} → {len(deduped)})"
         )
     return deduped
@@ -427,9 +487,7 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
             "context": extract_context(text, match.start(), window=80),
         })
 
-    logger.info(
-        f"🔬 [V1.17] extract_law_numbers: {len(results)} ligje"
-    )
+    logger.info(f"🔬 [V1.19] extract_law_numbers: {len(results)} ligje")
     return results
 
 
@@ -475,6 +533,12 @@ def extract_abbreviations(text: str) -> List[str]:
         if is_valid_law_abbrev(abbr):
             abbrevs.add(abbr_upper)
 
+    # V1.19: Dynamic compound abbrevs
+    for match in CAMELCASE_COMPOUND_PATTERN.finditer(text):
+        raw = match.group(1)
+        if _is_compound_abbrev_candidate(raw):
+            abbrevs.add(raw)
+
     return sorted(abbrevs)
 
 
@@ -494,29 +558,14 @@ def _is_likely_own_case(text: str, position: int, context: str) -> bool:
 
 
 def _looks_like_law_code(case_number: str, context: str) -> bool:
-    """
-    V1.17: Kontrollo nëse "case_number" i kapur është në fakt numër ligji.
-
-    Njeh:
-      - XX/L-YYY (08/L-185) — gjithmonë kod ligji.
-      - Legacy YYYY/N (2004/32) — vetëm kur konteksti përmend "ligj"/"kodi".
-
-    Hequr kontroll redundant `"/L-" in x or "/l-" in x.lower()` — regex
-    e mbulon të njëjtën gjë me case-insensitive.
-    """
     if not case_number:
         return False
-
-    # XX/L-YYY — gjithmonë kod ligji
     if re.search(r'\d{2}/L-\d+', case_number, re.IGNORECASE):
         return True
-
-    # V1.17: Legacy YYYY/N — vetëm kur konteksti e mbështet
     if re.search(r'\b\d{4}/\d{1,4}\b', case_number):
         ctx_lower = (context or "").lower()
         if any(k in ctx_lower for k in ("ligj", "kodi")):
             return True
-
     return False
 
 
@@ -539,7 +588,7 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
         context = extract_context(text, position, window=100)
 
         if _looks_like_law_code(normalized, context):
-            logger.debug(f"[V1.17] Skip case_number '{normalized}' — ne fakt kod ligji")
+            logger.debug(f"[V1.19] Skip case_number '{normalized}' — ne fakt kod ligji")
             continue
 
         seen.add(normalized)
@@ -589,7 +638,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR V1.17] Profile built: "
+        f"🔬 [EXTRACTOR V1.19] Profile built: "
         f"articles={stats['total_articles']} "
         f"(with_law_hint={stats['articles_with_law_hint']}, "
         f"with_paragraph={stats['articles_with_paragraph']}), "

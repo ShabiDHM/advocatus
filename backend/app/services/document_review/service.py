@@ -1,13 +1,17 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.21
-# V5.21: CONCISE FOR MULTIPLE SECTIONS — Bazuar në matje reale V5.20:
-#        - action_steps: 111.38s → target ~30-40s me concise
-#        - analiza_e_thelluar: 62.16s → target ~25-35s me concise
-#        Dictionary SECTION_CONCISE_SUFFIXES për konfigurim të pastër.
-# V5.20: SPLIT THRESHOLD 30 → 10.
-# V5.19: ARTICLE_VERIFICATION CONCISE.
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.23
+# V5.23: BATCH MERGE BY HEADING —
+#        - Zëvendësuar _dedupe_article_verification_batches me 
+#          _merge_article_verification_batches që bashkon sipas heading-ut 
+#          ("### A." / "### B." / "### C.") — jo sipas bllokut.
+#        - Arsye: V5.22 dha 3×A/B/C të përsëritura kur batches kishin 
+#          tekste të ndryshme.
+#        - Hequr _split_into_abc_blocks (dead code).
+# V5.22: ARTICLE_VERIFICATION BATCH DEDUP.
+# V5.21: CONCISE FOR MULTIPLE SECTIONS.
 
 import os
+import re
 import time
 import logging
 import threading
@@ -47,10 +51,7 @@ ARTICLE_VERIFICATION_BATCHES = int(
     os.getenv("ARTICLE_VERIFICATION_BATCHES", "3")
 )
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V5.21: CONCISE SUFFIXES — Dictionary i pastër
-# ═══════════════════════════════════════════════════════════════════════════
-
+# V5.21: Concise suffixes
 ARTICLE_VERIFICATION_CONCISE_SUFFIX = """
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -120,13 +121,110 @@ STRUKTURA:
 ### E. Veprime Kritike që Mund të Mungojnë (1-2)
 """
 
-# V5.21: Dictionary — section_key → concise suffix
 SECTION_CONCISE_SUFFIXES: Dict[str, str] = {
     "article_verification": ARTICLE_VERIFICATION_CONCISE_SUFFIX,
     "action_steps": ACTION_STEPS_CONCISE_SUFFIX,
     "analiza_e_thelluar": ANALIZA_E_THELLUAR_CONCISE_SUFFIX,
 }
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V5.23: MERGE ARTICLES BY HEADING
+# ═══════════════════════════════════════════════════════════════════════════
+
+_HEADING_RE = re.compile(r'^###\s+([A-G])\.\s*(.+)$', re.MULTILINE)
+
+_SECTION_TITLES = {
+    "A": "### A. Nene problematike",
+    "B": "### B. Nene që mund të mungojnë",
+    "C": "### C. Përmbledhje statistikore",
+}
+
+
+def _parse_batch_sections(content: str) -> Dict[str, str]:
+    """
+    V5.23: Ndan output-in e një batch në dict {"A": "...", "B": "...", ...}.
+    """
+    if not content:
+        return {}
+
+    matches = list(_HEADING_RE.finditer(content))
+    if not matches:
+        return {}
+
+    result: Dict[str, str] = {}
+    for i, m in enumerate(matches):
+        letter = m.group(1)
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        section_content = content[start:end].strip()
+        if section_content:
+            result[letter] = section_content
+
+    return result
+
+
+def _merge_article_verification_batches(contents: List[str]) -> str:
+    """
+    V5.23: Bashkon batches sipas heading-ut — jo sipas bllokut.
+
+    Të gjitha "### A." bashkohen në një A.
+    Të gjitha "### B." bashkohen në një B.
+    Të gjitha "### C." bashkohen në një C.
+    Brendа çdo sekcioni, dublikatat heqen.
+    """
+    non_empty = [c for c in contents if c and c.strip()]
+    if not non_empty:
+        return ""
+
+    if len(non_empty) == 1:
+        return non_empty[0].strip()
+
+    parsed = [_parse_batch_sections(c) for c in non_empty]
+
+    out_lines: List[str] = []
+    for letter in ("A", "B", "C"):
+        all_content = [p.get(letter, "").strip() for p in parsed if p.get(letter)]
+        if not all_content:
+            continue
+
+        # Concatenate all content, then dedup by paragraph
+        combined = "\n\n".join(all_content)
+        paragraphs = re.split(r'\n\s*\n', combined)
+
+        seen: Set[str] = set()
+        unique: List[str] = []
+        for para in paragraphs:
+            para_clean = para.strip()
+            if not para_clean:
+                continue
+            key = re.sub(r'\s+', ' ', para_clean.lower())[:400]
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(para_clean)
+
+        if not unique:
+            continue
+
+        out_lines.append(_SECTION_TITLES.get(letter, f"### {letter}."))
+        out_lines.append("")
+        for u in unique:
+            out_lines.append(u)
+            out_lines.append("")
+
+    result = "\n".join(out_lines).strip()
+
+    logger.info(
+        f"🧹 [V5.23 MERGE] {len(non_empty)} batches → "
+        f"1 bllok i konsoliduar ({len(result)} chars)"
+    )
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SERVICE
+# ═══════════════════════════════════════════════════════════════════════════
 
 class DocumentReviewService:
 
@@ -177,7 +275,7 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.21] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.23] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, "
             f"len={len(doc_text)} chars, client={client_name or '?'} "
             f"({client_position or '?'}), parallel x{MAX_CONCURRENT_SECTIONS}, "
@@ -241,7 +339,7 @@ class DocumentReviewService:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [PARALLEL V5.21] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
+            f"🚀 [PARALLEL V5.23] Duke nisur {len(DOCUMENT_REVIEW_PROMPTS)} "
             f"seksione me max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -286,7 +384,7 @@ class DocumentReviewService:
             ]
 
             logger.info(
-                f"⚡ [V5.21 BATCH] article_verification: {total_articles} nene "
+                f"⚡ [V5.23 BATCH] article_verification: {total_articles} nene "
                 f"→ {len(batches)} batches (size≈{batch_size})"
             )
 
@@ -312,7 +410,7 @@ class DocumentReviewService:
                     partial_context = partial_context + concise_suffix
 
                 logger.info(
-                    f"▶️ [V5.21 BATCH {batch_idx + 1}/{len(batches)}] "
+                    f"▶️ [V5.23 BATCH {batch_idx + 1}/{len(batches)}] "
                     f"article_verification — {len(batch_articles)} nene, "
                     f"context={len(partial_context)} chars (concise=ON)"
                 )
@@ -327,13 +425,13 @@ class DocumentReviewService:
                         stream_callback=None,
                     )
                     logger.info(
-                        f"✅ [V5.21 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"✅ [V5.23 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Përfundoi: {len(content)} chars"
                     )
                     return content
                 except Exception as e:
                     logger.error(
-                        f"❌ [V5.21 BATCH {batch_idx + 1}/{len(batches)}] "
+                        f"❌ [V5.23 BATCH {batch_idx + 1}/{len(batches)}] "
                         f"Dështoi: {e}"
                     )
                     return f"[Seksioni batch {batch_idx + 1} dështoi: {e}]"
@@ -352,14 +450,15 @@ class DocumentReviewService:
                     try:
                         contents[idx] = fut.result()
                     except Exception as e:
-                        logger.error(f"❌ [V5.21 BATCH] Future {idx} error: {e}")
+                        logger.error(f"❌ [V5.23 BATCH] Future {idx} error: {e}")
                         contents[idx] = f"[Batch {idx + 1} dështoi]"
 
-            combined = "\n\n".join(c for c in contents if c).strip()
+            # V5.23: MERGE SIPAS HEADING-UT
+            combined = _merge_article_verification_batches(contents)
             elapsed = round(time.time() - section_start, 2)
 
             logger.info(
-                f"✅ [SECTION DONE V5.21] {section_key}: {elapsed}s, "
+                f"✅ [SECTION DONE V5.23] {section_key}: {elapsed}s, "
                 f"{len(combined)} chars combined (batches={len(batches)}, concise=ON)"
             )
 
@@ -471,7 +570,6 @@ class DocumentReviewService:
 
             context_build_time = time.time() - t_ctx
 
-            # V5.21: Apliko concise suffix për section-t e konfiguruara
             concise_suffix = SECTION_CONCISE_SUFFIXES.get(section_key, "")
             concise_applied = bool(concise_suffix)
             if concise_applied:
@@ -563,11 +661,11 @@ class DocumentReviewService:
                                 "content_length": stat_entry.get("content_length", 0),
                             })
                     except Exception as e:
-                        logger.error(f"❌ [PARALLEL V5.21] Future failed for {section_key}: {e}")
+                        logger.error(f"❌ [PARALLEL V5.23] Future failed for {section_key}: {e}")
 
         except Exception as e:
-            logger.error(f"❌ [PARALLEL V5.21] ThreadPoolExecutor failed: {e}")
-            logger.info("🔄 [PARALLEL V5.21] Fallback në sequential mode")
+            logger.error(f"❌ [PARALLEL V5.23] ThreadPoolExecutor failed: {e}")
+            logger.info("🔄 [PARALLEL V5.23] Fallback në sequential mode")
             for section_key, section_cfg in DOCUMENT_REVIEW_PROMPTS.items():
                 try:
                     key, sec_entry, stat_entry, _timing = _run_section(section_key, section_cfg)
@@ -588,7 +686,7 @@ class DocumentReviewService:
         )
 
         logger.info(
-            f"🏛️ [V5.21] Precedent cases qe do te lejohen: "
+            f"🏛️ [V5.23] Precedent cases qe do te lejohen: "
             f"{len(found_precedent_cases)} -> {sorted(found_precedent_cases)[:5]}"
         )
 
@@ -656,7 +754,7 @@ class DocumentReviewService:
                 )
                 blocked_count += 1
 
-            logger.warning(f"🛡️ [V5.21 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
+            logger.warning(f"🛡️ [V5.23 GATE] Bllokuan {blocked_count} seksione suspect: {sorted(suspicious_keys)}")
 
         # MONTIMI FINAL
         document_meta = {"file_name": file_name, "document_type": document_type}
@@ -675,7 +773,6 @@ class DocumentReviewService:
             section_stats.get("supreme_court_precedents", {}).get("precedents_found", 0)
         )
 
-        # V5.21: Lista e section-eve me concise aktiv
         concise_sections = [
             k for k, s in section_stats.items()
             if s.get("concise_mode")
@@ -710,7 +807,7 @@ class DocumentReviewService:
                 "sections_blocked": len(hallucination_report.get("suspicious_sections", [])),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.21",
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.23",
                 "hallucination_status": hallucination_report["status"],
                 "hallucination_issues": hallucination_report["total_issues"],
                 "hallucination_suspicious_sections": hallucination_report["suspicious_sections"],
@@ -740,7 +837,7 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.21] Complete: "
+            f"✅ [DOC_REVIEW V5.23] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"blocked={result['stats']['sections_blocked']}, "
             f"articles_verified={verification_report['stats']['articles_verified']}, "

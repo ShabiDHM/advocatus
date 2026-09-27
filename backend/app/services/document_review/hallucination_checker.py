@@ -1,12 +1,19 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.20
-# V1.20: DATE DISPLAY FORMAT — ISO (2025-01-17) → shqip (17.01.2025).
-#        Shtuar _iso_to_albanian_date; _check_dates tani shfaq datat në
-#        format shqip në value + message. Snippet mbetet me ISO për search.
-# V1.19: SUGGESTION CONTEXT PËR TË GJITHA LLOJET — _has_real_citation_context
-#        aplikohet edhe në _check_laws, _check_abbrevs, _check_cases, _check_dates.
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.21
+# V1.21: HEADING FILTER + ROLE-AWARE DOWNGRADE —
+#        (1) COMMON_HEADING_WORDS: filtrim i fjalëve headings (HAPAT, KRITIKË,
+#            RREZIQET, etj.) që ABBREV_PATTERN i kap si akronime.
+#        (2) ROLE_AWARE_SECTIONS = {action_steps, analiza_e_thelluar}:
+#            këto seksione LEGJITIMISHT citojnë ligje/nene të reja (jo në
+#            dokument) si referenca për veprime të reja. Për to, VETËM
+#            HIGH severity bllokon; MEDIUM bëhet warning banner.
+#        Fix për false-positive në Vendimi_per_urdher_mbrojtje.pdf ku
+#        action_steps dhe analiza_e_thelluar u bllokuan për citimin e
+#        03/L-006, 08/L-032, LPK — bazë ligjore standarde.
+# V1.20: DATE DISPLAY FORMAT — ISO → shqip.
+# V1.19: SUGGESTION CONTEXT PËR TË GJITHA LLOJET.
 # V1.18: ABBREV WORD BLACKLIST + EXTRA_ALLOWED_ARTICLES.
-# V1.17: META-LAYER fixes (abbrev replacement patterns, law_name↔number regex).
+# V1.17: META-LAYER fixes.
 # V1.16.1: normalizim rasash + heq KPK nga valid_std.
 
 import re
@@ -43,8 +50,7 @@ CASE_NUMBER_PREFIXES: Set[str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.18 (F1): ABBREV WORD BLACKLIST — fjalë të zakonshme shqipe që ABBREV_PATTERN
-# mund t'i kapë si akronime (të gjitha kapitale, 2-6 shkronja).
+# V1.18 (F1): ABBREV WORD BLACKLIST
 # ═══════════════════════════════════════════════════════════════════════════
 
 COMMON_ALBANIAN_UPPERCASE_WORDS: Set[str] = {
@@ -88,7 +94,7 @@ COMMON_ALBANIAN_UPPERCASE_WORDS: Set[str] = {
     "PËRMBLEDHJE", "PERMBLEDHJE",
     "PËRFUNDIM", "PERFUNDIM",
     "FJALË", "FJALE",
-    "LËNDA", "LENDA", "LËNDE", "LENDE",
+    "LËNDA", "LENDA", "LËNDË", "LENDE",
     "NUMRI", "NUMRAT",
     "DATA", "DATAT", "DATAVE",
     "ORË", "ORE",
@@ -115,6 +121,55 @@ COMMON_ALBANIAN_UPPERCASE_WORDS: Set[str] = {
     "PARASHTRESA", "PARASHTRESE",
     "PALË", "PALE", "PALËT", "PALET",
     "SHOQËRIA", "SHOQERIA",
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.21: HEADING WORDS (false-positive filter për akronime)
+# ═══════════════════════════════════════════════════════════════════════════
+
+COMMON_HEADING_WORDS: Set[str] = {
+    # Struktura e seksioneve
+    "HAPAT", "HAPI", "HAP",
+    "KRITIKË", "KRITIKE", "KRITIK",
+    "MENJËHERSHËM", "MENJEHERSHEM", "MENJËHERSHME", "MENJEHERSHME",
+    "AFATGJATË", "AFATGJATE", "AFATGJAT",
+    "RREZIQET", "RREZIK", "RREZIQE",
+    "MUNDËSITË", "MUNDESITE", "MUNDESI",
+    "REFERENCAT", "REFERENCA", "REFERENCË", "REFERENCE",
+    "SHËNIM", "SHENIM", "VËREJTJE", "VEREJTJE",
+    "PËRMBLEDHJE", "PERMBLEDHJE",
+    "STATISTIKA", "STATISTIKË",
+    "VEPRIME", "VEPRIM", "VEPRIMET",
+    "PLANI", "PLAN",
+    "KONKLUZION", "KONKLUZIONE", "PËRFUNDIM", "PERFUNDIM",
+    "SEKSIONI", "SEKSIONI", "SEKSION",
+    "ANALIZA", "ANALIZA",
+    "STRUKTURA", "STRUKTURE",
+    "VLERËSIMI", "VLERESIMI", "VLERËSIM", "VLERESIM",
+    "TERMINOLOGJIA", "TERMINOLOGJI",
+    "ARSYETIMI", "ARSYETIM",
+    "GABIME", "GABIM", "GABIMET",
+    "KORRIGJIME", "KORRIGJIM",
+    "DOKUMENTI", "DOKUMENT",
+    "DUKJE", "DUKJA",
+    "PROBLEMI", "PROBLEM",
+    "SUGJERIMI", "SUGJERIM", "SUGJERIME",
+    "REKOMANDIMI", "REKOMANDIM", "REKOMANDIME",
+    "BAZA", "BAZAT",
+    "DETAJE", "DETAJ",
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.21: ROLE-AWARE SECTIONS
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Seksionet që legjitimisht citojnë ligje të reja si referenca për veprime
+# të reja ose analiza alternative. Për këto, vetëm HIGH severity bllokon.
+ROLE_AWARE_SECTIONS: Set[str] = {
+    "action_steps",
+    "analiza_e_thelluar",
 }
 
 
@@ -284,11 +339,6 @@ def _has_real_citation_context(
     window: int = 200,
     prefixes: Tuple[str, ...] = ("",),
 ) -> bool:
-    """
-    V1.19: Kontrollon nëse vlera shfaqet në kontekst citimi REAL (jo sugjerim).
-    Kthen True nëse ka të paktën një dukuri JO në kontekst sugjerimi.
-    Kthen False nëse vlera nuk gjendet ose gjendet vetëm në kontekst sugjerimi.
-    """
     if not text or not value:
         return False
 
@@ -328,11 +378,6 @@ def _has_real_article_context(text: str, article_number: str, window: int = 200)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _iso_to_albanian_date(iso_str: str) -> str:
-    """
-    V1.20: Konverton 2025-01-17 → 17.01.2025 (format shqip).
-    Pranon edhe 2025-01-17T12:00 ose variante me hapësirë.
-    Nëse nuk përputhet → kthen input-in origjinal (no-op).
-    """
     if not iso_str:
         return iso_str
     s = str(iso_str).strip()
@@ -522,10 +567,10 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.20] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.21] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.20] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.21] No successor laws collected.")
 
     return successors
 
@@ -616,6 +661,10 @@ def _extract_cases(text: str) -> Set[str]:
 
 
 def _extract_abbrevs(text: str) -> Set[str]:
+    """
+    V1.21: filtron COMMON_HEADING_WORDS shtesë për të hequr false-positive
+    nga headings si "HAPAT KRITIKË".
+    """
     found: Set[str] = set()
     if not text:
         return found
@@ -626,6 +675,9 @@ def _extract_abbrevs(text: str) -> Set[str]:
         if abbr_up in CASE_NUMBER_PREFIXES:
             continue
         if abbr_up in COMMON_ALBANIAN_UPPERCASE_WORDS:
+            continue
+        # V1.21: heading words filter
+        if abbr_up in COMMON_HEADING_WORDS:
             continue
         if is_valid_law_abbrev(abbr):
             found.add(abbr_up)
@@ -672,7 +724,7 @@ class HallucinationChecker:
             extra_allowed_articles=extra_allowed_articles,
         )
         logger.info(
-            f"[HALLUCINATION V1.20] Allowed values: "
+            f"[HALLUCINATION V1.21] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
@@ -719,7 +771,7 @@ class HallucinationChecker:
         laws.update(successors)
 
         logger.info(
-            f"[HALLUCINATION V1.20] Laws: base={len(base_laws)}, "
+            f"[HALLUCINATION V1.21] Laws: base={len(base_laws)}, "
             f"successors={len(successors)}, total={len(laws)}"
         )
 
@@ -736,7 +788,7 @@ class HallucinationChecker:
             added = len(articles) - before
             if added > 0:
                 logger.info(
-                    f"[HALLUCINATION V1.20] Extra allowed articles "
+                    f"[HALLUCINATION V1.21] Extra allowed articles "
                     f"(from precedents): +{added} → {sorted(extra_allowed_articles)}"
                 )
 
@@ -758,7 +810,7 @@ class HallucinationChecker:
             added = len(cases) - before
             if added > 0:
                 logger.info(
-                    f"[HALLUCINATION V1.20] Extra allowed cases "
+                    f"[HALLUCINATION V1.21] Extra allowed cases "
                     f"(from precedents): +{added}"
                 )
 
@@ -912,7 +964,7 @@ class HallucinationChecker:
         return issues
 
     # ────────────────────────────────────────────────────────────────────
-    # EXISTING CHECKS — V1.19 suggestion context + V1.20 date display
+    # EXISTING CHECKS
     # ────────────────────────────────────────────────────────────────────
 
     def _check_dates(self, content: str) -> List[Dict[str, Any]]:
@@ -920,26 +972,24 @@ class HallucinationChecker:
         unknown = found - self.allowed["dates_iso"]
         issues = []
         for d in sorted(unknown):
-            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
             if not _has_real_citation_context(content, d, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.20] Skip date '{d}' — "
+                    f"[HALLUCINATION V1.21] Skip date '{d}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
 
-            # V1.20: display në format shqip
             display_date = _iso_to_albanian_date(d)
 
             issues.append({
                 "type": "date",
-                "value": display_date,                                       # V1.20
+                "value": display_date,
                 "severity": "high",
                 "message": (
-                    f"Data '{display_date}' nuk shfaqet në faktet "          # V1.20
+                    f"Data '{display_date}' nuk shfaqet në faktet "
                     f"e dokumentit."
                 ),
-                "snippet": _find_snippet(content, d),  # search ISO original
+                "snippet": _find_snippet(content, d),
             })
         return issues
 
@@ -950,7 +1000,7 @@ class HallucinationChecker:
         for a in sorted(unknown):
             if not _has_real_article_context(content, a):
                 logger.info(
-                    f"[HALLUCINATION V1.20] Skip article '{a}' — "
+                    f"[HALLUCINATION V1.21] Skip article '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -970,10 +1020,9 @@ class HallucinationChecker:
         unknown = found - self.allowed["laws"]
         issues = []
         for l in sorted(unknown):
-            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
             if not _has_real_citation_context(content, l, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.20] Skip law '{l}' — "
+                    f"[HALLUCINATION V1.21] Skip law '{l}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -990,10 +1039,9 @@ class HallucinationChecker:
         unknown = found - self.allowed["cases"]
         issues = []
         for c in sorted(unknown):
-            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
             if not _has_real_citation_context(content, c, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.20] Skip case '{c}' — "
+                    f"[HALLUCINATION V1.21] Skip case '{c}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -1010,10 +1058,9 @@ class HallucinationChecker:
         unknown = found - self.allowed["abbrevs"]
         issues = []
         for a in sorted(unknown):
-            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
             if not _has_real_citation_context(content, a, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.20] Skip abbrev '{a}' — "
+                    f"[HALLUCINATION V1.21] Skip abbrev '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -1076,9 +1123,26 @@ class HallucinationChecker:
         else:
             status = "suspect"
 
+        # ═══════════════════════════════════════════════════════════════════
+        # V1.21: ROLE-AWARE DOWNGRADE
+        # Për action_steps dhe analiza_e_thelluar, medium NUK bllokon.
+        # Vetëm high mbetet "suspect". Medium bëhet "clean_low" (warning).
+        # ═══════════════════════════════════════════════════════════════════
+        effective_status = status
+        if section_key in ROLE_AWARE_SECTIONS and status == "suspect":
+            if high > 0:
+                effective_status = "suspect"
+            else:
+                effective_status = "clean_low" if (medium + low) > 0 else "clean"
+                logger.info(
+                    f"[HALLUCINATION V1.21] Downgrade '{section_key}' "
+                    f"(role-aware): medium={medium} → nuk bllokon, "
+                    f"status={effective_status}"
+                )
+
         return {
             "section_key": section_key,
-            "status": status,
+            "status": effective_status,
             "issues": issues,
             "severity_counts": {"high": high, "medium": medium, "low": low},
             "counts": {
@@ -1109,6 +1173,10 @@ def check_all_sections(
     extra_allowed_dates: Optional[Set[str]] = None,
     extra_allowed_articles: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
+    """
+    V1.21: Kontrollon të gjitha section-t + log i detajuar + meta-layer
+    + role-aware downgrade për action_steps dhe analiza_e_thelluar.
+    """
     checker = HallucinationChecker(
         citation_profile, fact_profile, verification_report,
         extra_allowed_cases=extra_allowed_cases,
@@ -1137,12 +1205,12 @@ def check_all_sections(
             imsg = issue.get("message", "")
             isnip = (issue.get("snippet", "") or "")[:160]
             logger.info(
-                f"[HALLUCINATION V1.20] 📌 section={key} severity={sev} "
+                f"[HALLUCINATION V1.21] 📌 section={key} severity={sev} "
                 f"type={itype} value='{ival}'"
             )
-            logger.info(f"[HALLUCINATION V1.20]    message: {imsg}")
+            logger.info(f"[HALLUCINATION V1.21]    message: {imsg}")
             if isnip:
-                logger.info(f"[HALLUCINATION V1.20]    snippet: {isnip}")
+                logger.info(f"[HALLUCINATION V1.21]    snippet: {isnip}")
 
         if report["status"] == "suspect":
             suspicious.append(key)
@@ -1154,8 +1222,17 @@ def check_all_sections(
     else:
         global_status = "clean"
 
+    # V1.21: nëse ka vetëm suspekt role-aware të downgraduar, statusi global
+    # reflekton se nuk ka bllokim real.
+    if global_status == "suspect" and not suspicious:
+        global_status = "clean_low"
+        logger.info(
+            "[HALLUCINATION V1.21] Global status downgraded to 'clean_low' "
+            "— medium/low vetëm në role-aware sections."
+        )
+
     logger.info(
-        f"[HALLUCINATION V1.20] Status={global_status}, "
+        f"[HALLUCINATION V1.21] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

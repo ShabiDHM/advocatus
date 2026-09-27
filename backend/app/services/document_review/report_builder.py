@@ -1,11 +1,11 @@
 # FILE: backend/app/services/document_review/report_builder.py
-# PHOENIX PROTOCOL - REPORT BUILDER V1.2
-# V1.2: STATS TRANSPARENCY — Breakdown i plotë i neneve:
-#       verified + via_alias + in_successor + international_treaty +
-#       exist_elsewhere + not_found = articles_total. Eliminon kontradiktën
-#       "59 vs 52" ku 7 nene 'exist elsewhere' nuk raportoheshin.
+# PHOENIX PROTOCOL - REPORT BUILDER V1.3
+# V1.3: TOP-LEVEL TITLE CHANGE —
+#       - "RAPORT VERIFIKIMI — X" → "ANALIZË E DOKUMENTIT — X".
+#       - Arsye: dallon qartë nga Verifiko (i cili mban "RAPORT VERIFIKIMI")
+#         dhe pasqyron rolin këshillues të Analizo.
+# V1.2: STATS TRANSPARENCY.
 # V1.1: ANALIZA_E_THELLUAR + LOOP REFACTOR.
-# V1.0: Monton raportin final.
 
 import logging
 from datetime import datetime, timezone
@@ -37,7 +37,8 @@ def build_full_report(
 
     lines: List[str] = []
 
-    lines.append(f"# RAPORT VERIFIKIMI — {document_type.upper()}")
+    # V1.3: Top-level title ndryshuar
+    lines.append(f"# ANALIZË E DOKUMENTIT — {document_type.upper()}")
     lines.append("")
     lines.append(f"**Dokumenti:** {file_name}")
     lines.append(f"**Lloji:** {document_type}")
@@ -78,14 +79,11 @@ def _build_stats_section(
     fact_profile: Dict[str, Any],
     verification_report: Dict[str, Any],
 ) -> List[str]:
-    """
-    V1.2: Breakdown i plotë — garanton që shuma e kategorive = total.
-    """
+    """V1.2: Breakdown i plotë."""
     lines: List[str] = []
 
     stats = verification_report.get("stats", {})
 
-    # ─── NENET — V1.2 breakdown i plotë ───
     articles_total = stats.get("articles_total", 0)
     articles_verified = stats.get("articles_verified", 0)
     articles_not_found = stats.get("articles_not_found", 0)
@@ -109,7 +107,6 @@ def _build_stats_section(
         lines.append(f"- ❌ Nuk u gjetën: {articles_not_found}")
     lines.append("")
 
-    # ─── LIGJET ───
     laws_total = stats.get("laws_total", 0)
     laws_verified = stats.get("laws_verified", 0)
     laws_replaced = stats.get("laws_replaced", 0)
@@ -120,7 +117,6 @@ def _build_stats_section(
         lines.append(f"- 🔄 Zëvendësuar me version të ri: {laws_replaced}")
     lines.append("")
 
-    # ─── NUMRAT E LËNDËVE ───
     cases_total = stats.get("case_numbers_total", 0)
     cases_cited = stats.get("case_numbers_cited", 0)
     precedents_verified = stats.get("precedents_verified", 0)
@@ -132,7 +128,6 @@ def _build_stats_section(
         lines.append(f"  - Të cituar por jo në KB: {cases_cited - precedents_verified}")
     lines.append("")
 
-    # ─── FAKTET ───
     fp_stats = fact_profile.get("stats", {})
     dates_count = fp_stats.get("total_dates", 0)
     deadlines_count = fp_stats.get("legal_deadlines", 0)
