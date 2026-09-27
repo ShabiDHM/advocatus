@@ -1,13 +1,13 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.16.1
-# V1.16.1: 2 FIX-e kritike në meta-layer:
-#          (1) _normalize_law_name tani heq trajtat rasore shqipe:
-#              "ligjit"→"ligji", "ligjin"→"ligji", "kodin"→"kodi"
-#              Pa këtë, map-i nuk përputhej ("ligji per familjen" ≠ "ligjit per familjen").
-#          (2) Hoqur "KPK" nga valid_std — KPK është variant i vjetër/ambigu,
-#              nuk duhet të pranohet si zëvendësim i KPRK.
-# V1.16: META-LAYER VALIDATION (law name↔number + abbrev replacement).
-# V1.15: DETAILED ISSUE LOGGING.
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.20
+# V1.20: DATE DISPLAY FORMAT — ISO (2025-01-17) → shqip (17.01.2025).
+#        Shtuar _iso_to_albanian_date; _check_dates tani shfaq datat në
+#        format shqip në value + message. Snippet mbetet me ISO për search.
+# V1.19: SUGGESTION CONTEXT PËR TË GJITHA LLOJET — _has_real_citation_context
+#        aplikohet edhe në _check_laws, _check_abbrevs, _check_cases, _check_dates.
+# V1.18: ABBREV WORD BLACKLIST + EXTRA_ALLOWED_ARTICLES.
+# V1.17: META-LAYER fixes (abbrev replacement patterns, law_name↔number regex).
+# V1.16.1: normalizim rasash + heq KPK nga valid_std.
 
 import re
 import logging
@@ -43,7 +43,83 @@ CASE_NUMBER_PREFIXES: Set[str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.16: KNOWN LAW NAME ↔ NUMBER MAP
+# V1.18 (F1): ABBREV WORD BLACKLIST — fjalë të zakonshme shqipe që ABBREV_PATTERN
+# mund t'i kapë si akronime (të gjitha kapitale, 2-6 shkronja).
+# ═══════════════════════════════════════════════════════════════════════════
+
+COMMON_ALBANIAN_UPPERCASE_WORDS: Set[str] = {
+    "PENAL", "PENALE", "PENALI", "PENALIT",
+    "KODI", "KODIT", "KODIN", "KODE",
+    "LIGJI", "LIGJIT", "LIGJIN", "LIGJE", "LIGJET",
+    "NENI", "NENIT", "NENIN", "NENE", "NENET",
+    "GJYKATA", "GJYKATËS", "GJYKATES", "GJYKATEN",
+    "FAMILJE", "FAMILJEN", "FAMILJES",
+    "KUSHTETUTA", "KUSHTETUTËS", "KUSHTETUTES",
+    "PROCEDURA", "PROCEDURËS", "PROCEDURES", "PROCEDUREN",
+    "PROKURORIA", "PROKURORISË", "PROKURORISE", "PROKURORINË",
+    "APELI", "APELIT", "SUPREME", "SUPREM", "SUPREMIT",
+    "KOSOVËS", "KOSOVES", "KOSOVË", "REPUBLIKA", "REPUBLIKËS",
+    "REPUBLIKES", "REPUBLIKEN",
+    "PARAGRAFI", "PARAGRAFIT", "PIKA", "PIKËS", "PIKES", "KREU", "KREUT",
+    "DISPOZITA", "DISPOZITËS", "DISPOZITAVE",
+    "PERSON", "PERSONI", "PERSONA", "PERSONAT", "PERSONAVE",
+    "DHUNA", "DHUNËS", "DHUNES", "DHUNËN",
+    "FËMIJA", "FEMIJA", "FËMIJËS", "FEMIJES",
+    "MITUR", "MITURI", "MITURIT",
+    "KALLËZIM", "KALLZIM", "KALLËZIMI",
+    "KËRKESA", "KERKESA", "KËRKESË", "KERKESE", "KËRKESËN",
+    "HUDHJA", "HUDHJE", "HUDHJEN",
+    "AKTAKUZA", "AKTAKUZËS", "AKTAKUZEN",
+    "AKTGJYKIM", "AKTGJYKIMI", "AKTVENDIM", "AKTVENDIMI",
+    "VENDIM", "VENDIMI", "VENDIME", "VENDIMEVE", "VENDIMIT",
+    "FAKTI", "FAKTET", "FAKTEVE",
+    "PROVA", "PROVAT", "PROVAVE",
+    "DOKUMENT", "DOKUMENTI", "DOKUMENTE",
+    "SHQIPËRI", "SHQIPERI", "SHQIP",
+    "KONVENTA", "KONVENTËS", "TRAKTATI", "TRAKTATIT",
+    "ANALIZA", "ANALIZË", "ANALIZEN",
+    "RAPORTI", "RAPORT", "RAPORTIM", "RAPORTIMI",
+    "SEKSIONI", "SEKSION", "SEKSIONET",
+    "GATI", "READY", "PUNË", "PUNE", "PUNES",
+    "STATUSI", "STATUS", "STATUSIN",
+    "VLERËSIMI", "VLERESIMI",
+    "KOMENT", "KOMENTI",
+    "KRITIKE", "OPSIONALE", "REKOMANDIM", "REKOMANDIME",
+    "PËRMBLEDHJE", "PERMBLEDHJE",
+    "PËRFUNDIM", "PERFUNDIM",
+    "FJALË", "FJALE",
+    "LËNDA", "LENDA", "LËNDE", "LENDE",
+    "NUMRI", "NUMRAT",
+    "DATA", "DATAT", "DATAVE",
+    "ORË", "ORE",
+    "SIPAS", "KONFORM",
+    "ANGAZHUAR", "ORGANI", "ORGANIT",
+    "EKSPERTI", "EKSPERTIZA", "EKSPERTIZE",
+    "DËSHMI", "DESHMI", "DËSHMITAR", "DESHMITAR",
+    "MENDIM", "MENDIMI",
+    "SHKRESA", "SHKRESE",
+    "ZGJIDHJE", "ZGJIDHJEN",
+    "ZGJIDHUR", "ZGJIDHURA",
+    "MASA", "MASAT", "MASAVE",
+    "ARRESTI", "ARRESTIM", "ARRESTIMI",
+    "NDALIMI", "NDALIM", "NDALIMIT",
+    "DENIMI", "DENIM", "DENIMIT", "DENIME",
+    "TRAJTIM", "TRAJTIMI", "TRAJTIMIT",
+    "HETIM", "HETIMI", "HETIMIT", "HETIME",
+    "PADIA", "PADINË", "PADI",
+    "PADITËSI", "PADITESI", "PADITUR",
+    "PADITURI", "PADITURIT",
+    "PËRGJIGJE", "PERGJIGJE", "PËRGJIGJA",
+    "ANKESA", "ANKESË", "ANKESE", "ANKESEN",
+    "KËRKESËPADI", "KERKESEPADI",
+    "PARASHTRESA", "PARASHTRESE",
+    "PALË", "PALE", "PALËT", "PALET",
+    "SHOQËRIA", "SHOQERIA",
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# KNOWN LAW NAME ↔ NUMBER MAP
 # ═══════════════════════════════════════════════════════════════════════════
 
 KNOWN_LAW_NAME_NUMBER_MAP: Dict[str, List[str]] = {
@@ -53,7 +129,9 @@ KNOWN_LAW_NAME_NUMBER_MAP: Dict[str, List[str]] = {
     "ligji per proceduren kontestimore": ["03/L-006", "03L006"],
     "ligji per marredheniet e detyrimeve": ["04/L-077", "04L077"],
     "ligji per familjen": ["2004/32", "200432"],
-    "ligji per mbrojtjen nga dhuna ne familje": ["03/L-182", "08/L-185", "03L182", "08L185"],
+    "ligji per mbrojtjen nga dhuna ne familje": [
+        "03/L-182", "08/L-185", "03L182", "08L185"
+    ],
     "ligji per prokurorine speciale": ["08/L-168", "08L168"],
     "ligji per mbrojtjen e femijes": ["06/L-084", "06L084"],
     "ligji i punes": ["03/L-212", "03L212"],
@@ -62,9 +140,9 @@ KNOWN_LAW_NAME_NUMBER_MAP: Dict[str, List[str]] = {
 }
 
 
-# Regex: "Ligji(t) për [Name] ... Nr. [Number]"
 _LAW_NAME_WITH_NUMBER_RE = re.compile(
-    r'(Ligj(?:i|it|in|ji)?\s+(?:për|per|e|të|te)\s+'
+    r'((?:Ligj(?:i|it|in|ji)?|Kod(?:i|it|in)?)\s+'
+    r'(?:(?:për|per|e|të|te|i)\s+)?'
     r'[A-Za-zëçËÇ\s\-]{4,80}?)'
     r'\s*[\(\[]?\s*(?:Nr\.?\s*)?'
     r'(\d{2,4}\s*/\s*[A-Za-z]\s*[\-–]?\s*\d{2,4}|\d{4}\s*/\s*\d{1,4})',
@@ -72,17 +150,40 @@ _LAW_NAME_WITH_NUMBER_RE = re.compile(
 )
 
 
-# Regex: "zëvendëso X me Y" / "ndrysho X në Y"
 _ABBREV_REPLACEMENT_RE = re.compile(
     r'(?:[Zz]ëvendëso|[Zz]evendeso|ndrysho|kthe)\s+'
     r'["\'`«“]?([A-Z]{2,6})["\'`»”]?\s+'
-    r'(?:me|në|ne)\s+'
+    r'(?:me|në|ne)\s+["\'`«“]?([A-Z]{2,6})["\'`»”]?'
+    r'|'
+    r'["\'`«“]?([A-Z]{2,6})["\'`»”]?\s+'
+    r'(?:në\s+vend\s+të|ne\s+vend\s+te|jo|→|->|=>)\s+'
+    r'["\'`«“]?([A-Z]{2,6})["\'`»”]?'
+    r'|'
+    r'(?:duhet\s+të\s+jetë|duhet\s+te\s+jete|'
+    r'është\s+shkruar\s+si|eshte\s+shkruar\s+si|'
+    r'gabimisht\s+shkruar\s+si|gabimisht)\s+'
+    r'["\'`«“]?([A-Z]{2,6})["\'`»”]?\s*'
+    r'(?:\(?\s*jo\s+|\(\s*në\s+vend\s+të\s+|\(\s*ne\s+vend\s+te\s+)?'
     r'["\'`«“]?([A-Z]{2,6})["\'`»”]?',
     re.UNICODE,
 )
 
 
-# V1.16.1: Map për trajta rasore shqipe (nominativ → trajta bazë)
+_ABBREV_WITH_LAW_NUMBER_RE = re.compile(
+    r'\b([A-Z]{2,6})\b[\s\-–]*[\(\[]?\s*'
+    r'(?:Nr\.?\s*)?'
+    r'(\d{2,4}\s*/\s*[A-Za-z]\s*[\-–]?\s*\d{2,4})',
+    re.UNICODE,
+)
+
+
+AMBIGUOUS_LAW_ABBREVS: Set[str] = {
+    "KPK",
+    "KPP",
+    "KPPK",
+}
+
+
 _ALBANIAN_CASE_NORMALIZATIONS = [
     (r'\bligjit\b', 'ligji'),
     (r'\bligjin\b', 'ligji'),
@@ -130,29 +231,29 @@ _ALBANIAN_CASE_NORMALIZATIONS = [
 
 
 def _normalize_law_name(name: str) -> str:
-    """V1.16.1: Normalizon emrin e ligjit duke hequr trajtat rasore."""
     if not name:
         return ""
     n = name.strip().lower()
-    # Heq diakritikat
     n = n.replace("ë", "e").replace("ç", "c")
-    # Zbato normalizimet e rasave
     for pattern, replacement in _ALBANIAN_CASE_NORMALIZATIONS:
         n = re.sub(pattern, replacement, n)
-    # Heq hapësira të shumëfishta
     n = re.sub(r'\s+', ' ', n).strip()
     return n
 
 
+_NORMALIZED_KNOWN_LAW_MAP: Dict[str, List[str]] = {
+    _normalize_law_name(k): v for k, v in KNOWN_LAW_NAME_NUMBER_MAP.items()
+}
+
+
 def _normalize_law_num(num: str) -> str:
-    """V1.16: Normalizon numrin e ligjit për krahasim."""
     if not num:
         return ""
     return re.sub(r'[\s]+', '', num).upper().replace('–', '-')
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.14: SUGGESTION CONTEXT
+# SUGGESTION CONTEXT
 # ═══════════════════════════════════════════════════════════════════════════
 
 SUGGESTION_CONTEXT_KEYWORDS: Tuple[str, ...] = (
@@ -168,21 +269,35 @@ SUGGESTION_CONTEXT_KEYWORDS: Tuple[str, ...] = (
     "është shkruar si",
     "është cituar si",
     "korrigjim", "korrigjohet", "korrigjimi",
+    "në vend të", "ne vend te",
+    "nuk duhet",
+    "duhet të jetë", "duhet te jete",
+    "rregullorja:", "rregullore:",
+    "nene që mund", "nene qe mund",
+    "sugjerime:", "sugjerim:",
 )
 
 
 def _has_real_citation_context(
     text: str,
-    article_number: str,
+    value: str,
     window: int = 200,
+    prefixes: Tuple[str, ...] = ("",),
 ) -> bool:
-    if not text or not article_number:
+    """
+    V1.19: Kontrollon nëse vlera shfaqet në kontekst citimi REAL (jo sugjerim).
+    Kthen True nëse ka të paktën një dukuri JO në kontekst sugjerimi.
+    Kthen False nëse vlera nuk gjendet ose gjendet vetëm në kontekst sugjerimi.
+    """
+    if not text or not value:
         return False
 
     found_any = False
 
-    for prefix in ("Neni", "Nenit", "neni", "nenit", "NENI", "NENIT"):
-        pat = f"{prefix} {article_number}"
+    for prefix in prefixes:
+        pat = f"{prefix} {value}".strip() if prefix else value
+        if not pat:
+            continue
         idx = text.find(pat)
         while idx != -1:
             found_any = True
@@ -199,6 +314,32 @@ def _has_real_citation_context(
         return False
 
     return False
+
+
+def _has_real_article_context(text: str, article_number: str, window: int = 200) -> bool:
+    return _has_real_citation_context(
+        text, article_number, window=window,
+        prefixes=("Neni", "Nenit", "neni", "nenit", "NENI", "NENIT"),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.20: DATE FORMAT — ISO → ALBANIAN (DD.MM.YYYY)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _iso_to_albanian_date(iso_str: str) -> str:
+    """
+    V1.20: Konverton 2025-01-17 → 17.01.2025 (format shqip).
+    Pranon edhe 2025-01-17T12:00 ose variante me hapësirë.
+    Nëse nuk përputhet → kthen input-in origjinal (no-op).
+    """
+    if not iso_str:
+        return iso_str
+    s = str(iso_str).strip()
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})(.*)$', s)
+    if m:
+        return f"{m.group(3)}.{m.group(2)}.{m.group(1)}{m.group(4)}"
+    return iso_str
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -307,16 +448,8 @@ def _normalize_precedent_case(case_number: str) -> Optional[str]:
 # COLLECT SUCCESSOR LAWS
 # ═══════════════════════════════════════════════════════════════════════════
 
-_EXPLICIT_LAW_NUMBER_FIELDS = (
-    "law_number",
-    "number",
-    "new_law",
-)
-
-_LAW_TITLE_FIELDS = (
-    "law_title",
-    "law_name",
-)
+_EXPLICIT_LAW_NUMBER_FIELDS = ("law_number", "number", "new_law")
+_LAW_TITLE_FIELDS = ("law_title", "law_name")
 
 
 def _scan_dict_for_laws(d: Dict[str, Any], context_label: str) -> Set[str]:
@@ -389,10 +522,10 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.16.1] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.20] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.16.1] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.20] No successor laws collected.")
 
     return successors
 
@@ -492,6 +625,8 @@ def _extract_abbrevs(text: str) -> Set[str]:
         abbr_up = abbr.upper()
         if abbr_up in CASE_NUMBER_PREFIXES:
             continue
+        if abbr_up in COMMON_ALBANIAN_UPPERCASE_WORDS:
+            continue
         if is_valid_law_abbrev(abbr):
             found.add(abbr_up)
 
@@ -526,6 +661,7 @@ class HallucinationChecker:
         verification_report: Dict[str, Any],
         extra_allowed_cases: Optional[Set[str]] = None,
         extra_allowed_dates: Optional[Set[str]] = None,
+        extra_allowed_articles: Optional[Set[str]] = None,
     ):
         self.allowed = self._build_allowed(
             citation_profile,
@@ -533,9 +669,10 @@ class HallucinationChecker:
             verification_report,
             extra_allowed_cases=extra_allowed_cases,
             extra_allowed_dates=extra_allowed_dates,
+            extra_allowed_articles=extra_allowed_articles,
         )
         logger.info(
-            f"[HALLUCINATION V1.16.1] Allowed values: "
+            f"[HALLUCINATION V1.20] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
@@ -550,6 +687,7 @@ class HallucinationChecker:
         verification_report: Dict[str, Any],
         extra_allowed_cases: Optional[Set[str]] = None,
         extra_allowed_dates: Optional[Set[str]] = None,
+        extra_allowed_articles: Optional[Set[str]] = None,
     ) -> Dict[str, Set[str]]:
         dates_iso: Set[str] = set()
         for d in fact_profile.get("dates", []) or []:
@@ -581,7 +719,7 @@ class HallucinationChecker:
         laws.update(successors)
 
         logger.info(
-            f"[HALLUCINATION V1.16.1] Laws: base={len(base_laws)}, "
+            f"[HALLUCINATION V1.20] Laws: base={len(base_laws)}, "
             f"successors={len(successors)}, total={len(laws)}"
         )
 
@@ -590,6 +728,18 @@ class HallucinationChecker:
             if a.get("number"):
                 articles.add(a["number"])
 
+        if extra_allowed_articles:
+            before = len(articles)
+            for a in extra_allowed_articles:
+                if a:
+                    articles.add(str(a).strip())
+            added = len(articles) - before
+            if added > 0:
+                logger.info(
+                    f"[HALLUCINATION V1.20] Extra allowed articles "
+                    f"(from precedents): +{added} → {sorted(extra_allowed_articles)}"
+                )
+
         cases: Set[str] = set()
         for c in citation_profile.get("case_numbers", []) or []:
             if c.get("case_number"):
@@ -597,6 +747,7 @@ class HallucinationChecker:
                 cases.add(n)
 
         if extra_allowed_cases:
+            before = len(cases)
             for cn in extra_allowed_cases:
                 if not cn:
                     continue
@@ -604,6 +755,12 @@ class HallucinationChecker:
                 if norm:
                     cases.add(norm)
                 cases.add(cn.upper().strip())
+            added = len(cases) - before
+            if added > 0:
+                logger.info(
+                    f"[HALLUCINATION V1.20] Extra allowed cases "
+                    f"(from precedents): +{added}"
+                )
 
         abbrevs: Set[str] = set()
         for a in citation_profile.get("abbreviations", []) or []:
@@ -618,14 +775,12 @@ class HallucinationChecker:
         }
 
     # ────────────────────────────────────────────────────────────────────
-    # V1.16 / V1.16.1: NEW CHECKS — meta-layer validation
+    # META-LAYER CHECKS
     # ────────────────────────────────────────────────────────────────────
 
-    def _check_law_name_number_consistency(self, content: str) -> List[Dict[str, Any]]:
-        """
-        V1.16.1: Zbulon referenca si "Ligji për Familjen (Nr. 04/L-077)" ku
-        numri nuk i përket ligjit të emërtuar.
-        """
+    def _check_law_name_number_consistency(
+        self, content: str,
+    ) -> List[Dict[str, Any]]:
         issues: List[Dict[str, Any]] = []
 
         if not content:
@@ -639,19 +794,17 @@ class HallucinationChecker:
             num_norm = _normalize_law_num(raw_num)
 
             matched_key = None
-            for known_name in KNOWN_LAW_NAME_NUMBER_MAP:
+            for known_name in _NORMALIZED_KNOWN_LAW_MAP:
                 if known_name in name_norm or name_norm in known_name:
                     matched_key = known_name
                     break
 
             if not matched_key:
-                logger.debug(
-                    f"[V1.16.1] No known match for name_norm='{name_norm}'"
-                )
                 continue
 
             valid_nums = {
-                _normalize_law_num(v) for v in KNOWN_LAW_NAME_NUMBER_MAP[matched_key]
+                _normalize_law_num(v)
+                for v in _NORMALIZED_KNOWN_LAW_MAP[matched_key]
             }
 
             if num_norm not in valid_nums:
@@ -666,19 +819,12 @@ class HallucinationChecker:
                     ),
                     "snippet": snippet,
                 })
-            else:
-                logger.debug(
-                    f"[V1.16.1] Name↔number OK: '{raw_name}' → '{raw_num}'"
-                )
 
         return issues
 
-    def _check_abbreviation_replacement(self, content: str) -> List[Dict[str, Any]]:
-        """
-        V1.16.1: Zbulon rekomandime si "zëvendëso KPRK me KPK" ku:
-          - KPRK është akronim i vlefshëm (në self.allowed["abbrevs"])
-          - KPK NUK është standard (i hequr nga valid_std).
-        """
+    def _check_abbreviation_replacement(
+        self, content: str,
+    ) -> List[Dict[str, Any]]:
         issues: List[Dict[str, Any]] = []
 
         if not content:
@@ -686,21 +832,28 @@ class HallucinationChecker:
 
         allowed_abbrevs = self.allowed.get("abbrevs", set())
 
-        # V1.16.1: Hoqur "KPK" (variant i vjetër/ambigu, nuk pranohet si
-        # zëvendësim i KPRK).
         valid_std = {
             "KPRK", "KPPRK", "LPK", "LMD", "LMDHF",
             "LFK", "LSHT", "PSRK", "KRK", "LPTS",
         }
 
         for m in _ABBREV_REPLACEMENT_RE.finditer(content):
-            from_abbr = m.group(1).upper().strip()
-            to_abbr = m.group(2).upper().strip()
+            groups = m.groups()
+            from_abbr = to_abbr = None
+            for i in range(0, len(groups), 2):
+                if i + 1 < len(groups) and groups[i] and groups[i + 1]:
+                    from_abbr = groups[i].upper().strip()
+                    to_abbr = groups[i + 1].upper().strip()
+                    break
 
+            if not from_abbr or not to_abbr:
+                continue
             if from_abbr == to_abbr:
                 continue
 
-            from_is_valid = from_abbr in valid_std or from_abbr in allowed_abbrevs
+            from_is_valid = (
+                from_abbr in valid_std or from_abbr in allowed_abbrevs
+            )
             to_is_valid = to_abbr in valid_std
 
             if from_is_valid and not to_is_valid:
@@ -719,8 +872,47 @@ class HallucinationChecker:
 
         return issues
 
+    def _check_abbrev_multiple_laws(
+        self, content: str,
+    ) -> List[Dict[str, Any]]:
+        issues: List[Dict[str, Any]] = []
+
+        if not content:
+            return issues
+
+        allowed_abbrevs = self.allowed.get("abbrevs", set())
+        valid_std = {
+            "KPRK", "KPPRK", "LPK", "LMD", "LMDHF",
+            "LFK", "LSHT", "PSRK", "KRK", "LPTS",
+        }
+        known_abbrevs = valid_std | set(allowed_abbrevs)
+
+        abbr_to_nums: Dict[str, Set[str]] = {}
+        for m in _ABBREV_WITH_LAW_NUMBER_RE.finditer(content):
+            abbr = m.group(1).upper()
+            num = _normalize_law_num(m.group(2))
+            if abbr not in known_abbrevs:
+                continue
+            abbr_to_nums.setdefault(abbr, set()).add(num)
+
+        for abbr, nums in abbr_to_nums.items():
+            if len(nums) >= 2:
+                issues.append({
+                    "type": "abbrev_multiple_laws",
+                    "value": f"{abbr} ↔ {sorted(nums)}",
+                    "severity": "medium",
+                    "message": (
+                        f"Akronimi '{abbr}' lidhet me {len(nums)} numra të "
+                        f"ndryshëm ligjesh: {sorted(nums)}. "
+                        f"Kontrollo konsistencën."
+                    ),
+                    "snippet": _find_snippet(content, abbr, window=100),
+                })
+
+        return issues
+
     # ────────────────────────────────────────────────────────────────────
-    # EXISTING CHECKS
+    # EXISTING CHECKS — V1.19 suggestion context + V1.20 date display
     # ────────────────────────────────────────────────────────────────────
 
     def _check_dates(self, content: str) -> List[Dict[str, Any]]:
@@ -728,10 +920,26 @@ class HallucinationChecker:
         unknown = found - self.allowed["dates_iso"]
         issues = []
         for d in sorted(unknown):
+            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
+            if not _has_real_citation_context(content, d, prefixes=("",)):
+                logger.info(
+                    f"[HALLUCINATION V1.20] Skip date '{d}' — "
+                    f"shfaqet vetëm në kontekst sugjerimi."
+                )
+                continue
+
+            # V1.20: display në format shqip
+            display_date = _iso_to_albanian_date(d)
+
             issues.append({
-                "type": "date", "value": d, "severity": "high",
-                "message": f"Data '{d}' nuk shfaqet ne faktet e dokumentit.",
-                "snippet": _find_snippet(content, d),
+                "type": "date",
+                "value": display_date,                                       # V1.20
+                "severity": "high",
+                "message": (
+                    f"Data '{display_date}' nuk shfaqet në faktet "          # V1.20
+                    f"e dokumentit."
+                ),
+                "snippet": _find_snippet(content, d),  # search ISO original
             })
         return issues
 
@@ -740,9 +948,9 @@ class HallucinationChecker:
         unknown = found - self.allowed["articles"]
         issues = []
         for a in sorted(unknown):
-            if not _has_real_citation_context(content, a):
+            if not _has_real_article_context(content, a):
                 logger.info(
-                    f"[HALLUCINATION V1.16.1] Skip article '{a}' — "
+                    f"[HALLUCINATION V1.20] Skip article '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -750,7 +958,10 @@ class HallucinationChecker:
             issues.append({
                 "type": "article", "value": f"Neni {a}", "severity": "medium",
                 "message": f"Neni {a} nuk u gjet ne citimet e dokumentit.",
-                "snippet": _find_snippet(content, f"Neni {a}") or _find_snippet(content, f"Nenit {a}"),
+                "snippet": (
+                    _find_snippet(content, f"Neni {a}")
+                    or _find_snippet(content, f"Nenit {a}")
+                ),
             })
         return issues
 
@@ -759,6 +970,14 @@ class HallucinationChecker:
         unknown = found - self.allowed["laws"]
         issues = []
         for l in sorted(unknown):
+            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
+            if not _has_real_citation_context(content, l, prefixes=("",)):
+                logger.info(
+                    f"[HALLUCINATION V1.20] Skip law '{l}' — "
+                    f"shfaqet vetëm në kontekst sugjerimi."
+                )
+                continue
+
             issues.append({
                 "type": "law", "value": l, "severity": "medium",
                 "message": f"Ligji '{l}' nuk u gjet ne citimet e dokumentit.",
@@ -771,6 +990,14 @@ class HallucinationChecker:
         unknown = found - self.allowed["cases"]
         issues = []
         for c in sorted(unknown):
+            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
+            if not _has_real_citation_context(content, c, prefixes=("",)):
+                logger.info(
+                    f"[HALLUCINATION V1.20] Skip case '{c}' — "
+                    f"shfaqet vetëm në kontekst sugjerimi."
+                )
+                continue
+
             issues.append({
                 "type": "case_number", "value": c, "severity": "high",
                 "message": f"Numri i lendes '{c}' nuk u gjet ne dokument.",
@@ -783,9 +1010,27 @@ class HallucinationChecker:
         unknown = found - self.allowed["abbrevs"]
         issues = []
         for a in sorted(unknown):
+            # V1.19: skip nëse shfaqet vetëm në kontekst sugjerimi
+            if not _has_real_citation_context(content, a, prefixes=("",)):
+                logger.info(
+                    f"[HALLUCINATION V1.20] Skip abbrev '{a}' — "
+                    f"shfaqet vetëm në kontekst sugjerimi."
+                )
+                continue
+
+            if a in AMBIGUOUS_LAW_ABBREVS:
+                severity = "medium"
+                msg = (
+                    f"Akronimi '{a}' është i njohur si ambigu / jo-standard. "
+                    f"Përdor formën e plotë të ligjit ose akronimin standard."
+                )
+            else:
+                severity = "low"
+                msg = f"Akronimi '{a}' nuk u gjet ne citimet e dokumentit."
+
             issues.append({
-                "type": "abbreviation", "value": a, "severity": "low",
-                "message": f"Akronimi '{a}' nuk u gjet ne citimet e dokumentit.",
+                "type": "abbreviation", "value": a, "severity": severity,
+                "message": msg,
                 "snippet": _find_snippet(content, a),
             })
         return issues
@@ -818,9 +1063,9 @@ class HallucinationChecker:
         issues.extend(self._check_laws(content))
         issues.extend(self._check_cases(content))
         issues.extend(self._check_abbrevs(content))
-        # V1.16.1: meta-layer checks
         issues.extend(self._check_law_name_number_consistency(content))
         issues.extend(self._check_abbreviation_replacement(content))
+        issues.extend(self._check_abbrev_multiple_laws(content))
 
         high = sum(1 for i in issues if i["severity"] == "high")
         medium = sum(1 for i in issues if i["severity"] == "medium")
@@ -862,14 +1107,13 @@ def check_all_sections(
     verification_report: Dict[str, Any],
     extra_allowed_cases: Optional[Set[str]] = None,
     extra_allowed_dates: Optional[Set[str]] = None,
+    extra_allowed_articles: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
-    """
-    V1.16.1: Kontrollon të gjitha section-t + log i detajuar + meta-layer.
-    """
     checker = HallucinationChecker(
         citation_profile, fact_profile, verification_report,
         extra_allowed_cases=extra_allowed_cases,
         extra_allowed_dates=extra_allowed_dates,
+        extra_allowed_articles=extra_allowed_articles,
     )
 
     per_section: Dict[str, Any] = {}
@@ -893,16 +1137,12 @@ def check_all_sections(
             imsg = issue.get("message", "")
             isnip = (issue.get("snippet", "") or "")[:160]
             logger.info(
-                f"[HALLUCINATION V1.16.1] 📌 section={key} severity={sev} "
+                f"[HALLUCINATION V1.20] 📌 section={key} severity={sev} "
                 f"type={itype} value='{ival}'"
             )
-            logger.info(
-                f"[HALLUCINATION V1.16.1]    message: {imsg}"
-            )
+            logger.info(f"[HALLUCINATION V1.20]    message: {imsg}")
             if isnip:
-                logger.info(
-                    f"[HALLUCINATION V1.16.1]    snippet: {isnip}"
-                )
+                logger.info(f"[HALLUCINATION V1.20]    snippet: {isnip}")
 
         if report["status"] == "suspect":
             suspicious.append(key)
@@ -915,7 +1155,7 @@ def check_all_sections(
         global_status = "clean"
 
     logger.info(
-        f"[HALLUCINATION V1.16.1] Status={global_status}, "
+        f"[HALLUCINATION V1.20] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

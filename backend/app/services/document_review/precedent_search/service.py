@@ -1,10 +1,12 @@
 # FILE: backend/app/services/document_review/precedent_search/service.py
-# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.9
+# PHOENIX PROTOCOL - PRECEDENT SEARCH SERVICE V2.9.1
+# V2.9.1: CACHE INVALIDATION — PRECEDENT_CACHE_KEY_PREFIX "v1" → "v2".
+#         Arsye: V2.8 (threshold 4.0→5.5) + V2.9 (fallback quality gate)
+#         ndryshuan sjelljen e filtrimit. Cache-i i vjetër ruan 3 rezultate
+#         me threshold të vjetër → false HIT. Bump → detyron fresh search
+#         një herë, pastaj cache i ri me threshold të rinj.
 # V2.9: FALLBACK QUALITY GATE — Fallback top-3 aplikohet VETËM nëse max
 #       rerank_score >= PRECEDENT_FALLBACK_MIN_SCORE (default 4.0).
-#       Më parë, me threshold=5.5 dhe max=3.0, sistemi kthente top-3
-#       edhe pse ishin jorelevante (sim=0.000). Tani kthen [] — pa false
-#       precedents në raport.
 # V2.8: LOG CLEANUP — timing breakdown WARNING → INFO.
 # V2.7: TIMING INSTRUMENTED.
 # V2.6: RERANK SCALE CLARITY.
@@ -45,7 +47,8 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 
 PRECEDENT_CACHE_TTL_SECONDS = 24 * 3600  # 24 orë
-PRECEDENT_CACHE_KEY_PREFIX = "precedent_search:v1"
+# V2.9.1: Bump "v1" → "v2" — invalidon cache-in e vjetër (threshold 4.0).
+PRECEDENT_CACHE_KEY_PREFIX = "precedent_search:v2"
 PRECEDENT_CACHE_ENABLED = True
 
 # V2.4: Sa kandidatë dërgohen në rerank (para: pa limit → 50+)
@@ -154,7 +157,7 @@ def search_relevant_precedents(
     threshold: float = PRECEDENT_SIMILARITY_THRESHOLD,
 ) -> List[Dict[str, Any]]:
     """
-    V2.9: Hybrid (Atlas + MongoDB text + RRF) + Reranker, ME TIMING.
+    V2.9.1: Hybrid (Atlas + MongoDB text + RRF) + Reranker, ME TIMING.
 
     Rrjedha:
       1. CACHE check
@@ -172,7 +175,6 @@ def search_relevant_precedents(
     """
     _t_total = time.time()
 
-    # ═══ TIMING ACCUMULATORS ═══
     timing: Dict[str, float] = {
         "cache_get": 0.0,
         "embedding": 0.0,
@@ -208,7 +210,7 @@ def search_relevant_precedents(
     _phase("cache_get", _t)
     if cached is not None:
         logger.info(
-            f"⏱️ [PRECEDENT TIMING V2.9] CACHE HIT — total={time.time() - _t_total:.3f}s"
+            f"⏱️ [PRECEDENT TIMING V2.9.1] CACHE HIT — total={time.time() - _t_total:.3f}s"
         )
         return cached
 
@@ -349,7 +351,7 @@ def search_relevant_precedents(
     _phase("pre_filter", _t)
 
     logger.info(
-        f"⚡ [PRECEDENT V2.9] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
+        f"⚡ [PRECEDENT V2.9.1] Pre-filter: {len(deduped)} → {len(pre_filtered)} "
         f"kandidatë për rerank (limit={pre_filter_limit})"
     )
 
@@ -364,7 +366,6 @@ def search_relevant_precedents(
         _phase("rerank", _t)
         reranked = True
 
-        # V2.6: Threshold i centralizuar (shkallë 0-10)
         min_score = _resolve_rerank_min_score()
 
         _t = time.time()
@@ -374,7 +375,6 @@ def search_relevant_precedents(
         ]
         _phase("final_filter", _t)
 
-        # V2.9: FALLBACK QUALITY GATE — vetëm nëse max_rerank është i arsyeshëm
         if not final_docs and reranked_docs:
             max_score = max(
                 (d.get("rerank_score", 0.0) or 0.0) for d in reranked_docs
@@ -382,7 +382,7 @@ def search_relevant_precedents(
 
             if max_score >= PRECEDENT_FALLBACK_MIN_SCORE:
                 logger.info(
-                    f"⚠️ [RERANK V2.9] Asnje kandidat me score >= "
+                    f"⚠️ [RERANK V2.9.1] Asnje kandidat me score >= "
                     f"{min_score:.2f}. Marr top 3 si fallback "
                     f"(max_score={max_score:.2f} >= "
                     f"fallback_min={PRECEDENT_FALLBACK_MIN_SCORE:.2f})."
@@ -390,7 +390,7 @@ def search_relevant_precedents(
                 final_docs = reranked_docs[:3]
             else:
                 logger.info(
-                    f"⛔ [RERANK V2.9] Asnje kandidat me score >= "
+                    f"⛔ [RERANK V2.9.1] Asnje kandidat me score >= "
                     f"{min_score:.2f} DHE max_score={max_score:.2f} < "
                     f"fallback_min={PRECEDENT_FALLBACK_MIN_SCORE:.2f}. "
                     f"Kthim [] — pa false precedents."
@@ -423,9 +423,8 @@ def search_relevant_precedents(
     # ─── 10. Log ───
     total_time = round(time.time() - _t_total, 3)
 
-    # V2.9: Timing breakdown — INFO (timing nuk është warning)
     logger.info(
-        f"⏱️ [PRECEDENT TIMING V2.9] TOTAL={total_time}s | "
+        f"⏱️ [PRECEDENT TIMING V2.9.1] TOTAL={total_time}s | "
         f"embedding={timing['embedding']}s | "
         f"atlas={timing['atlas_search']}s | "
         f"mongo_text={timing['mongo_text_search']}s | "
@@ -441,7 +440,7 @@ def search_relevant_precedents(
     )
 
     logger.info(
-        f"🏛️ [PRECEDENT V2.9] Strategjia={strategy}, "
+        f"🏛️ [PRECEDENT V2.9.1] Strategjia={strategy}, "
         f"reranker={PRECEDENT_RERANKER}, "
         f"reranked={reranked}, "
         f"kandidate={len(candidates)}, "
@@ -492,11 +491,12 @@ def _cli_test():
     )
 
     print(f"\n{'=' * 70}")
-    print(f"TEST V2.9 - Query: '{test_query}'")
+    print(f"TEST V2.9.1 - Query: '{test_query}'")
     print(f"Hybrid: {PRECEDENT_USE_HYBRID}, Reranker: {PRECEDENT_RERANKER}")
     print(f"Threshold: {PRECEDENT_SIMILARITY_THRESHOLD}, Top-K: {PRECEDENT_TOP_K}")
     print(f"Pre-filter top N: {PRECEDENT_RERANK_PRE_FILTER_TOP_N}")
     print(f"Fallback min score: {PRECEDENT_FALLBACK_MIN_SCORE}")
+    print(f"Cache prefix: {PRECEDENT_CACHE_KEY_PREFIX}")
     print(f"Cache: {'ENABLED' if PRECEDENT_CACHE_ENABLED else 'DISABLED'} "
           f"(TTL={PRECEDENT_CACHE_TTL_SECONDS}s)")
     if PRECEDENT_RERANKER == "cohere":
@@ -506,11 +506,11 @@ def _cli_test():
         print(f"Min DeepSeek score: {PRECEDENT_RERANK_MIN_SCORE}")
     print('=' * 70)
 
-    print("\n[TEST 1] Cold run (nuk ka cache)...")
+    print("\n[TEST 1] Cold run (cache i ri v2, duhet MISS)...")
     results = search_relevant_precedents(db, test_query, top_k=5)
     print(f"\n>>> Rezultatet: {len(results)}")
 
-    print("\n[TEST 2] Warm run (duhet cache HIT)...")
+    print("\n[TEST 2] Warm run (duhet cache HIT në v2)...")
     results2 = search_relevant_precedents(db, test_query, top_k=5)
     print(f"\n>>> Rezultatet: {len(results2)}")
 

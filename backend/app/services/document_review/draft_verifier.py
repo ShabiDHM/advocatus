@@ -1,28 +1,12 @@
 # FILE: backend/app/services/document_review/draft_verifier.py
-# PHOENIX PROTOCOL - DRAFT VERIFIER V1.11
-# V1.11: PRECEDENT DATES ALLOWED —
-#        - Datat nga excerpt e precedentëve nxirren me _extract_dates_iso
-#          dhe kalohen si `extra_allowed_dates` në check_all_sections.
-#          Eliminohet false positive ku precedentët me datë në excerpt
-#          flag-ohen si high-risk sepse data nuk shfaqet në draftin origjinal.
-# V1.10: READINESS OVERRIDE PREPEND + TITLE SYNC —
-#       - B2 FIX: override block PREPEND-ohet në KRYE të seksionit 6
-#         (V1.9 e append-onte në fund → user shihte "GATI" para shënimit).
-#       - Titulli i seksionit 6 modifikohet në "6. GATISHMËRIA — ⚠️ KËRKON PUNË".
-#       - Blloku i override përmban "MOS e lexoni 'GATI' më poshtë si
-#         vlerësim aktual" për të eliminuar kontradiktën vizuale.
-# V1.9: READINESS OVERRIDE + TYPO FIX —
-#       - Typo: "PËRMban" → "PËRMBAN" në hallucination banner.
-#       - Readiness override: nëse hallucination ka high/medium issues DHE
-#         readiness == "READY" → forcohet në "NEEDS WORK" + shënim në
-#         seksionin 6.
-# V1.8: TIMING LOGS CLEANUP — logger.warning → logger.info për timing.
-# V1.7: ANTI-HALLUCINATION GATE — build_fact_profile + check_all_sections.
-# V1.6: PRECEDENT PARSER ROBUST.
-# V1.5.1: FIX heading i dyfishuar.
-# V1.5: HYBRID SECTION 3.
-# V1.4: HYBRID SECTION 2.
-# V1.3: SCORE.
+# PHOENIX PROTOCOL - DRAFT VERIFIER V1.15
+# V1.15: DATE FORMAT SHQIP — _build_full_report strftime %Y-%m-%d → %d.%m.%Y.
+#        Data e raportit shfaqet "27.09.2026 03:33" (jo ISO).
+# V1.14: (F4) EXTRA_ALLOWED_CASES NGA PRECEDENTËT.
+# V1.13: (F2) EXTRA_ALLOWED_ARTICLES — nene nga excerpti i precedentëve.
+# V1.12: CITED PRECEDENT VERIFICATION (P2).
+# V1.11: PRECEDENT DATES ALLOWED.
+# V1.10: READINESS OVERRIDE PREPEND + TITLE SYNC.
 
 import os
 import re
@@ -40,7 +24,12 @@ from .fact_extractor import build_fact_profile
 from .mongo_verifier import verify_all
 from .streaming import synthesize_section_streaming
 from .persistence import load_document, load_extraction
-from .hallucination_checker import check_all_sections, _extract_dates_iso
+from .hallucination_checker import (
+    check_all_sections,
+    _extract_dates_iso,
+    _extract_articles,
+    _extract_cases,
+)
 from .precedent_search import (
     build_precedent_query,
     search_relevant_precedents,
@@ -80,7 +69,6 @@ READINESS_SCORES: Dict[str, int] = {
 }
 
 
-# V1.6: Nenet e ligjeve që nuk janë në MongoDB (Konventa, KEDNJ).
 INTERNATIONAL_LAW_KEYWORDS = [
     "konvent",
     "kednj",
@@ -94,7 +82,6 @@ INTERNATIONAL_LAW_KEYWORDS = [
 
 
 def _is_international_law(law_hint: str) -> bool:
-    """V1.6: Kontrollo nëse hint i referohet një ligji ndërkombëtar."""
     if not law_hint:
         return False
     h = law_hint.lower()
@@ -102,11 +89,134 @@ def _is_international_law(law_hint: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.7: HALLUCINATION GATE HELPERS
+# V1.13 / V1.14: EXTRACT FROM PRECEDENT EXCERPTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _extract_precedent_articles(
+    precedents: List[Dict[str, Any]],
+) -> Set[str]:
+    found: Set[str] = set()
+    if not precedents:
+        return found
+
+    for p in precedents:
+        if not isinstance(p, dict):
+            continue
+        excerpt = (p.get("text_excerpt") or "").strip()
+        if not excerpt:
+            continue
+        try:
+            found.update(_extract_articles(excerpt))
+        except Exception as e:
+            logger.warning(
+                f"⚠️ [VERIFY V1.15] Article extract failed for precedent "
+                f"{p.get('case_number')}: {e}"
+            )
+
+    return found
+
+
+def _extract_precedent_cases(
+    precedents: List[Dict[str, Any]],
+) -> Set[str]:
+    found: Set[str] = set()
+    if not precedents:
+        return found
+
+    for p in precedents:
+        if not isinstance(p, dict):
+            continue
+        excerpt = (p.get("text_excerpt") or "").strip()
+        if not excerpt:
+            continue
+        try:
+            found.update(_extract_cases(excerpt))
+        except Exception as e:
+            logger.warning(
+                f"⚠️ [VERIFY V1.15] Case extract failed for precedent "
+                f"{p.get('case_number')}: {e}"
+            )
+
+    return found
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.12 (P2): CITED PRECEDENT VERIFICATION HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _summarize_cited_precedents(
+    verification_report: Dict[str, Any],
+) -> Dict[str, Any]:
+    cases = (verification_report or {}).get("case_numbers", []) or []
+
+    cited: List[Dict[str, Any]] = []
+    for c in cases:
+        if not isinstance(c, dict):
+            continue
+        if c.get("is_likely_own"):
+            continue
+        cited.append(c)
+
+    verified: List[str] = []
+    unverified: List[str] = []
+
+    for c in cited:
+        cn = str(c.get("case_number", "")).strip()
+        if not cn:
+            continue
+        if c.get("is_precedent"):
+            verified.append(cn)
+        else:
+            unverified.append(cn)
+
+    return {
+        "total_cited": len(cited),
+        "verified": verified,
+        "unverified": unverified,
+        "verified_count": len(verified),
+        "unverified_count": len(unverified),
+    }
+
+
+def _build_cited_precedents_warning(summary: Dict[str, Any]) -> str:
+    total = int(summary.get("total_cited", 0) or 0)
+    unverified = summary.get("unverified", []) or []
+    verified_count = int(summary.get("verified_count", 0) or 0)
+
+    if total == 0 or not unverified:
+        return ""
+
+    lines: List[str] = []
+    lines.append("> ⚠️ **PARALAJMËRIM — PRECEDENTË TË CITUAR TË PAVERIFIKUAR**")
+    lines.append(">")
+    lines.append(
+        f"> Dokumenti citon **{total}** numra lëndësh. "
+        f"**{verified_count}/{total}** ekzistojnë në bazën e Gjykatës Supreme."
+    )
+    lines.append(
+        f"> **{len(unverified)}** numra NUK u gjetën në bazë — "
+        f"nuk mund të konfirmohet vërtetësia e tyre."
+    )
+    lines.append(">")
+    lines.append("> **Numrat e paverifikuar:**")
+    for cn in unverified[:20]:
+        lines.append(f">   - `{cn}`")
+    if len(unverified) > 20:
+        lines.append(f">   - ...dhe {len(unverified) - 20} të tjerë.")
+    lines.append(">")
+    lines.append(
+        "> **Veprimi i rekomanduar:** verifikoni manualisht secilin numër "
+        "para dorëzimit. Citimi i një lënde inekzistente në një akt "
+        "procedural është rrezik i lartë ligjor."
+    )
+    return "\n".join(lines) + "\n\n---\n\n"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HALLUCINATION GATE HELPERS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_hallucination_warning(hallucination_report: Dict[str, Any]) -> str:
-    """V1.7: Ndërton banner warning për t'u vendosur në krye të full_report."""
     status = hallucination_report.get("status", "clean")
     if status == "clean":
         return ""
@@ -120,7 +230,6 @@ def _build_hallucination_warning(hallucination_report: Dict[str, Any]) -> str:
     suspicious = hallucination_report.get("suspicious_sections", []) or []
 
     lines: List[str] = []
-    # V1.9: TYPO FIX — "PËRMban" → "PËRMBAN"
     lines.append("> ⚠️ **KY RAPORT PËRMBAN DYSHIME PËR HALLUZINACIONE**")
     lines.append(">")
     lines.append(
@@ -152,7 +261,7 @@ def _build_hallucination_warning(hallucination_report: Dict[str, Any]) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.9 + V1.10: READINESS OVERRIDE HELPERS
+# READINESS OVERRIDE HELPERS
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _maybe_override_readiness(
@@ -160,13 +269,6 @@ def _maybe_override_readiness(
     hallucination_report: Dict[str, Any],
     sections: Dict[str, Dict[str, Any]],
 ) -> str:
-    """
-    V1.10: Nëse hallucination ka high/medium issues dhe readiness == "READY",
-    forco në "NEEDS WORK" + injekto shënim NË KRYE të seksionit 6
-    (jo në fund si V1.9) + modifiko titullin e seksionit.
-
-    Kthen readiness (të modifikuar ose origjinal).
-    """
     if readiness != "READY":
         return readiness
 
@@ -177,7 +279,6 @@ def _maybe_override_readiness(
     if high == 0 and medium == 0:
         return readiness
 
-    # Përcakto arsyen
     reasons: List[str] = []
     if high > 0:
         reasons.append(f"{high} dyshime me **rrezik të lartë**")
@@ -189,24 +290,22 @@ def _maybe_override_readiness(
     new_label = READINESS_LABELS_SQ.get(new_readiness, new_readiness)
 
     logger.info(
-        f"🔄 [VERIFY V1.11] Readiness override: READY → NEEDS WORK "
+        f"🔄 [VERIFY V1.15] Readiness override: READY → NEEDS WORK "
         f"(arsyeja: {reason_text})"
     )
 
     sec = sections.get("readiness")
     if not sec:
         logger.warning(
-            "⚠️ [VERIFY V1.11] Seksioni 'readiness' mungon — "
+            "⚠️ [VERIFY V1.15] Seksioni 'readiness' mungon — "
             "override u aplikua vetëm në header."
         )
         return new_readiness
 
-    # ── V1.10: Modifiko TITULLIN e seksionit 6 që të pasqyrojë override-in ──
     original_title = sec.get("title") or "6. GATISHMËRIA"
     if "KËRKON PUNË" not in original_title:
         sec["title"] = f"{original_title} — ⚠️ {new_label}"
 
-    # ── V1.10: PREPEND bllok override në KRYE të seksionit ──
     if sec.get("content"):
         override_block = (
             f"> 🛑 **VËREJTJE E SISTEMIT — GATISHMËRIA U KORRIGJUA: {new_label}**\n"
@@ -225,19 +324,17 @@ def _maybe_override_readiness(
         sec["content"] = override_block + sec["content"]
     else:
         logger.warning(
-            "⚠️ [VERIFY V1.11] Seksioni 'readiness' ka content bosh — "
-            "override block nuk u injektua, por titulli u modifikua."
+            "⚠️ [VERIFY V1.15] Seksioni 'readiness' ka content bosh."
         )
 
     return new_readiness
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.4 + V1.6: HYBRID — PYTHON-GENERATED BLOCK A (NENET E VERIFIKUARA)
+# HYBRID — PYTHON-GENERATED BLOCK A (NENET E VERIFIKUARA)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_verified_articles_block(verification_report: Dict[str, Any]) -> str:
-    """V1.6: Ndërton bllokun "### A. Nenet e verifikuara" nga MongoDB."""
     articles = (verification_report or {}).get("articles", []) or []
 
     verified = [a for a in articles if a.get("exists")]
@@ -302,7 +399,7 @@ def _build_verified_articles_block(verification_report: Dict[str, Any]) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V1.5 + V1.6: HYBRID — PYTHON-GENERATED SECTION 3.A (PRECEDENTËT)
+# HYBRID — PYTHON-GENERATED SECTION 3.A (PRECEDENTËT)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_precedents_facts_skeleton(
@@ -374,7 +471,6 @@ def _build_precedents_facts_skeleton(
 
 
 def _strip_precedent_a_sections(text: str) -> str:
-    """V1.6: Hiq çdo 'A. Precedentët e identifikuar' bllok nga output-i LLM."""
     if not text:
         return text
 
@@ -390,7 +486,6 @@ def _strip_precedent_a_sections(text: str) -> str:
 
 
 def _extract_pse_relevant_map(text: str, count: int) -> Dict[int, str]:
-    """V1.6: Nxjerr 'Pse relevant' për çdo precedent."""
     result: Dict[int, str] = {}
 
     block = re.search(
@@ -441,7 +536,7 @@ def _post_process_precedents_section(
 
     if not pse_map:
         logger.warning(
-            f"⚠️ [V1.11] Nuk u nxorën Pse relevant për {count} precedentë. "
+            f"⚠️ [V1.15] Nuk u nxorën Pse relevant për {count} precedentë. "
             f"Output LLM fillon: {text[:200]}"
         )
 
@@ -634,7 +729,8 @@ def _build_full_report(
     file_name: str,
     readiness: str,
 ) -> str:
-    built_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    # V1.15: format shqip i datës (DD.MM.YYYY HH:MM)
+    built_at = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M")
     readiness_sq = READINESS_LABELS_SQ.get(readiness, readiness)
 
     lines: List[str] = []
@@ -779,7 +875,7 @@ class DraftVerifier:
         file_name = (document or {}).get("file_name", "draft")
 
         logger.info(
-            f"🔎 [VERIFY V1.11] Start: case={case_id}, doc={document_id}, "
+            f"🔎 [VERIFY V1.15] Start: case={case_id}, doc={document_id}, "
             f"file={file_name}, doc_type={doc_type} ({doc_type_label}), "
             f"len={len(doc_text)} chars, user={user_id or '?'}, "
             f"parallel x{MAX_CONCURRENT_VERIFY_SECTIONS}, "
@@ -811,7 +907,7 @@ class DraftVerifier:
                     doc_text, source_document=file_name
                 )
                 logger.info(
-                    f"🔬 [VERIFY V1.11] Fact profile: "
+                    f"🔬 [VERIFY V1.15] Fact profile: "
                     f"dates={fact_profile.get('stats', {}).get('total_dates', 0)}, "
                     f"parties={fact_profile.get('stats', {}).get('total_parties', 0)}, "
                     f"deadlines={fact_profile.get('stats', {}).get('legal_deadlines', 0)}"
@@ -842,6 +938,22 @@ class DraftVerifier:
             f"📚 [VERIFY] Articles {verification_report['stats'].get('articles_verified', 0)}/"
             f"{verification_report['stats'].get('articles_total', 0)}"
         )
+
+        cited_summary = _summarize_cited_precedents(verification_report)
+        if cited_summary["unverified_count"] > 0:
+            logger.warning(
+                f"⚠️ [VERIFY V1.15] CITED PRECEDENTS: "
+                f"{cited_summary['unverified_count']}/{cited_summary['total_cited']} "
+                f"të cituar NUK ekzistojnë në DB — "
+                f"{cited_summary['unverified'][:5]}"
+                + ("..." if cited_summary["unverified_count"] > 5 else "")
+            )
+        else:
+            logger.info(
+                f"✅ [VERIFY V1.15] CITED PRECEDENTS: "
+                f"{cited_summary['verified_count']}/{cited_summary['total_cited']} "
+                f"të verifikuar"
+            )
 
         if progress_callback:
             try:
@@ -886,7 +998,7 @@ class DraftVerifier:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [VERIFY PARALLEL V1.11] {len(VERIFY_SECTION_KEYS)} seksione, "
+            f"🚀 [VERIFY PARALLEL V1.15] {len(VERIFY_SECTION_KEYS)} seksione, "
             f"max_workers={MAX_CONCURRENT_VERIFY_SECTIONS}"
         )
 
@@ -1049,7 +1161,7 @@ class DraftVerifier:
         )
 
         # ═══════════════════════════════════════════════════════════════════
-        # V1.7: ANTI-HALLUCINATION CHECK
+        # ANTI-HALLUCINATION CHECK
         # ═══════════════════════════════════════════════════════════════════
         hallucination_report: Dict[str, Any] = {}
         if HALLUCINATION_GATE_ENABLED and fact_profile:
@@ -1062,7 +1174,6 @@ class DraftVerifier:
                 except Exception:
                     pass
 
-            # V1.11: Nxirr datat nga excerpt e precedentëve (trusted sources)
             precedent_dates: Set[str] = set()
             for p in precedents:
                 excerpt = (p.get("text_excerpt") or "").strip()
@@ -1071,14 +1182,32 @@ class DraftVerifier:
                         precedent_dates.update(_extract_dates_iso(excerpt))
                     except Exception as _e:
                         logger.warning(
-                            f"⚠️ [VERIFY V1.11] Date extract failed for "
+                            f"⚠️ [VERIFY V1.15] Date extract failed for "
                             f"precedent {p.get('case_number')}: {_e}"
                         )
             if precedent_dates:
                 logger.info(
-                    f"📅 [VERIFY V1.11] Precedent excerpt dates (allowed): "
+                    f"📅 [VERIFY V1.15] Precedent excerpt dates (allowed): "
                     f"{sorted(precedent_dates)}"
                 )
+
+            precedent_articles: Set[str] = _extract_precedent_articles(precedents)
+            if precedent_articles:
+                logger.info(
+                    f"📅 [VERIFY V1.15] Precedent excerpt articles (allowed): "
+                    f"{sorted(precedent_articles)}"
+                )
+
+            precedent_cases: Set[str] = _extract_precedent_cases(precedents)
+            all_allowed_cases: Set[str] = set(found_precedent_cases)
+            if precedent_cases:
+                new_cases = precedent_cases - all_allowed_cases
+                if new_cases:
+                    logger.info(
+                        f"📅 [VERIFY V1.15] Precedent excerpt cases (allowed): "
+                        f"{sorted(new_cases)}"
+                    )
+                all_allowed_cases.update(precedent_cases)
 
             t0 = time.time()
             try:
@@ -1087,11 +1216,12 @@ class DraftVerifier:
                     citation_profile=citation_profile,
                     fact_profile=fact_profile,
                     verification_report=verification_report,
-                    extra_allowed_cases=found_precedent_cases,
-                    extra_allowed_dates=precedent_dates,   # V1.11
+                    extra_allowed_cases=all_allowed_cases,
+                    extra_allowed_dates=precedent_dates,
+                    extra_allowed_articles=precedent_articles,
                 )
                 logger.info(
-                    f"🧪 [VERIFY V1.11] Hallucination: "
+                    f"🧪 [VERIFY V1.15] Hallucination: "
                     f"status={hallucination_report.get('status')}, "
                     f"issues={hallucination_report.get('total_issues', 0)} "
                     f"(high={hallucination_report.get('severity_totals', {}).get('high', 0)}, "
@@ -1104,12 +1234,12 @@ class DraftVerifier:
                 hallucination_report = {}
             _lap("hallucination_check", t0)
         elif not HALLUCINATION_GATE_ENABLED:
-            logger.info("ℹ️ [VERIFY V1.11] Hallucination gate çaktivizuar (env)")
+            logger.info("ℹ️ [VERIFY V1.15] Hallucination gate çaktivizuar (env)")
         elif not fact_profile:
-            logger.warning("⚠️ [VERIFY V1.11] Fact profile bosh — halluzinacioni nuk u kontrollua")
+            logger.warning("⚠️ [VERIFY V1.15] Fact profile bosh — halluzinacioni nuk u kontrollua")
 
         # ═══════════════════════════════════════════════════════════════════
-        # V1.9 + V1.10: READINESS OVERRIDE (para scoring)
+        # READINESS OVERRIDE
         # ═══════════════════════════════════════════════════════════════════
         readiness = _parse_readiness(sections)
         readiness_before_override = readiness
@@ -1141,6 +1271,11 @@ class DraftVerifier:
             if warning_banner:
                 full_report = warning_banner + full_report
 
+        if cited_summary["unverified_count"] > 0:
+            cited_banner = _build_cited_precedents_warning(cited_summary)
+            if cited_banner:
+                full_report = cited_banner + full_report
+
         duration = round(time.time() - start, 2)
 
         vstats = verification_report.get("stats", {}) or {}
@@ -1171,7 +1306,7 @@ class DraftVerifier:
                 "sections_total": len(VERIFY_SECTION_KEYS),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": "verify_hybrid_v1.11",
+                "execution_mode": "verify_hybrid_v1.15",
                 "precedents_found": len(precedents),
                 "precedent_threshold": PRECEDENT_SIMILARITY_THRESHOLD,
                 "precedent_top_k": PRECEDENT_TOP_K,
@@ -1181,10 +1316,8 @@ class DraftVerifier:
                 "formal_pct": formal_pct,
                 "legal_pct": legal_pct,
                 "readiness_score": readiness_score,
-                # V1.9 + V1.10: Readiness override tracking
                 "readiness_overridden": readiness_overridden,
                 "readiness_before_override": readiness_before_override,
-                # Hallucination stats
                 "hallucination_status": hallucination_report.get("status", "not_checked"),
                 "hallucination_issues": hallucination_report.get("total_issues", 0),
                 "hallucination_high": h_sev.get("high", 0),
@@ -1192,6 +1325,10 @@ class DraftVerifier:
                 "hallucination_low": h_sev.get("low", 0),
                 "hallucination_suspicious_sections": hallucination_report.get("suspicious_sections", []),
                 "hallucination_enabled": HALLUCINATION_GATE_ENABLED,
+                "cited_precedents_total": cited_summary["total_cited"],
+                "cited_precedents_verified": cited_summary["verified_count"],
+                "cited_precedents_unverified": cited_summary["unverified_count"],
+                "cited_precedents_unverified_list": cited_summary["unverified"],
             },
             "readiness": readiness,
             "score": score,
@@ -1213,7 +1350,7 @@ class DraftVerifier:
         result["persisted"] = persisted
 
         logger.info(
-            f"✅ [VERIFY V1.11] Complete: "
+            f"✅ [VERIFY V1.15] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"readiness={readiness}"
             + (f" (override from {readiness_before_override})" if readiness_overridden else "")
@@ -1221,6 +1358,10 @@ class DraftVerifier:
             f"(formal={formal_pct}%, legal={legal_pct}%, readiness={readiness_score}), "
             f"precedents={len(precedents)}, "
             f"articles={articles_verified}/{articles_total}, "
+            f"cited_precedents={cited_summary['verified_count']}/{cited_summary['total_cited']}"
+            + (f" (⚠️ {cited_summary['unverified_count']} unverified)"
+               if cited_summary["unverified_count"] > 0 else "")
+            + f", "
             f"hallucination={result['stats']['hallucination_status']} "
             f"({result['stats']['hallucination_issues']} issues), "
             f"report_chars={len(full_report)}, duration={duration}s, "

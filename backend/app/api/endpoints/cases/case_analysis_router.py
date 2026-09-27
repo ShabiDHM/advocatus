@@ -1,16 +1,14 @@
 # FILE: backend/app/api/endpoints/cases/case_analysis_router.py
-# PHOENIX PROTOCOL - CASE ANALYSIS ROUTER V1.12
-# V1.12: SYNTHESIS + REWRITE REMOVED —
-#        - POST/GET /{case_id}/documents/{doc_id}/rewrite u hoqën.
-#        - RewriteDraftRequest / RewriteDraftResponse u hoqën.
-#        - Importet get_document_rewriter / get_rewrite_doc_types u hoqën.
-#        - SYNTHESIS_ALLOWED_ROLES + _check_synthesis_permission u hoqën.
-#        - POST /{case_id}/analyze: document_ids tani i detyrueshëm.
-#          Nëse mungon/null/bosh → 400. Analiza e gjithë fashikullit
-#          (Synthesis) nuk ofrohet më.
-# V1.11: CLEANUP — hequr endpoint-i /documents/ai-improve + AiImproveRequest
-#        (funksionaliteti u hoq për shkak të rrezikut të halucinacioneve
-#        semantike që Token Guard nuk mund t'i kapte).
+# PHOENIX PROTOCOL - CASE ANALYSIS ROUTER V1.13
+# V1.13: ADMIN GATE — POST /analyze dhe POST /verify (dhe DELETE /verify)
+#        kufizohen në user.role == 'ADMIN' përmes dependency-it të ri
+#        require_admin. GET /verify mbetet i hapur për case-access users
+#        (read-only).
+#        Arsye: frontend-i (ChatHeader V46.6) fsheh butonat për jo-admin,
+#        por API-t duhet të mbrohen pavarësisht — pa këtë, çdo user me
+#        DevTools mund t'i thërrasë direkt.
+# V1.12: SYNTHESIS + REWRITE REMOVED.
+# V1.11: CLEANUP — hequr /documents/ai-improve.
 # V1.10: AI IMPROVE (u hoq).
 # V1.9: MULTI-DEVICE — GET /rewrite.
 # V1.8: REWRITE DRAFT — POST (chunked parallel).
@@ -40,6 +38,33 @@ from ....services.document_review.verify_prompts import VERIFY_DOC_TYPES
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.13: ADMIN GATE
+# ═══════════════════════════════════════════════════════════════════════════
+
+def require_admin(
+    current_user: UserInDB = Depends(get_current_active_user),
+) -> UserInDB:
+    """
+    V1.13: Kufizon endpoint-in në user.role == 'ADMIN'.
+    Përdoret për veprimet e shtrenjta (analyze, verify) dhe destruktive
+    (delete verification). Pa këtë, frontend gating është theater — API-t
+    mbeten të hapura.
+    """
+    role = str(getattr(current_user, "role", "")).upper()
+    if role != "ADMIN":
+        user_id = str(getattr(current_user, "id", "?"))
+        logger.warning(
+            f"🚫 [ADMIN GATE] Denied: user={user_id} role={role} "
+            f"endpoint={getattr(current_user, 'email', '?')}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ky veprim është i rezervuar vetëm për administratorë.",
+        )
+    return current_user
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -116,19 +141,19 @@ def _check_case_access(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ANALYZE — SSE
+# ANALYZE — SSE (V1.13: ADMIN only)
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.post(
     "/{case_id}/analyze",
-    summary="Analiza e dokumenteve të zgjedhura (SSE stream)",
+    summary="Analiza e dokumenteve të zgjedhura (SSE stream) — ADMIN only",
     response_class=StreamingResponse,
 )
 async def analyze_case(
     case_id: str,
     body: AnalyzeRequest,
     db: Database = Depends(get_db),
-    current_user: UserInDB = Depends(get_current_active_user),
+    current_user: UserInDB = Depends(require_admin),   # V1.13: ADMIN GATE
 ):
     _check_case_access(db, case_id, current_user)
     user_id_str = str(getattr(current_user, "id", ""))
@@ -137,7 +162,6 @@ async def analyze_case(
     force_reprocess = body.force_reprocess
     document_ids = body.document_ids
 
-    # V1.12: document_ids i detyrueshëm. Synthesis nuk ofrohet më.
     if not document_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -195,12 +219,12 @@ async def analyze_case(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY DRAFT — POST (SSE)
+# VERIFY DRAFT — POST (SSE) (V1.13: ADMIN only)
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.post(
     "/{case_id}/documents/{doc_id}/verify",
-    summary="Verifiko Draftin (SSE stream)",
+    summary="Verifiko Draftin (SSE stream) — ADMIN only",
     response_class=StreamingResponse,
 )
 async def verify_draft(
@@ -208,7 +232,7 @@ async def verify_draft(
     doc_id: str,
     body: VerifyDraftRequest,
     db: Database = Depends(get_db),
-    current_user: UserInDB = Depends(get_current_active_user),
+    current_user: UserInDB = Depends(require_admin),   # V1.13: ADMIN GATE
 ):
     _check_case_access(db, case_id, current_user)
     user_id_str = str(getattr(current_user, "id", ""))
@@ -303,7 +327,7 @@ async def verify_draft(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY DRAFT — GET
+# VERIFY DRAFT — GET (mbetet i hapur për case-access users)
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.get(
@@ -358,18 +382,18 @@ async def get_verify_draft(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY DRAFT — DELETE
+# VERIFY DRAFT — DELETE (V1.13: ADMIN only)
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.delete(
     "/{case_id}/documents/{doc_id}/verify",
-    summary="Fshi raportin e verifikimit të draftit",
+    summary="Fshi raportin e verifikimit të draftit — ADMIN only",
 )
 async def clear_verify_draft(
     case_id: str,
     doc_id: str,
     db: Database = Depends(get_db),
-    current_user: UserInDB = Depends(get_current_active_user),
+    current_user: UserInDB = Depends(require_admin),   # V1.13: ADMIN GATE
 ):
     _check_case_access(db, case_id, current_user)
 

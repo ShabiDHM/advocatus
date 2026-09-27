@@ -1,13 +1,11 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V46.5 (SHORT LABELS)
-// V46.5: SHORT LABELS — Butoni "Analizo Dokumentin" → "Analizo";
-//        "Verifiko Draftin" → "Verifiko". Për hapësirë më të mirë në mobile
-//        dhe UI më të pastër. Zero ndryshim funksional.
+// PHOENIX PROTOCOL - CHAT HEADER V46.6 (ADMIN-ONLY BUTTONS)
+// V46.6: ADMIN GATE — Butonat "Analizo" + "Verifiko" shfaqen VETËM për
+//        user.role === 'ADMIN'. Fshihen për organization/individual/guest.
+//        Fix: `user` nuk ishte destructuruar → role nuk arrinte kurrë.
+// V46.5: SHORT LABELS — "Analizo" / "Verifiko".
 // V46.4: SYNTHESIS REMOVED.
 // V46.3: MUTUAL EXCLUSION.
-// V46.2: VERIFY COLOR UNIFIED.
-// V46.1: MOBILE VERIFY FIX.
-// V46.0: VERIFY DRAFT PROGRESS.
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
@@ -76,16 +74,22 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   verifyProgressPercent = 0,
   verifyPhaseLabel = '',
   verifyStartTime = null,
+  user = null,   // V46.6: tani destructuruar
 }) => {
   const hasSelectedDoc = !!selectedDocName && selectedDocName.trim().length > 0;
+
+  // V46.6: vetëm ADMIN shikon "Analizo" + "Verifiko"
+  const isAdmin = (user?.role ?? '').toUpperCase() === 'ADMIN';
+
   const [elapsed, setElapsed] = useState(0);
   const [verifyElapsed, setVerifyElapsed] = useState(0);
 
   const [showVerifyDropdown, setShowVerifyDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const showAnalyzeButton = hasSelectedDoc;
-  const showVerifyButton = hasSelectedDoc && !!onVerifyDraft;
+  // V46.6: GATE me isAdmin
+  const showAnalyzeButton = hasSelectedDoc && isAdmin;
+  const showVerifyButton = hasSelectedDoc && !!onVerifyDraft && isAdmin;
 
   // Audit timer
   useEffect(() => {
@@ -176,7 +180,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-        {/* V46.5: ANALIZO — vetëm me dokument të zgjedhur */}
+        {/* V46.6: ANALIZO — vetëm ADMIN + dokument i zgjedhur */}
         {onAnalyzeDocument && showAnalyzeButton && (
           <button
             type="button"
@@ -207,7 +211,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* V46.5: VERIFIKO — mutual exclusion gjatë audit */}
+        {/* V46.6: VERIFIKO — vetëm ADMIN + mutual exclusion */}
         {showVerifyButton && !isAuditGenerating && (
           <div className="relative" ref={dropdownRef}>
             {isVerifyGenerating ? (

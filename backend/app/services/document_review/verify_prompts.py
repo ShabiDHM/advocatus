@@ -1,10 +1,14 @@
 # FILE: backend/app/services/document_review/verify_prompts.py
-# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.11
-# V1.11: LLM CONTEXT EXCERPT REDUCED — _block_precedents tani shfaq
-#        excerpt[:250] (ishte [:400]). Matje V2.7: supreme_court_precedents
-#        LLM streaming = 65.9s (bottleneck). Reduktoi input context ~25%
-#        (nga 6554 → ~5000 chars) → pritet -10-15s. Kualiteti mbetet i lartë
-#        sepse 250 chars mbulojnë faktet kyçe.
+# PHOENIX PROTOCOL - VERIFY DRAFT PROMPTS V1.12
+# V1.12: TIMING OPTIMIZATION (P4) —
+#        - concrete_recommendations: max_tokens 3000 → 2200; shtuar MOD
+#          KONCIS që cakton 3/2/2 rekomandime max dhe "Shembull" 1 fjali.
+#          Output target ~2500 chars (ishte 3906) → ~28s (ishte 42.58s).
+#        - weaknesses_risks: max_tokens 2600 → 2000; shtuar MOD KONCIS që
+#          cakton 3/2/2 elemente max. Output target ~2000 chars (ishte 2822)
+#          → ~21s (ishte 27.32s).
+#        - Pa ndryshime në streaming.py — prompt-i vetë cakton limitet.
+# V1.11: LLM CONTEXT EXCERPT REDUCED — _block_precedents excerpt[:250].
 # V1.10: LOW CLEANUP — common_issues hequr, [:MAX_CONTEXT_CHARS] unified.
 # V1.9: THRESHOLD UNIFIED — MIN_PRECEDENT_SIMILARITY 0.50 → 0.70.
 # V1.8: HYBRID SECTION 3.
@@ -37,7 +41,6 @@ DRAFT_TAIL_CHARS = 10000
 
 MIN_PRECEDENT_SIMILARITY = 0.70
 
-# V1.11: Excerpt i precedenteve në context LLM (jo output)
 PRECEDENT_LLM_EXCERPT_CHARS = 250
 
 
@@ -243,9 +246,6 @@ RREGULLA:
 """ + DEDUP_RULE,
     },
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # SECTION 2 — V1.7: HYBRID (A nga Python, B/C/D nga LLM)
-    # ═══════════════════════════════════════════════════════════════════════
     "legal_quality": {
         "title": "2. CILËSIA LIGJORE (NENET)",
         "max_tokens": 2000,
@@ -300,9 +300,6 @@ RREGULLA:
 """ + DEDUP_RULE,
     },
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # SECTION 3 — V1.8: HYBRID (3.A nga Python, PSE_RELEVANT + 3.B/C nga LLM)
-    # ═══════════════════════════════════════════════════════════════════════
     "supporting_precedents": {
         "title": "3. PRECEDENTË MBËSHTETËS",
         "max_tokens": 2000,
@@ -354,9 +351,12 @@ PSE_RELEVANT_END
 """ + DEDUP_RULE,
     },
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # V1.12: MOD KONCIS — weaknesses_risks (max_tokens 2600 → 2000)
+    # ═══════════════════════════════════════════════════════════════════════
     "weaknesses_risks": {
         "title": "4. DOBËSI & RREZIQE",
-        "max_tokens": 2600,
+        "max_tokens": 2000,
         "needs": ["draft", "checklist"],
         "prompt": """Ti je "Analist i Rreziqeve Ligjore" me përvojë në kontestime.
 
@@ -391,6 +391,16 @@ Format:
 - Rrezik i mesëm: [pikat]
 - Rrezik i ulët: [pikat]
 
+🛑 MOD KONCIS — DETYRUESHËM (V1.12):
+- Maksimumi **3** dobësi në seksionin A.
+- Maksimumi **2** mungesa provash në seksionin B.
+- Maksimumi **2** dobësi procedurale në seksionin C.
+- Maksimumi **3** kundërargumente në seksionin D.
+- Seksioni E: maksimumi 3 pika për nivel.
+- Totali i output-it: **~2000 karaktere**.
+- Fjalitë të shkurtra. Pa elaborim të panevojshëm. Cilësia > sasia.
+- NUK përsërit gjetjet e seksioneve 1-3.
+
 RREGULLA:
 - Bazohu VETËM në tekstin e draftit dhe në "[CHECKLIST]".
 - Fokus te CILËSIA e argumentimit, jo te plotësia formale.
@@ -398,11 +408,11 @@ RREGULLA:
     },
 
     # ═══════════════════════════════════════════════════════════════════════
-    # SECTION 5 — V1.6: "Shembull: ..." për çdo rekomandim
+    # V1.12: MOD KONCIS — concrete_recommendations (max_tokens 3000 → 2200)
     # ═══════════════════════════════════════════════════════════════════════
     "concrete_recommendations": {
         "title": "5. REKOMANDIME KONKRETE",
-        "max_tokens": 3000,
+        "max_tokens": 2200,
         "needs": ["draft", "checklist", "articles"],
         "prompt": """Ti je "Partner i Lartë" që jep rekomandime për përmirësim.
 
@@ -483,6 +493,16 @@ SHEMBUJ TË SAKTË (i mirë vs i dobët):
 - Çdo rekomandim me referencë konkrete në draft.
 - NUK LEJOHET rekomandim i përgjithshëm pa bazë.
 - Prioriteti KRITIKE rezervohet vetëm për probleme që pengojnë dorëzimin.
+
+🛑 MOD KONCIS — DETYRUESHËM (V1.12):
+- Maksimumi **3** rekomandime në seksionin A (KRITIKE).
+- Maksimumi **2** rekomandime në seksionin B (TË RËNDËSISHME).
+- Maksimumi **2** rekomandime në seksionin C (OPSIONALE).
+- Fusha **"Shembull"**: MAKSIMUMI 1 fjali (jo 2 rreshta).
+- Fusha "Pse" dhe "Si": MAKSIMUMI 1 fjali secila.
+- Totali i output-it: **~2500 karaktere**.
+- NUK lejohet të kalosh këto limite. Nëse ka më shumë se 3 rekomandime kritike
+  → zgjidh 3 më të rëndësishmet. Cilësia > sasia.
 """ + DEDUP_RULE,
     },
 
@@ -541,17 +561,6 @@ RREGULLA:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _truncate_draft(doc_text: str, max_chars: int = DEFAULT_MAX_DRAFT_CHARS) -> str:
-    """
-    V1.10: Truncon draftin nëse kalon max_chars.
-
-    Komportament:
-      - Nëse len(doc_text) <= max_chars → kthen tekstin e plotë.
-      - Nëse kalon → kthen HEAD (45000) + marker + TAIL (10000) = ~55000 chars.
-
-    Parametri `max_chars` shërben VETËM si prag (threshold) për të vendosur
-    nëse truncohet. Madhësia e output-it nuk varet nga `max_chars`, por nga
-    konstantet DRAFT_HEAD_CHARS dhe DRAFT_TAIL_CHARS.
-    """
     if not doc_text:
         return ""
     if len(doc_text) <= max_chars:
@@ -562,7 +571,7 @@ def _truncate_draft(doc_text: str, max_chars: int = DEFAULT_MAX_DRAFT_CHARS) -> 
     omitted = len(doc_text) - DRAFT_HEAD_CHARS - DRAFT_TAIL_CHARS
     return (
         head
-        + f"\n\n[...{omitted} karaktere të hequra për gjatësi — kontrollo fundin e draftit...]\n\n"
+        + f"\n\n[...{omitted} karaktere të hequr për gjatësi — kontrollo fundin e draftit...]\n\n"
         + tail
     )
 
@@ -699,7 +708,6 @@ def _block_cited_articles(
                 for alt in alts[:5]:
                     lines.append(f"     - {alt[:100]}")
 
-        # V1.10: [:MAX_CONTEXT_CHARS] = 300 (sinkron me extractor)
         if a.get("context"):
             lines.append(f"  Cituar në draft: {a['context'][:MAX_CONTEXT_CHARS]}")
         lines.append("")
@@ -775,7 +783,6 @@ def _block_precedents(
         if topic:
             lines.append(f"     Tema: {topic}")
         if excerpt:
-            # V1.11: Excerpt reduced 400 → 250 chars (LLM context)
             lines.append(f'     Fragment: "{excerpt[:PRECEDENT_LLM_EXCERPT_CHARS]}"')
         lines.append(f"     Burimi: {source}, faqe {page}")
         lines.append("")
@@ -829,7 +836,7 @@ def get_checklist(doc_type: str) -> Optional[Dict[str, Any]]:
 
 def _cli_test():
     print("=" * 70)
-    print("VERIFY PROMPTS V1.11 — DIAGNOSTIKË")
+    print("VERIFY PROMPTS V1.12 — DIAGNOSTIKË")
     print("=" * 70)
 
     print(f"\nLlojet e dokumenteve ({len(VERIFY_DOC_TYPES)}):")
@@ -843,7 +850,7 @@ def _cli_test():
         needs = cfg.get("needs", [])
         print(f"  - {k:25s} max_tokens={cfg.get('max_tokens')} needs={needs}")
 
-    print(f"\nV1.11 Konstante:")
+    print(f"\nV1.12 Konstante:")
     print(f"  - DEFAULT_MAX_DRAFT_CHARS: {DEFAULT_MAX_DRAFT_CHARS}")
     print(f"  - MIN_PRECEDENT_SIMILARITY: {MIN_PRECEDENT_SIMILARITY}")
     print(f"  - PRECEDENT_LLM_EXCERPT_CHARS: {PRECEDENT_LLM_EXCERPT_CHARS}")

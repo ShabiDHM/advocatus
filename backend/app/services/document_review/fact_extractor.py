@@ -1,14 +1,14 @@
 # FILE: backend/app/services/document_review/fact_extractor.py
-# PHOENIX PROTOCOL - FACT EXTRACTOR V3.19
-# V3.19: MORPHOLOGY-AWARE ROOTS —
-#        - ROOT_PREFIX_LEN 5 → 4
-#        - Normalizim diakritikash (ë→e, ç→c) para root prefix:
-#          "urdhërit" → "urdi", "urdhri" → "urdi" (përputhen!)
-#        - CONTRADICTION_MIN_SHARED = 1 (kthyer)
-#        - Shtuar "kohëzgjatje*" në stopwords — koncept i përbashkët
-#          që krijon false-positive mes vlerave të ndryshme.
-# V3.18: MIN_SHARED=2 (u hoq — tepër strikt).
-# V3.17: EXPANDED PERIOD PATTERN.
+# PHOENIX PROTOCOL - FACT EXTRACTOR V3.21
+# V3.21: GROUP LABEL as position_hint për emrat e listuar me presje —
+#        - Kur një rresht ka strukturën "GRUPI/SEKTORI: Emri1, Emri2, Emri3",
+#          pjesa para ':' përdoret si position_hint për TË GJITHË emrat.
+#        - Zgjidh rastin "3. KOLEGJI I GJYKATËS SË APELIT: LUMNI SALLAUKA,
+#          ARDIAN AJVAZI, NORA BLLACA DULA" — 3 emrat tani kanë rol.
+#        - Arsye: në V3.20, 3 apelistët kishin rol bosh ("pa rol") dhe LLM-ja
+#          i hidhte nga lista e 15 të dyshuarve.
+# V3.20: MEDICAL TITLES + MARKDOWN HEADERS.
+# V3.19: MORPHOLOGY-AWARE ROOTS.
 
 import os
 import re
@@ -373,10 +373,54 @@ def extract_parties(text: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V3.12: ROLE-BASED SUSPECT EXTRACTION
+# V3.12 + V3.20 + V3.21: ROLE-BASED SUSPECT EXTRACTION
 # ═══════════════════════════════════════════════════════════════════════════
 
 _LINE_SEPARATORS_RE = re.compile(r'\s+[—–]\s+|\s+-\s+')
+
+
+# V3.20: Strip markdown heading prefix (#, ##, ###, ...)
+_MARKDOWN_HEADER_RE = re.compile(r'^#{1,6}\s+')
+
+
+# V3.20: Tituj akademikë / profesionalë që përmbajnë pikë dhe që
+# is_valid_person_name i refuzon. Strip vetëm për validim; ruaj në output.
+_TITLE_PREFIX_RE = re.compile(
+    r'^(?:'
+    r'Dr\.?|Prof\.?|Mr\.?|Mrs\.?|Ms\.?|'
+    r'M\.?Sc\.?|B\.?Sc\.?|Ph\.?D\.?|'
+    r'Z\.?|Znj\.?|Zot\.?|'
+    r'Av\.?|Adv\.?|'
+    r'Dipl\.?|Ing\.?'
+    r')\s+',
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def _strip_title_for_validation(name: str) -> str:
+    """
+    V3.20: Heq titullin akademik nga fillimi i emrit për validim.
+    Shembull: "DR. SAMIRE BRAINA" → "SAMIRE BRAINA".
+    Nëse s'ka titull → kthen input-in e paprekur.
+    """
+    if not name:
+        return ""
+    stripped = _TITLE_PREFIX_RE.sub('', name.strip()).strip()
+    return stripped or name
+
+
+def _validate_name_with_title(name: str) -> bool:
+    """
+    V3.20: Validon emrin me ose pa titull akademik.
+    """
+    if not name:
+        return False
+    if is_valid_person_name(name):
+        return True
+    without_title = _strip_title_for_validation(name)
+    if without_title != name and is_valid_person_name(without_title):
+        return True
+    return False
 
 
 def _split_comma_names(s: str) -> List[str]:
@@ -388,7 +432,7 @@ def _split_comma_names(s: str) -> List[str]:
     for piece in pieces:
         clean = piece.strip()
         clean = re.split(r'\s+[—–-]\s+', clean, maxsplit=1)[0].strip()
-        if is_valid_person_name(clean):
+        if _validate_name_with_title(clean):
             names.append(clean)
 
     return names if len(names) >= 2 else []
@@ -402,6 +446,8 @@ def _try_parse_line(line: str) -> List[Tuple[str, str]]:
     if len(line) < 5 or len(line) > 400:
         return []
 
+    # V3.20: Strip markdown heading (# ## ###) PARA numrit
+    line = _MARKDOWN_HEADER_RE.sub('', line).strip()
     line = re.sub(r'^\s*\d+\s*[\.\)]\s*', '', line).strip()
 
     if ':' in line:
@@ -411,9 +457,13 @@ def _try_parse_line(line: str) -> List[Tuple[str, str]]:
 
         names = _split_comma_names(after)
         if len(names) >= 2:
-            return [(n, "") for n in names]
+            # V3.21: përdor "before" si group_hint për të gjithë emrat e listuar.
+            # Shembull: "KOLEGJI I GJYKATËS SË APELIT: LUMNI SALLAUKA, ARDIAN AJVAZI, NORA BLLACA DULA"
+            # → 3 emra me position_hint="KOLEGJI I GJYKATËS SË APELIT"
+            group_hint = before[:120]
+            return [(n, group_hint) for n in names]
 
-        if is_valid_person_name(before) and len(after) >= 3:
+        if _validate_name_with_title(before) and len(after) >= 3:
             return [(before, after[:200])]
 
     if ',' in line:
@@ -425,7 +475,7 @@ def _try_parse_line(line: str) -> List[Tuple[str, str]]:
     if len(m) == 2:
         left = m[0].strip()
         right = m[1].strip()
-        if is_valid_person_name(left) and len(right) >= 3:
+        if _validate_name_with_title(left) and len(right) >= 3:
             return [(left, right[:200])]
 
     return []
@@ -759,7 +809,6 @@ _CONTEXT_STOPWORDS = frozenset([
     "kjo", "ky", "këto", "keto", "këta", "keta", "ato", "ata",
     "gjithashtu", "përfundimisht", "perfundimisht",
     "sipas", "të", "te", "i", "e", "a", "u",
-    # V3.19: Koncepte të përbashkëta që shkaktojnë false-positive
     "kohëzgjatje", "kohëzgjatja", "kohëzgjatjes", "kohëzgjatj",
     "kohezgjatje", "kohezgjatja", "kohezgjatjes", "kohezgjatj",
     "periudhe", "periudha", "periudhë", "periudhës",
@@ -767,14 +816,12 @@ _CONTEXT_STOPWORDS = frozenset([
 
 ROOT_PREFIX_LEN = 4
 
-# V3.19: Minimumi i fjalëve të përbashkëta për të konsideruar kontradiktë.
 CONTRADICTION_MIN_SHARED = int(
     os.getenv("CONTRADICTION_MIN_SHARED", "1")
 )
 
 
 def _strip_diacritics(s: str) -> str:
-    """V3.19: Heq diakritikat shqipe (ë→e, ç→c) për krahasim uniform."""
     return (
         s.lower()
         .replace("ë", "e")
@@ -783,13 +830,6 @@ def _strip_diacritics(s: str) -> str:
 
 
 def _extract_context_roots(ctx: str, prefix_len: int = ROOT_PREFIX_LEN) -> Set[str]:
-    """
-    V3.19: Nxjerr rrënjët e fjalëve duke:
-      1. Filtruar fjalët nën 5 shkronja (nuk kap "muaj", "javë", "ditë")
-      2. Normalizuar diakritikat (ë→e, ç→c)
-      3. Filtruar stopwords
-      4. Marrë prefiksin e parë (default 4 shkronja)
-    """
     if not ctx:
         return set()
     words = re.findall(r'[a-zA-ZëçËÇ]{5,}', ctx.lower())
@@ -830,10 +870,6 @@ def detect_contradictions(
     text: Optional[str] = None,
     own_case_numbers: Optional[Set[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    V3.19: Kërkohet kontekst i ngjashëm (min 1 rrënjë e përbashkët) —
-    përdor sentence_context + morphology-aware roots.
-    """
     contradictions: List[Dict[str, Any]] = []
 
     zone_anchors: List[Tuple[int, str]] = []
@@ -868,7 +904,7 @@ def detect_contradictions(
 
         if not _contexts_share_topic(items, min_shared=CONTRADICTION_MIN_SHARED):
             logger.info(
-                f"⏭️ [V3.19 CONTRADICTION SKIP] deadline {unit} "
+                f"⏭️ [V3.21 CONTRADICTION SKIP] deadline {unit} "
                 f"{sorted(unique_nums)} — <{CONTRADICTION_MIN_SHARED} roots."
             )
             continue
@@ -907,7 +943,7 @@ def detect_contradictions(
 
             if not _contexts_share_topic(items, min_shared=CONTRADICTION_MIN_SHARED):
                 logger.info(
-                    f"⏭️ [V3.19 CONTRADICTION SKIP] period {unit} "
+                    f"⏭️ [V3.21 CONTRADICTION SKIP] period {unit} "
                     f"{sorted(unique_nums)} — <{CONTRADICTION_MIN_SHARED} roots."
                 )
                 continue
@@ -944,7 +980,7 @@ def detect_contradictions(
 
             if not _contexts_share_topic(items, min_shared=CONTRADICTION_MIN_SHARED):
                 logger.info(
-                    f"⏭️ [V3.19 CONTRADICTION SKIP] distance {unit} "
+                    f"⏭️ [V3.21 CONTRADICTION SKIP] distance {unit} "
                     f"{sorted(unique_distances)} — <{CONTRADICTION_MIN_SHARED} roots."
                 )
                 continue
@@ -971,7 +1007,7 @@ def detect_contradictions(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BUILD FACT PROFILE — V3.19
+# BUILD FACT PROFILE — V3.21
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_fact_profile(
@@ -1052,7 +1088,7 @@ def build_fact_profile(
     }
 
     logger.info(
-        f"🔬 [FACT_EXTRACTOR V3.19] dates={stats['total_dates']}, "
+        f"🔬 [FACT_EXTRACTOR V3.21] dates={stats['total_dates']}, "
         f"deadlines={stats['total_deadlines']} "
         f"(legal={stats['legal_deadlines']}), "
         f"parties={stats['total_parties']}, "
