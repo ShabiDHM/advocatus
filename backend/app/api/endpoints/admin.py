@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - ADMIN ROUTER V50.2 (PRICE 99.99)
-# V50.2: PRICE UPDATE — Default unlock price: 9.99 → 99.99.
+# PHOENIX PROTOCOL - ADMIN ROUTER V50.2 (PRICE 99.00)
+# V50.2: PRICE UPDATE — Default unlock price: 9.99 → 99.00.
 # V50.1: `{org_id}` → `{organization_id}` në URL/parametrin e upgrade_organization_tier.
 # V50.0: 1-CLICK CASE UNLOCK & INSTANT ACTIVATION.
 
@@ -24,7 +24,7 @@ from .dependencies import get_current_admin_user, get_db
 router = APIRouter(tags=["Administrator"])
 
 # --- CONSTANTS ---
-DEFAULT_CASE_UNLOCK_PRICE_EUR = 99.99   # V50.2: 9.99 → 99.99
+DEFAULT_CASE_UNLOCK_PRICE_EUR = 99.00   # V50.2: 9.99 → 99.00
 
 # --- MODELS ---
 
@@ -59,7 +59,7 @@ async def unlock_case_1click(
 ):
     """ZHBLLOKON LËNDËN ME 1 KLIKIM."""
     p_method = body.payment_method if body else "CASH"
-    p_amount = body.amount if body else DEFAULT_CASE_UNLOCK_PRICE_EUR   # V50.2
+    p_amount = body.amount if body else DEFAULT_CASE_UNLOCK_PRICE_EUR
     p_note = body.note if body else "Zhbllokim me 1 klikim nga Admini"
     admin_id = str(current_admin.id) if current_admin else "ADMIN"
 

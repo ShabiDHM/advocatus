@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V52.2 (PRICE 99.99)
-# V52.2: DEFAULT_UNLOCK_PRICE_EUR default: 9.99 → 99.99.
+# PHOENIX PROTOCOL - FINANCE ROUTER V52.2 (PRICE 99.00)
+# V52.2: DEFAULT_UNLOCK_PRICE_EUR default: 9.99 → 99.00.
 # V52.1: FIX — admin_manual_unlock_case tani bllokon me 403 në vend të 'pass' bosh.
 # V52.0: ORG-AWARE — checkout endpoints verifikojnë akses përmes _build_case_access_query.
 # V51.0: Hequr endpoint-i /forensic-report/archive + klasa ArchiveForensicReportRequest.
@@ -39,7 +39,7 @@ router = APIRouter(tags=["Finance"])
 logger = structlog.get_logger(__name__)
 
 # ========== KONFIGURIMI I PAGESAVE (KOSOVË) ==========
-DEFAULT_UNLOCK_PRICE_EUR = float(os.getenv("CASE_UNLOCK_PRICE_EUR", "99.99"))   # V52.2
+DEFAULT_UNLOCK_PRICE_EUR = float(os.getenv("CASE_UNLOCK_PRICE_EUR", "99.00"))   # V52.2
 BANK_NAME = os.getenv("COMPANY_BANK_NAME", "Raiffeisen Bank Kosova")
 BANK_ACCOUNT_HOLDER = os.getenv("COMPANY_ACCOUNT_HOLDER", "Juristi AI / Advocatus SH.P.K.")
 BANK_IBAN = os.getenv("RAIFFEISEN_IBAN", "XK051501001000000000")

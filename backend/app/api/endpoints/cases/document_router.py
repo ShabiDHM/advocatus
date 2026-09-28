@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V67.1 (PRICE 99.99)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V67.1 (PRICE 99.00)
 # V67.1: PRICE UPDATE — Fallback CASE_UNLOCK_PRICE_EUR: "9.99" → "99.00".
 # V67.0: AUDIT FIXES — B1 (security), B2 (destructive default),
 #        B4 (N+1 query), B5 (owner_id type).
@@ -434,7 +434,7 @@ async def upload_document_for_case(
     is_case_unlocked = bool(case_doc.get("is_unlocked", False))
 
     if not is_admin and not has_sub and not is_case_unlocked:
-        # V67.1: Default i re = 99.99
+        # V67.1: Default i re = 99.00
         price = os.getenv("CASE_UNLOCK_PRICE_EUR", DEFAULT_CASE_UNLOCK_PRICE_EUR)
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,

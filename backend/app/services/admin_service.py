@@ -76,7 +76,7 @@ class AdminService:
         db: Database, 
         case_id: str, 
         payment_method: str = "CASH", 
-        amount: float = DEFAULT_UNLOCK_AMOUNT,   # V51.2: 9.99 → 99.99
+        amount: float = DEFAULT_UNLOCK_AMOUNT,   # V51.2: 9.99 → 99.00
         admin_user_id: str = "", 
         note: str = "Zhbllokim me 1 klikim nga Admini"
     ) -> Dict[str, Any]:
