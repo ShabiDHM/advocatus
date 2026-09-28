@@ -1,8 +1,10 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V51.0 (URL + TOKEN FIX)
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V51.1 (PRICE 99.99)
+// V51.1: PRICE UPDATE — DEFAULT_UNLOCK_PRICE_EUR constant = 99.99.
+//        Të gjitha hardcoded 9.99 u zëvendësuan me konstantën.
 // V51.0: FIX — 3 URL fetch (/api/admin/cases*) u korrigjuan në /api/v1/admin/cases*
 //        FIX — Token nuk lexohej (localStorage.getItem('token') kthente bosh).
-//              U shtua _getAuthToken() helper që provon disa keys + cookie fallback.
+//        U shtua _getAuthToken() helper që provon disa keys + cookie fallback.
 // V50.0: 1-CLICK CASE UNLOCK & MULTI-PAYMENT MANAGEMENT
 
 import React, { useState, useEffect } from 'react';
@@ -48,6 +50,9 @@ type UserRole = 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
 type StatusFilter = 'ALL' | 'ACTIVE' | 'PENDING' | 'INACTIVE_EXPIRED' | 'TEAM';
 type CaseStatusFilter = 'ALL' | 'LOCKED' | 'UNLOCKED';
 
+// V51.1: Çmimi i konfigurueshëm në një vend të vetëm
+const DEFAULT_UNLOCK_PRICE_EUR = 99.00;
+
 // V51.0: Helper që provon disa keys + cookie fallback
 const _getAuthToken = (): string => {
     const keys = ['access_token', 'token', 'auth_token', 'jwt', 'jwt_token'];
@@ -55,7 +60,6 @@ const _getAuthToken = (): string => {
         const v = localStorage.getItem(key);
         if (v && v.trim().length > 10) return v;
     }
-    // Fallback: lexo nga cookie
     const cookies = document.cookie.split(';').reduce<Record<string, string>>((acc, c) => {
         const [k, ...v] = c.trim().split('=');
         if (k) acc[k] = v.join('=');
@@ -118,7 +122,6 @@ const AdminDashboardPage: React.FC = () => {
     const loadCasesData = async () => {
         setIsLoadingCases(true);
         try {
-            // V51.0: FIX URL — shtuar /v1/
             const response = await (apiService as any).getAdminCases?.() || await fetch('/api/v1/admin/cases', {
                 headers: {
                     'Authorization': `Bearer ${_getAuthToken()}`,
@@ -145,10 +148,13 @@ const AdminDashboardPage: React.FC = () => {
     // =========================================================================
     // 🔓 VEPRIMET ME 1 KLIKIM PËR ZHBLLOKIMIN E LËNDËVE (CASH / MBANKING)
     // =========================================================================
-    const handleUnlockCase = async (caseId: string, paymentMethod: 'CASH' | 'MBANKING' | 'CARD' = 'CASH', amount: number = 9.99) => {
+    const handleUnlockCase = async (
+        caseId: string,
+        paymentMethod: 'CASH' | 'MBANKING' | 'CARD' = 'CASH',
+        amount: number = DEFAULT_UNLOCK_PRICE_EUR,
+    ) => {
         setActionLoadingId(caseId);
         try {
-            // V51.0: FIX URL + token
             const token = _getAuthToken();
             const res = await fetch(`/api/v1/admin/cases/${caseId}/unlock`, {
                 method: 'POST',
@@ -164,7 +170,6 @@ const AdminDashboardPage: React.FC = () => {
             });
 
             if (res.ok) {
-                // Përditëso gjendjen lokalisht në sekondë
                 setCases(prev => prev.map(c => c._id === caseId ? { 
                     ...c, 
                     is_unlocked: true, 
@@ -188,7 +193,6 @@ const AdminDashboardPage: React.FC = () => {
         if (!window.confirm("A jeni të sigurt që dëshironi ta bllokoni përsëri këtë lëndë?")) return;
         setActionLoadingId(caseId);
         try {
-            // V51.0: FIX URL + token
             const token = _getAuthToken();
             const res = await fetch(`/api/v1/admin/cases/${caseId}/lock`, {
                 method: 'POST',
@@ -300,7 +304,6 @@ const AdminDashboardPage: React.FC = () => {
         );
     };
 
-    // Filter Cases
     const filteredCases = cases.filter(c => {
         const matchesSearch = 
             c.title?.toLowerCase().includes(caseSearchQuery.toLowerCase()) ||
@@ -314,7 +317,10 @@ const AdminDashboardPage: React.FC = () => {
         return true;
     });
 
-    const totalRevenueEst = cases.reduce((acc, c) => acc + (c.is_unlocked ? (c.unlock_amount || 9.99) : 0), 0);
+    const totalRevenueEst = cases.reduce(
+        (acc, c) => acc + (c.is_unlocked ? (c.unlock_amount || DEFAULT_UNLOCK_PRICE_EUR) : 0),
+        0
+    );
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-canvas">
@@ -358,9 +364,7 @@ const AdminDashboardPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* ========================================================================= */}
             {/* TAB 1: 💰 LËNDËT DHE PAGESAT ME 1 KLIKIM */}
-            {/* ========================================================================= */}
             {activeTab === 'CASES_PAYMENTS' && (
                 <div className="space-y-6">
                     {/* Quick Stats Grid */}
@@ -385,7 +389,6 @@ const AdminDashboardPage: React.FC = () => {
 
                     {/* Table Container */}
                     <div className="glass-panel rounded-2xl border border-main overflow-hidden bg-canvas">
-                        {/* Search & Filters */}
                         <div className="p-4 border-b border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-surface">
                             <div className="flex items-center gap-2 select-none">
                                 <FolderGit2 className="w-5 h-5 text-primary-start" />
@@ -481,7 +484,7 @@ const AdminDashboardPage: React.FC = () => {
                                                                 <CheckCircle className="w-3.5 h-3.5" /> E ZHBLLOKUAR (AKTIVE)
                                                             </span>
                                                             <div className="text-[11px] text-text-muted font-mono">
-                                                                {c.unlock_payment_method || 'CASH'} • {c.unlock_amount || 9.99}€
+                                                                {c.unlock_payment_method || 'CASH'} • {c.unlock_amount || DEFAULT_UNLOCK_PRICE_EUR}€
                                                             </div>
                                                         </div>
                                                     ) : (
@@ -502,7 +505,7 @@ const AdminDashboardPage: React.FC = () => {
                                                     ) : (
                                                         <div className="inline-flex items-center gap-2">
                                                             <button
-                                                                onClick={() => handleUnlockCase(c._id, 'CASH', 9.99)}
+                                                                onClick={() => handleUnlockCase(c._id, 'CASH', DEFAULT_UNLOCK_PRICE_EUR)}
                                                                 disabled={actionLoadingId === c._id}
                                                                 className="px-3 py-1.5 bg-success-start text-white hover:bg-opacity-90 rounded-lg text-xs font-bold shadow-md shadow-success-start/20 transition-all inline-flex items-center gap-1.5 focus:outline-none"
                                                             >
@@ -511,10 +514,10 @@ const AdminDashboardPage: React.FC = () => {
                                                                 ) : (
                                                                     <Banknote className="w-3.5 h-3.5" />
                                                                 )}
-                                                                🔓 Zhblloko (Cash 10€)
+                                                                🔓 Zhblloko (Cash {DEFAULT_UNLOCK_PRICE_EUR}€)
                                                             </button>
                                                             <button
-                                                                onClick={() => handleUnlockCase(c._id, 'MBANKING', 9.99)}
+                                                                onClick={() => handleUnlockCase(c._id, 'MBANKING', DEFAULT_UNLOCK_PRICE_EUR)}
                                                                 disabled={actionLoadingId === c._id}
                                                                 className="px-2.5 py-1.5 bg-surface text-primary-start hover:bg-hover border border-primary-start/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 focus:outline-none"
                                                                 title="Zhblloko si m-Banking"
@@ -534,12 +537,9 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* TAB 2: 👥 BAZA E PËRDORUESVE */}
-            {/* ========================================================================= */}
+            {/* TAB 2: 👥 BAZA E PËRDORUESVE — IDENTIK ME V51.0 */}
             {activeTab === 'USERS' && (
                 <div className="glass-panel rounded-2xl border border-main overflow-hidden bg-canvas">
-                    {/* Search & Header Row */}
                     <div className="p-4 border-b border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-surface">
                         <div className="flex items-center gap-2 select-none h-11 sm:h-auto">
                             <Briefcase className="w-5 h-5 text-primary-start" />
@@ -557,7 +557,6 @@ const AdminDashboardPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Interactive Status Filter Pills */}
                     <div className="p-3 border-b border-main bg-canvas/40 flex flex-wrap items-center gap-2 select-none">
                         <div className="flex items-center gap-1 text-xs font-bold text-text-muted mr-1">
                             <Filter className="w-3.5 h-3.5 text-primary-start" /> Filterat:
@@ -605,7 +604,6 @@ const AdminDashboardPage: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* Desktop view standard data table */}
                     <div className="w-full overflow-x-auto">
                         <table className="w-full text-left text-sm text-text-secondary">
                             <thead className="bg-surface text-text-primary uppercase text-xs font-bold border-b border-main select-none">
@@ -678,7 +676,7 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Editing SaaS Profile Modal */}
+            {/* MODAL — IDENTIK ME V51.0, PA NDRYSHIME */}
             {editingUser && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto custom-finance-scroll">
                     <motion.div 
@@ -690,8 +688,6 @@ const AdminDashboardPage: React.FC = () => {
                             {t('admin.manage_saas_profile', 'Menaxho Profilin SaaS')}: {editingUser.username}
                         </h3>
                         <form onSubmit={handleUpdateUser} className="space-y-6">
-                            
-                            {/* Role Management Section */}
                             <div className="p-4 bg-primary-start/5 rounded-xl border border-primary-start/20 space-y-4">
                                 <h4 className="text-xs font-bold text-primary-start uppercase tracking-widest flex items-center gap-2 select-none">
                                     <Key size={14} /> {t('admin.section_role', 'Roli i Përdoruesit')}
@@ -702,10 +698,7 @@ const AdminDashboardPage: React.FC = () => {
                                     </label>
                                     <select 
                                         value={editForm.role || 'STANDARD'} 
-                                        onChange={e => setEditForm({ 
-                                            ...editForm, 
-                                            role: e.target.value as UserRole
-                                        })} 
+                                        onChange={e => setEditForm({ ...editForm, role: e.target.value as UserRole })} 
                                         className="w-full rounded-xl px-3 h-11 bg-surface border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
                                     >
                                         <option value="STANDARD" className="bg-canvas text-text-primary">{t('admin.option_role_standard', 'STANDARD (Përdorues i zakonshëm)')}</option>
@@ -714,7 +707,6 @@ const AdminDashboardPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Capacity and Quota Management Section */}
                             <div className="p-4 bg-status-success/5 rounded-xl border border-status-success/20 space-y-4">
                                 <h4 className="text-xs font-bold text-status-success uppercase tracking-widest flex items-center gap-2 select-none">
                                     <Star size={14} /> {t('admin.section_capacity_quotas', 'Kapaciteti & Kuotat')}
@@ -749,7 +741,6 @@ const AdminDashboardPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Lifecycle and Status Section */}
                             <div className="p-4 bg-surface border border-main space-y-4 rounded-xl">
                                 <h4 className="text-xs font-bold text-primary-start uppercase tracking-widest flex items-center gap-2 select-none">
                                     <Clock size={14} /> {t('admin.section_lifecycle_status', 'Cikli i Jetës & Statusi')}

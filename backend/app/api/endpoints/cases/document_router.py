@@ -1,16 +1,8 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V67.0 (SECURITY + PERF HARDENING)
-# V67.0: AUDIT FIXES —
-#   B1 (SECURITY): _safe_decode_token heq fallback-un base64 pa verifikim.
-#       Tani kthen None nëse JWT verifikimi dështon. Parandalon falsifikim
-#       identiteti në /preview.
-#   B2 (DESTRUCTIVE DEFAULT): bulk-delete kërkon OSE listë jo-vak dokument_ids,
-#       OSE flag eksplicit ?delete_all=true. Parandalon fshirje aksidentale
-#       të të gjithë fashikullit me body boshe/None.
-#   B4 (N+1 QUERY): get_documents_for_case bën NJË query të vetëm për
-#       user_vectors (jo një për dokument) dhe grumbullon max_page në Python.
-#   B5 (OWNER_ID TYPE): _resolve_service_owner trajton si ObjectId ashtu
-#       edhe string (defensive kundër migrimeve historike).
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V67.1 (PRICE 99.99)
+# V67.1: PRICE UPDATE — Fallback CASE_UNLOCK_PRICE_EUR: "9.99" → "99.00".
+# V67.0: AUDIT FIXES — B1 (security), B2 (destructive default),
+#        B4 (N+1 query), B5 (owner_id type).
 # V66.0: ORG-AWARE — user me org mund të shikojë/modifikojë/fshijë dokumentet e org-ut.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
@@ -46,6 +38,9 @@ logger = logging.getLogger(__name__)
 # LIMITI MAKSIMAL I SKEDARIT (50 MB)
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 
+# V67.1: Çmimi default për zhbllokim (fallback nëse env mungon)
+DEFAULT_CASE_UNLOCK_PRICE_EUR = "99.00"
+
 
 def _require_case_access(db: Database, case_id: str, current_user: UserInDB) -> ObjectId:
     """
@@ -62,7 +57,6 @@ def _require_case_access(db: Database, case_id: str, current_user: UserInDB) -> 
 def _resolve_service_owner(db: Database, doc: Dict[str, Any], current_user: UserInDB) -> UserInDB:
     """
     V66.0: ORG-AWARE — service pret owner si UserInDB.
-    Për të shmangur mismatch-in në org, kalon owner-in e vërtetë të doc-it.
     V67.0: B5 — trajto owner_id si ObjectId ose string (defensive).
     """
     doc_owner_id = doc.get("owner_id")
@@ -70,13 +64,11 @@ def _resolve_service_owner(db: Database, doc: Dict[str, Any], current_user: User
         return current_user
 
     owner_doc = None
-    # Provo ObjectId nëse është e mundur
     try:
         owner_oid = doc_owner_id if isinstance(doc_owner_id, ObjectId) else ObjectId(str(doc_owner_id))
         owner_doc = db.users.find_one({"_id": owner_oid})
     except Exception:
         pass
-    # Fallback: provo si string (për të dhëna historike)
     if owner_doc is None:
         try:
             owner_doc = db.users.find_one({"_id": str(doc_owner_id)})
@@ -120,7 +112,7 @@ def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
         algorithm = getattr(settings, "ALGORITHM", "HS256")
         return jwt.decode(token_str, secret, algorithms=[algorithm])
     except Exception as e:
-        logger.debug(f"[V67.0] JWT verification failed: {e}")
+        logger.debug(f"[V67.1] JWT verification failed: {e}")
         return None
 
 
@@ -160,7 +152,6 @@ async def get_documents_for_case(
     })
     docs = list(cursor)
 
-    # V67.0 (B4): Batch query për user_vectors — NJË query për të gjithë doc-at.
     all_doc_ids: List[str] = [str(d["_id"]) for d in docs]
     pages_by_doc: Dict[str, int] = {}
     if all_doc_ids:
@@ -181,7 +172,7 @@ async def get_documents_for_case(
                 if p_int > pages_by_doc.get(did, 0):
                     pages_by_doc[did] = p_int
         except Exception as e:
-            logger.debug(f"[V67.0] user_vectors batch query failed: {e}")
+            logger.debug(f"[V67.1] user_vectors batch query failed: {e}")
 
     validated_docs = []
     for d in docs:
@@ -255,7 +246,6 @@ async def get_single_document(
     case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
 
-    # V66.0: ORG-AWARE — heq owner_id, aksesi verifikohet përmes case-it
     doc = db.documents.find_one({
         "_id": doc_oid,
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
@@ -271,7 +261,7 @@ async def get_single_document(
 
 
 # =========================================================================
-# 📝 CASCADE RENAME (TOTAL SYNC NË MONGODB DHE RAG)
+# 📝 CASCADE RENAME
 # =========================================================================
 @router.put("/{case_id}/documents/{doc_id}/rename", status_code=status.HTTP_200_OK)
 async def rename_document_endpoint(
@@ -288,7 +278,6 @@ async def rename_document_endpoint(
     if not new_name:
         raise HTTPException(status_code=400, detail="Emri i dokumentit nuk mund të jetë i zbrazët.")
 
-    # V66.0: ORG-AWARE — heq owner_id nga query
     doc = db.documents.find_one({
         "_id": doc_oid,
         "$or": [{"case_id": case_id}, {"case_id": case_oid}]
@@ -304,19 +293,16 @@ async def rename_document_endpoint(
 
     now = datetime.now(timezone.utc)
 
-    # 1. Azhurnimi në db.documents
     db.documents.update_one(
         {"_id": doc_oid},
         {"$set": {"file_name": new_name, "updated_at": now}}
     )
 
-    # 2. Azhurnimi kaskadë në Koleksionin e Vektorëve (RAG)
     db.user_vectors.update_many(
         {"document_id": doc_id},
         {"$set": {"file_name": new_name}}
     )
 
-    # 3. Informo lëndën që fashikulli është modifikuar
     db.cases.update_one(
         {"$or": [{"_id": case_oid}, {"_id": case_id}]},
         {"$set": {"analysis_dirty": True, "updated_at": now}}
@@ -328,7 +314,7 @@ async def rename_document_endpoint(
 
 
 # =========================================================================
-# 🏛️ SHTJELLAT FORENZIKE TË DOKUMENTIT (CRUD ME $UNSET NË MONGODB ATLAS)
+# 🏛️ SHTJELLAT FORENZIKE TË DOKUMENTIT
 # =========================================================================
 @router.get("/{case_id}/documents/{doc_id}/pillars", status_code=status.HTTP_200_OK)
 async def get_document_pillars_endpoint(
@@ -340,7 +326,6 @@ async def get_document_pillars_endpoint(
     case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
 
-    # V66.0: ORG-AWARE — heq owner_id
     doc = db.documents.find_one({
         "_id": doc_oid,
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
@@ -367,7 +352,6 @@ async def save_document_pillar_endpoint(
     if pillar_key not in ["PILLAR_1", "PILLAR_2", "PILLAR_3"]:
         raise HTTPException(status_code=400, detail="Shtjellë e pavlefshme.")
 
-    # V66.0: ORG-AWARE — heq owner_id
     res = db.documents.update_one(
         {
             "_id": doc_oid,
@@ -400,7 +384,6 @@ async def delete_single_document_pillar_endpoint(
     if pillar_key not in ["PILLAR_1", "PILLAR_2", "PILLAR_3"]:
         raise HTTPException(status_code=400, detail="Emër shtjelle i pavlefshëm.")
 
-    # V66.0: ORG-AWARE — heq owner_id
     res = db.documents.update_one(
         {
             "_id": doc_oid,
@@ -444,7 +427,6 @@ async def upload_document_for_case(
     has_sub = getattr(current_user, "has_active_subscription", False) or (getattr(current_user, "subscription_status", "") == "ACTIVE")
     is_admin = user_role in ["ADMIN", "SUPERADMIN", "STAFF"]
 
-    # V66.0: ORG-AWARE — user me org mund të ngarkojë në case të përbashkët
     case_doc = db.cases.find_one(_build_case_access_query(current_user, case_id=case_oid))
     if not case_doc:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet në sistem.")
@@ -452,7 +434,8 @@ async def upload_document_for_case(
     is_case_unlocked = bool(case_doc.get("is_unlocked", False))
 
     if not is_admin and not has_sub and not is_case_unlocked:
-        price = os.getenv("CASE_UNLOCK_PRICE_EUR", "9.99")
+        # V67.1: Default i re = 99.99
+        price = os.getenv("CASE_UNLOCK_PRICE_EUR", DEFAULT_CASE_UNLOCK_PRICE_EUR)
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Kërkohet pagesë paraprake: Për të ngarkuar shkresat e fashikullit dhe për të kryer Analizën Ligjore të kësaj lënde, ju lutem bëni zhbllokimin e lëndës (Pagesë njëherëshme prej {price}€ me Kartelë Bankare, m-Banking ose Para në dorë në zyrë)."
@@ -486,9 +469,6 @@ async def upload_document_for_case(
     except Exception as e:
         logger.warning(f"Could not populate local preview cache: {e}")
 
-    # V66.0: ORG-AWARE — kontrollo konflikt në nivel case (jo owner)
-    # V67.0 (B7): Rekomandohet unique index në (case_id, file_name, status) për
-    # të shmangur race në uploads paralelë. Supozohet të jetë krijuar në migrim.
     existing_doc = db.documents.find_one({
         "case_id": case_oid,
         "file_name": filename,
@@ -574,7 +554,6 @@ async def bulk_delete_documents_endpoint(
     if body:
         doc_ids = body.document_ids or body.documentIds or []
     
-    # V67.0 (B2): Kërkohet ose listë e qartë, ose flag eksplicit delete_all=True.
     if not doc_ids:
         if not delete_all:
             raise HTTPException(
@@ -591,8 +570,6 @@ async def bulk_delete_documents_endpoint(
     if not doc_ids:
         return {"status": "success", "deleted_count": 0, "deleted_finding_ids": []}
 
-    # V66.0: ORG-AWARE — kaloj owner-in e doc-it të parë te service
-    # (shmang mismatch kur user B fshin doc të user A në të njëjtin org)
     first_doc = None
     try:
         first_oid = ObjectId(doc_ids[0]) if ObjectId.is_valid(doc_ids[0]) else None
@@ -646,7 +623,6 @@ async def delete_document(
     case_oid = _require_case_access(db, case_id, current_user)
     doc_oid = validate_object_id(doc_id)
 
-    # V66.0: ORG-AWARE — lookup direkt (jo get_and_verify_document) për të shmangur owner filter
     doc = db.documents.find_one({
         "_id": doc_oid,
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
@@ -655,7 +631,6 @@ async def delete_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
 
-    # V66.0: ORG-AWARE — kaloj owner-in e doc-it te service
     service_owner = _resolve_service_owner(db, doc, current_user)
 
     result = await asyncio.to_thread(
@@ -709,8 +684,6 @@ async def get_document_preview(
                 user_doc = db.users.find_one({"_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id})
 
     if not user_doc and token:
-        # V67.0 (B1): token query param mbetet për backwards-compat, por kërkon
-        # verifikim të vlefshëm JWT (nuk pranon payload të padeklaruar).
         payload = _safe_decode_token(token)
         if payload:
             user_id = payload.get("sub") or payload.get("id")
@@ -725,10 +698,8 @@ async def get_document_preview(
 
     user = UserInDB.model_validate(user_doc)
 
-    # V66.0: ORG-AWARE — verifiko akses në case para se të shërbejë dokumentin
     case_oid = _require_case_access(db, case_id, user)
 
-    # Use the original preview logic: first try preview_storage_key (generated PDF)
     cached_path, stream, doc, content_length = await asyncio.to_thread(
         document_service.get_preview_file_path_or_stream,
         db,
@@ -739,9 +710,7 @@ async def get_document_preview(
     doc_mime = getattr(doc, 'mime_type', None)
     resolved_media_type = _resolve_media_type(filename, doc_mime)
 
-    # If a cached file exists, serve it directly (it may be PDF or original)
     if cached_path and os.path.exists(cached_path):
-        # Check if actual file is PDF; if so, return it
         with open(cached_path, 'rb') as f:
             head = f.read(4)
         if head == b'%PDF':
@@ -756,7 +725,6 @@ async def get_document_preview(
                 }
             )
         else:
-            # It's not PDF; try to convert on the fly
             try:
                 with open(cached_path, 'rb') as f:
                     file_bytes = f.read()
@@ -776,7 +744,6 @@ async def get_document_preview(
                         }
                     )
                 else:
-                    # conversion failed; serve original with proper type (maybe browser can handle)
                     return FileResponse(
                         path=cached_path,
                         media_type=resolved_media_type,
@@ -788,7 +755,6 @@ async def get_document_preview(
                         }
                     )
             except Exception:
-                # fallback to serving original
                 return FileResponse(
                     path=cached_path,
                     media_type=resolved_media_type,
@@ -800,9 +766,7 @@ async def get_document_preview(
                     }
                 )
 
-    # Stream fallback
     if stream:
-        # Try to convert stream to PDF if it's not already
         try:
             file_bytes = stream.read()
             pdf_bytes, new_filename = await asyncio.to_thread(
@@ -832,7 +796,6 @@ async def get_document_preview(
                 )
         except Exception as e:
             logger.error(f"Stream conversion failed: {e}")
-            # Fall back to original stream if possible
             try:
                 stream.seek(0)
             except Exception:
@@ -850,5 +813,4 @@ async def get_document_preview(
                 headers=headers
             )
 
-    # Should never reach here
     raise HTTPException(status_code=500, detail="Nuk mund të ngarkohej pamja e dokumentit.")
