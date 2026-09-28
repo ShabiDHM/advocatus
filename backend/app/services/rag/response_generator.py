@@ -1,5 +1,7 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.2
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.3
+# V98.3: MODEL MIGRATION — fallback ndryshuar nga "deepseek/deepseek-chat"
+#        (deprecated) në "deepseek/deepseek-v4-flash-0731" (Together AI, BYOK).
 # V98.2: Hequr 4 dead items: LLM_TIMEOUT, OPENROUTER_BASE_URL,
 #        OPENROUTER_HEADERS, import AsyncOpenAI, _get_api_key, self.api_key.
 # V98.1: CLAUDE OVERRIDE REMOVED — Hequr override-i silent "claude"→"deepseek"
@@ -28,7 +30,7 @@ MAX_SINGLE_PASS_CHARS = 1_500_000
 
 def _get_target_model() -> str:
     """
-    V98.1: Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL.
+    V98.3: Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL.
 
     Përdoret si fallback kur generate_stream nuk jep model eksplicit.
     Model-i i ENV respektohet verbatim — asnjë override silent.
@@ -36,7 +38,7 @@ def _get_target_model() -> str:
     model = (
         getattr(settings, "LLM_MODEL", None)
         or os.getenv("LLM_MODEL", "")
-        or "deepseek/deepseek-chat"
+        or "deepseek/deepseek-v4-flash-0731"
     )
     return model
 
@@ -52,10 +54,10 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
 
 class ResponseGenerator:
     """
-    Gjeneruesi Qendror i Përgjigjeve (V98.2):
+    Gjeneruesi Qendror i Përgjigjeve (V98.3):
     - Motor i vetëm me parametër opsional `model`:
         * Chat-i i klientit → FAST_SEARCH_MODEL (gpt-4o-mini)
-        * Law Audit / other → default DEEP_ANALYSIS_MODEL (deepseek)
+        * Law Audit / other → default DEEP_ANALYSIS_MODEL (deepseek v4 flash)
     - Mbrojtje e plotë nga mbingarkesat (429 Auto-Retry me 3 tentativa).
     """
 
@@ -107,7 +109,7 @@ class ResponseGenerator:
         model: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
-        model: Nëse None → përdor _get_target_model() (DeepSeek).
+        model: Nëse None → përdor _get_target_model() (DeepSeek V4 Flash 0731).
                Nëse jepet → përdor atë model (p.sh. FAST_SEARCH_MODEL për chat).
         """
         try:

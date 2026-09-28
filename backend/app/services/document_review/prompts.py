@@ -1,180 +1,71 @@
 # FILE: backend/app/services/document_review/prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V4.18
-# V4.18: 3 FIX-E KONKRETE —
-#        (A) document_summary.title "PERMBLEDHJE EKZEKUTIVE E AUDITIMIT" →
-#            "DIAGNOZA E SITUATËS". Arsye: raporti është memorandum 
-#            këshillues, jo audit teknik.
-#        (B) drafting_quality: shtuar RREGULL I RE — kontradiktat mund të 
-#            përmenden VETËM nga blloku [!]. Nëse blloku është bosh → nuk 
-#            lejohet të referohen kontradikta. Fix për kontradiktën midis 
-#            seksionit 4 (3/5 me kontradikta) dhe seksionit 5 
-#            ("nuk u identifikuan kontradikta").
-#        (C) action_steps: shtuar RREGULL FINAL — pa boilerplate 
-#            "⛔ KUJDES"/"SHËNIM"/"VËREJTJE" në fund. LLM shpikte shënime 
-#            që nuk ishin në prompt.
-# V4.17: COUNSELOR ROLE REFRAME + DEDUP HARDENED + PRECEDENT SOURCE RULE.
-# V4.16: FIX-E B.4, B.5, B.6, B.7.
-# V4.15: DOCUMENT HEADER + CONTEXT MAP FIX.
+# PHOENIX PROTOCOL - SECTION PROMPTS V4.26
+# V4.26: PROFESSIONAL LANGUAGE (vazhdim) —
+#        - Titujt me diakritika: "ANALIZA E CILËSISË SË HARTIMIT",
+#          "PRECEDENTËT E GJYKATËS SUPREME".
+#        - Section 3 & 4 të DIAGNOZA: formulim profesional.
+#        - "Impakti:" → "Ndikimi:" në article_verification.
+#        - Hapat në action_steps: Title Case (pa ALL CAPS).
+# V4.25: PROFESSIONAL LANGUAGE — "FLAMUJT_FORENSIK" → "KONSTATIMET_E_ANALIZËS".
+# V4.24: LAW_NUMBER_RULE.
 
 from typing import Dict, Any, List, Optional, Set
 
+from .verify.prompt_rules import (
+    DEDUP_RULE,
+    PRECEDENT_SOURCE_RULE,
+    CASE_CONTEXT_RULE,
+    LAW_NUMBER_RULE,
+    PROFESSIONAL_LANGUAGE_RULE,
+    FORENSIC_FINDINGS_RULE,
+)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# DEDUP_RULE
-# ═══════════════════════════════════════════════════════════════════════════
-
-DEDUP_RULE = """
-
-🛑 RREGULL ANTI-PËRSËRITJE (DEDUP):
-
-FILOZOFIA: Ky raport është një MEMORANDUM i vetëm — jo 7 dokumente të pavarur.
-Kontradikta dhe përsëritje brenda raportit dëmtojnë besueshmërinë.
-
-RREGULLA:
-1. Çdo fakt, gjetje, ose rekomandim shfaqet VETËM NJË HERË — në seksionin 
-   që i përket.
-2. Referime: nëse duhet të përmendësh diçka që u trajtua në seksion tjetër, 
-   shkruaj vetëm "shih seksionin X — [temë]" dhe vazhdo.
-3. Kontradikta e brendshme e raportit = e papranueshme:
-   ❌ SHEMBULL I GABUAR:
-      - Seksioni 4 (Cilësia): "Nota 5/5 — Shkëlqyeshëm, nuk ka mangësi"
-      - Seksioni 5 (Gabime): "U identifikuan 3 shkelje thelbësore procedurale"
-      → KONTRA DIKTOR. Klienti nuk di çka të besojë.
-   ✅ SHEMBULL I MIRË:
-      - Seksioni 4: "Nota 3/5 — Dokumenti ka shkelje procedurale të 
-         identifikuara në seksionin 5."
-      - Seksioni 5: "[lista e shkeljeve]"
-      → KONSISTENT. Nota reflekton gjetjet.
-
-4. Fusha specifike që NUK duhen përsëritur:
-   - Diagnoza mjekësore: përmendet në dokument_summary. Referoju në tjera 
-     seksione vetëm me "shih diagnozën në seksionin 1".
-   - Nenet e cituara: shfaqen në article_verification. Nuk relistohen 
-     në drafting_quality ose errors_corrections.
-   - Kontradikta e fakteve: shfaqet në errors_corrections me burimin e 
-     saktë. Nuk përsëritet në analiza_e_thelluar.
-
-5. Para se të nisësh një seksion, pyet veten:
-   - "A kam shkruar ndonjë gjë që tashmë është mbuluar në seksione të 
-     tjera?" Nëse PO → heq atë pjesë, referoju shkurtimisht.
-
-6. Shenjat e reja (analiza_e_thelluar) duhet të jenë TË VËRTETA TË REJA — 
-   jo rifrazim i gjetjeve të mëparshme.
-"""
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PRECEDENT_SOURCE_RULE
-# ═══════════════════════════════════════════════════════════════════════════
-
-PRECEDENT_SOURCE_RULE = """
-
-🛑 RREGULL PRECEDENTËSH — BURIMI I DETYRUESHËM:
-
-Kur citon një precedent (PML.Nr.X, Rev.Nr.X, P.nr.X, C.nr.X, CA.nr.X, 
-PP.II.nr.X, KMLP.Nr.X), DEKLARO BURIMIN:
-
-✅ FORMA E SAKTË:
-   - "Sipas bazës së Gjykatës Supreme të Kosovës: Në vendimin PML.Nr.185/2025, 
-     datë 16.04.2025, Gjykata Supreme konstaton se ..."
-   - "Sipas vendimit PML.Nr.185/2025 (burimi: VENDIME TË PËRZGJEDHURA.pdf, 
-     faqe 134): ..."
-
-❌ FORMA E GABUAR (MOS e bëj):
-   - "Gjykata Supreme thotë se ..." (pa specifikuar burimin — E GABUAR)
-   - "Në vendimin PML.Nr.X, Gjykata Supreme sanksionon ..." (pretendon 
-     verifikim zyrtar pa deklaruar se është citim)
-
-🛑 KUFIZIME ABSOLUTE:
-   1. NUK LEJOHET të shpikësh numra lëndësh që nuk shfaqen në kontekst.
-   2. NUK LEJOHET të citosh precedent pa numër lënde (p.sh. "një vendim 
-      i Gjykatës Supreme" pa numër — E GABUAR).
-   3. NËSE nuk ka precedentë në kontekst → shkruaj SAKTËSISHT:
-      "Nuk u identifikuan precedentë relevantë për këtë rast."
-   4. NËSE dokumenti citon një precedent por ai NUK gjendet në bazën e 
-      verifikuar → deklaro: "Sipas dokumentit [emri]: [citim]" — jo 
-      "Sipas bazës së Gjykatës Supreme".
-"""
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# DOCUMENT_REVIEW_PROMPTS — V4.18
-# ═══════════════════════════════════════════════════════════════════════════
 
 DOCUMENT_REVIEW_PROMPTS = {
 
     # ═══════════════════════════════════════════════════════════════════
-    # 1. DIAGNOZA E SITUATËS (V4.18: title ndryshuar)
+    # 1. DIAGNOZA E SITUATËS
     # ═══════════════════════════════════════════════════════════════════
     "document_summary": {
         "title": "DIAGNOZA E SITUATËS",
         "max_tokens": 1800,
         "prompt": """Ti je "KËSHILLTAR I GJYKATËS SUPREME TË KOSOVËS" me 20+ vjet 
-përvojë në çështje civile, penale dhe familjare. Zyra jote është një 
-ZYRË KËSHILLUESE — jo gjyqësore. Nuk vendos, por i shpjegon kolegëve 
-avokatë se çka kanë përpara.
+përvojë. Zyra jote është një ZYRË KËSHILLUESE — jo gjyqësore.
 
 ⚠️ MOS shkruaj titullin kryesor — shtohet automatikisht. Fillo DIREKT 
 me seksionin 1.
 
-MISIONI: Harto një DIAGNOZË të situatës — jo listë faktesh, jo raport 
-teknik. Klienti (avokati) e lexon këtë të parin dhe duhet të dijë BRENDA 
-60 SEKONDAVE: çka është dokumenti, kush kundër kujt, çka pretendohet, 
-dhe ku mendohet se ka problem.
+MISIONI: Harto një DIAGNOZË të situatës — jo listë faktesh.
 
 ⚠️ RREGULL ABSOLUT PËR KLASIFIKIMIN:
 
 0. **KLIENTI + ROLET:** Shih bllokun "[KLIENT]".
-   - Blloku ka: emrin e klientit + rolin e deklaruar në rast + rolin në 
-     këtë dokument.
    - Në seksionin 2, raporto TË DYJA rolet:
      * Ndryshojnë → "Klienti (emri) është [roli_case] në rastin kryesor, 
        por në këtë dokument shfaqet si [roli_dokument]."
      * Përputhen → raporto vetëm një rol.
      * Nuk shfaqet → "NUK PËRCAKTOHET në dokument".
 
-1. **Lëshuesi** = AI QE SHKRUAN dokumentin. Lexo "[DOK] FILLIMI".
-
-2. **Data** = data NE FILLIM ose NE FUND. Jo data e ngjarjeve.
-
-3. **Roli i klientit** — si rregulli 0.
-
-STRUKTURA E DETYRUAR (5 seksione, jo më shumë):
+STRUKTURA E DETYRUAR (5 seksione):
 
 ### 1. Diagnoza e situatës (2-3 fjali)
-- Çka është dokumenti (lloji, lëshuesi, data, numri)
-- Kush është në qendër — klienti dhe roli i tij
-- Çka është në diskutim (objekti i çështjes)
-
-### 2. Faktet themelore (3-4 fjali, vetëm ato kritike)
-- Çka ka ndodhur (me datë)
-- Kush është kundërshtari
-- Çka pretendohet / çka u vendos
-
-### 3. Çështje kritike që avokati DUHET të dijë (3-5 pika)
-- Kontradikta të brendshme të dokumentit (nëse ka)
-- Diagnoza mjekësore (me ICD)
-- Dënime të mëparshme
-- Teste mjekësore
-- **Persona të dyshuar** — NËSE blloku [PERSONA] ekziston, listo numrin 
-  total dhe grupet kryesore
-- ÇDO pika duhet të ketë numër referimi (neni, data, faqja)
-
-### 4. Diagnoza e shpejtë — ku është dyshimi
-- Ku mendon se ka shkelje (pa detaje — ato shkojnë në seksionin 5)
-- 1-2 fjali: "Dokumenti paraqet [X], por dyshimet kryesore lidhen me [Y]"
-
-### 5. Fokus i rekomanduar (1-2 fjali)
-- Ku duhet avokati të fokusojë vëmendjen para se të vazhdojë
+### 2. Faktet themelore (3-4 fjali)
+### 3. Çështje kritike me rëndësi për avokatin (3-5 pika)
+### 4. Vlerësim fillestar — dyshimet kryesore
+### 5. **Fokusi i rekomanduar** (1-2 fjali)
+   - Formulo si rekomandim profesional:
+     * ✅ "Rekomandohet fokusimi në..."
+     * ✅ "Këshillohet të shqyrtohet..."
+     * ❌ "Avokati duhet të fokusohet në..."
 
 RREGULLA:
-- Perdor VETEM faktet ne blloqet "[KLIENT]", "[DOK]", "[PALE]", "[PERSONA]", 
-  "[NENE]", "[AFAT]"
+- Perdor VETEM faktet ne blloqet "[KLIENT]", "[DOK]", "[PALE]", "[PERSONA]"
 - NUK shpik data, leshues, role
+- 🛑 NUK CITE KODE LIGJORE që nuk shfaqen në bllokun [NENE] ose [LIGJE].
 - Fjalitë të shkurtra. Çdo fjali me vlerë.
-- NUK përsërit atë që shfaqet në seksione të tjera
+- NËSE blloku [FASHIKULLI] ekziston, referoju për konsistencë.
 
-""" + DEDUP_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + CASE_CONTEXT_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════
@@ -188,10 +79,7 @@ të Gjykatës Supreme. Ti nuk liston — DIAGNOSTIKON.
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
-MISIONI: Raporto VETËM problemet me nenet e cituara. Nenet që janë OK nuk 
-kanë nevojë të listohen — ato janë vetëkuptohet të sakta.
-
-SISTEMI KA BËRË VERIFIKIMIN — TI VETËM RAPORTO PROBLEMET.
+MISIONI: Raporto VETËM problemet me nenet e cituara.
 
 STRUKTURA E DETYRUAR (3 seksione, jo më shumë):
 
@@ -202,308 +90,188 @@ Për ÇDO nen me problem, formato:
 - **Statusi:** NUK EKZISTON / KONTEKST I GABUAR / I PAPËRDORSHËM
 - **Cituar në dokument:** "[citat i saktë]"
 - **Problemi:** [shpjegim konkret]
-- **Impakti:** [sa i rëndësishëm për rastin]
+- **Ndikimi:** [sa i rëndësishëm për rastin]
 
 🛑 KATEGORITË E PROBLEMEVE:
 1. **NUK EKZISTON** — neni nuk gjendet në ligjin e cituar
-2. **KONTEKST I GABUAR** — neni ekziston, por në LIGJ TJETËR 
-   (p.sh. dokumenti thotë "Neni 182 LPK", por gjendet vetëm në LFK)
-3. **I PAPËRDORSHËM** — neni ekziston në ligjin e cituar, por FUSHA 
-   NUK PËRPUTHET me dokumentin 
-   (p.sh. "Neni 50 LPK" flet për kambial/çek, dokumenti flet për 
-   urdhër mbrojtjeje → I PAPËRDORSHËM)
+2. **KONTEKST I GABUAR** — neni ekziston, por në LIGJ TJETËR
+3. **I PAPËRDORSHËM** — neni ekziston, por FUSHA NUK PËRPUTHET me dokumentin
 4. **I ZËVENDËSUAR** — neni është zëvendësuar me version më të ri
 
-🛑 RREGULL I PAPËRDORSHËM (KRITIK):
+🛑 RREGULL I PAPËRDORSHËM:
 Nëse neni ekziston në ligj POR përmbajtja e tij është për fushë tjetër 
-nga dokumenti → raporto si I PAPËRDORSHËM. MOS thuaj "i saktë dhe i 
-zbatueshëm" pa kontrolluar fushën.
-
-SHEMBULL:
-❌ E GABUAR: "Neni 50 i LPK-së — i saktë dhe i zbatueshëm në kontekstin 
-   e dokumentit" (POR neni flet për kambial)
-✅ E SAKTË: "Neni 50 i LPK-së — I PAPËRDORSHËM. Neni ekziston, por 
-   rregullon kompetencën për kambial/çek, jo procedurat e urdhrit 
-   mbrojtës. Referenca ka gjasa të jetë gabim."
+nga dokumenti → raporto si I PAPËRDORSHËM.
 
 ### B. Nene që mund të mungojnë
-Vetëm sugjerime me bazë të fortë. Format:
-  [?] Neni X i Ligjit Y — [arsyeja pse duhet konsideruar]
-      ⚠️ Verifikim manual i nevojshëm para shtimit.
+Vetëm sugjerime me bazë të fortë.
 
 ### C. Përmbledhje statistikore
-1-2 fjali: 
-- Sa nene ishin problematike
-- Sa u sugjeruan si të mundshëm që mungojnë
-- Nëse të gjitha ishin OK → "Nuk u identifikuan probleme me nenet."
+1-2 fjali.
 
 🛑 NUK LEJOHET:
-- Të përsëritësh nenet që tashmë shfaqen në seksionin A (Python)
+- Të përsëritësh nenet e seksionit A (Python)
 - Të shpikësh nene problematike që nuk gjenden në kontekst
-- Të thuash "i saktë dhe i zbatueshëm" pa kontrolluar fushën
 
-""" + DEDUP_RULE + PRECEDENT_SOURCE_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + LAW_NUMBER_RULE + DEDUP_RULE + PRECEDENT_SOURCE_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════
     # 3. PRECEDENTËT
     # ═══════════════════════════════════════════════════════════════════
     "supreme_court_precedents": {
-        "title": "PRECEDENTET E GJYKATES SUPREME",
+        "title": "PRECEDENTËT E GJYKATËS SUPREME",
         "max_tokens": 3500,
         "prompt": """Ti je "Analist i Precedentëve" në zyrën këshilluese të 
 Gjykatës Supreme të Kosovës.
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
-🛑 RREGULL ABSOLUT — BURIMI I PRECEDENTËVE:
-- Blloku "🏛️ PRECEDENTE RELEVANTE" përmban precedentët e VËRTETË nga KB.
-- Blloku "[LENDE]" përmban numrat e cituar NË DOKUMENTIN ORIGJINAL.
-- Blloku "📚 PRECEDENTË TË CITUAR NË DOKUMENTET E FASHIKULLIT" (nëse 
-  ekziston) tregon se dokumenti citon precedentë që NUK janë në bazë.
-
 🛑 RREGULLI #1 — MOS SHPIK PRECEDENTË:
 - KUR NUK KA precedentë relevantë → shkruaj SAKTËSISHT: 
   "Nuk u identifikuan precedentë relevantë në bazën e Gjykatës Supreme 
    për këtë çështje."
-- NUK LEJOHET të shpikësh numra lëndësh që nuk shfaqen në kontekst.
-- NUK LEJOHET të përmendësh "[Rev.nr.X/YYYY]" pa i gjetur në kontekst.
-
-SHEMBULL I GABUAR (nga prod):
-❌ Raporti shkruan: "[Rev.nr. 43/2022] — Ka lidhje të drejtpërdrejtë..."
-   POR Rev.nr.43/2022 nuk shfaqet askund në kontekstin e dhënë.
-   → HALLEZINIM. NUK LEJOHET.
 
 📌 KUPTIMI I TAG-ËVE NË BLLOKUN [LENDE]:
   * [OWN]   → numri i lëndës së VETË dokumentit. NUK është precedent.
   * [OK]    → precedent real, verifikuar në KB.
-  * [CITIM] → precedent i CITUAR NË DOKUMENT (referencë e vlefshme, 
-              por JO verifikuar në bazë të pavarur).
+  * [CITIM] → precedent i CITUAR NË DOKUMENT.
 
 STRUKTURA (3 seksione):
 
 ### A. Precedentë të Verifikuar nga Baza
-Vetëm ata që shfaqen në bllokun "🏛️ PRECEDENTE RELEVANTE". 
-Nëse s'ka → shkruaj frazën standarde.
+Nëse s'ka → frazën standarde.
 
 ### B. Precedentë të Cituar në Dokument (jo të verifikuar)
-Ata që shfaqen në [LENDE] me tag [CITIM], ose në bllokun "PRECEDENTË 
-TË CITUAR". Për ta, FILLO me "Sipas dokumentit: ".
+FILLO me "Sipas dokumentit: ".
 
 ### C. Vlera Praktike për Këtë Rast
-1-2 fjali: pse precedentët e listuar (ose mungesa e tyre) kanë rëndësi.
+1-2 fjali.
 
-RREGULLA:
-- SHKRUAJ VETËM NË SHQIP
-- Çdo citim me numër të plotë lënde
-- Pa deklarim burimi → NUK LEJOHET
-
-""" + DEDUP_RULE + PRECEDENT_SOURCE_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE + PRECEDENT_SOURCE_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════
-    # 4. CILËSIA E HARTIMIT (V4.18: + RREGULL I RE për kontradiktat)
+    # 4. CILËSIA E HARTIMIT
     # ═══════════════════════════════════════════════════════════════════
     "drafting_quality": {
-        "title": "ANALIZA E CILESISE SE HARTIMIT",
-        "max_tokens": 2400,
-        "prompt": """Ti je "Revizor i Cilësisë së Akteve Gjyqësore" në zyrën 
-këshilluese të Gjykatës Supreme.
+        "title": "ANALIZA E CILËSISË SË HARTIMIT",
+        "max_tokens": 2600,
+        "prompt": """Ti je "Revizor i Cilësisë së Akteve Gjyqësore".
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
-MISIONI: Vlerëso cilësinë e përgjithshme të dokumentit. Nota NUK është 
-nominale — reflekton gjetjet.
+MISIONI: Vlerëso cilësinë e përgjithshme. Nota NUK është nominale.
 
-🛑 RREGULL ABSOLUT PËR NOTËN (KRITIKE):
+🛑 RREGULL ABSOLUT PËR NOTËN:
+- NUK MUND të jetë 5/5 nëse [KONSTATIMET_E_ANALIZËS] ka konstatime kritike ose 
+  të rëndësishme.
+- NUK MUND të jetë 5/5 nëse Section 5 ka shkelje.
 
-Nota përfundimtare NUK MUND të jetë 5/5 nëse:
-- Seksioni 5 (Gabime) ka identifikuar shkelje thelbësore procedurale
-- Seksioni 5 ka listuar kontradikta të brendshme
-- Seksioni 5 ka listuar vulnerabilitete strategjike
-
-KAP I NOTËS sipas gjetjeve:
+KAP I NOTËS:
 - **5/5 (Shkëlqyeshëm)** → vetëm nëse nuk u identifikuan gabime
-- **4/5 (Shumë mirë)** → gabime të vogla procedurale pa impakt
-- **3/5 (I mirë)** → gabime thelbësore procedurale ose kontradikta 
-  të brendshme
-- **2/5 (I dobët)** → shkelje substanciale + procedurale
+- **4/5 (Shumë mirë)** → gabime të vogla procedurale pa ndikim
+- **3/5 (I mirë)** → gabime thelbësore ose konstatime të rëndësishme
+- **2/5 (I dobët)** → shkelje substanciale ose konstatime kritike
 - **1/5 (Shumë i dobët)** → shkelje të rënda ligjore
-
-🛑 KONTRADIKTA E BRENDSHME (KRITIKE):
-Nëse në këtë seksion vlerëson 5/5 dhe në seksionin 5 (Gabime) ka shkelje 
-të identifikuara → KONTRA DIKTOR.
-Prandaj:
-- PARA se të shkruash notën, kontrollo bllokun "[!] KONTRADIKTA TE 
-  IDENTIFIKUARA AUTOMATIKISHT" dhe "[GABIME]".
-- Nëse ka gabime → nota maksimumi 3/5.
-- Shpjego: "Nota [X]/5 reflekton [N] gabime të identifikuara në 
-  seksionin 5."
-
-🛑 RREGULL I RE (V4.18) — KONTRADIKTA NUK MUND TË SHPIKET:
-- Kontradiktat mund të përmenden VETËM nga blloku 
-  "[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT".
-- NËSE ky bllok është BOSH ose NUK EKZISTON në kontekst → 
-  NUK LEJOHET të përmendësh kontradikta në seksionin D.
-- NËSE vendos notë < 5/5 pa kontradikta → referoju VETËM arsyeve të 
-  tjera (strukturë, terminologji, arsyetim, procedurë).
-- KONTRADIKTA midis këtij seksioni dhe seksionit 5 (errors_corrections) 
-  është E PAPRANUESHME. Nëse seksioni 5 thotë "nuk u identifikuan 
-  kontradikta", atëherë edhe ky seksion NUK LEJOHET të përmendë 
-  kontradikta.
 
 STRUKTURA:
 
 ### A. Struktura formale
-Kujdes: Nëse lloji është KALLËZIM PENAL, PADI, ANKESË, KËRKESËPADI, 
-APEL ose AKT PROCEDURAL — NUK kërkohet "Përmbledhje Ekzekutive" ose 
-"Konkluzione". Struktura me seksione I-VIII konsiderohet E PLOTË. 
-NUK penalizo.
-
 ### B. Terminologjia juridike
-Përdorim i saktë i termave.
-
 ### C. Arsyetimi juridik
-A është arsyetimi koherent? A mbështetet në fakte?
-
 ### D. Konsistenca e brendshme
-VETËM bllokun "[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT".
-Për çdo kontradiktë, cito BURIMIN specifik:
-  - "X në [dispozitiv / arsyetim / propozim] kundrejt Y në [zonë tjetër]"
-  - VENDNDODHJA (dispozitiv / arsyetim) është thelbësore.
-NËSE blloku është bosh → shkruaj "Nuk u identifikuan kontradikta të 
-brendshme nga sistemi." NUK shpik kontradikta.
+VETËM bllokun "[!] MOSPËRPUTHJE TË IDENTIFIKUARA AUTOMATIKISHT".
 
 ### E. Nota përfundimtare (1-5)
 **Nota: X/5** — [arsyeja në 1 fjali]
-- Nëse ka gabime në seksionin 5 → referoju atyre.
-- Nuk lejohet 5/5 nëse ka shkelje.
+- Nëse ka konstatime kritike ose të rëndësishme → referoju atyre
+  me terma profesionale ("konstatime kritike" — JO "flamuj kritikë").
 
-RREGULLA:
-- NUK LEJOHET të shpikësh mangësi që nuk shfaqen në kontekst.
-- Nota duhet të REFLEKTOJË gjetjet, jo të jetë nominale.
-- NUK LEJOHET të përmendësh kontradikta nëse blloku [!] është bosh.
-
-""" + DEDUP_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + FORENSIC_FINDINGS_RULE + CASE_CONTEXT_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════
     # 5. GABIME DHE KORRIGJIME
     # ═══════════════════════════════════════════════════════════════════
     "errors_corrections": {
-        "title": "GABIME, KONTRADIKTA DHE KORRIGJIME",
+        "title": "MOSPËRPUTHJE DHE VEPRIME KORRIGJUESE",
         "max_tokens": 3200,
         "prompt": """Ti je "Zbulues i Shkeljeve Ligjore" në zyrën këshilluese 
 të Gjykatës Supreme.
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
-MISIONI: Identifiko shkeljet e VËRTETA me impakt praktik. NUK liston 
-gjithçka — fokus në atë që ka rëndësi për klientin.
+MISIONI: Identifiko shkeljet e VËRTETA me ndikim praktik që lidhen 
+ME DRAFTIN DHE FASHIKULLIN.
 
-STRUKTURA (5 seksione):
+📌 KONSTATIMET E ANALIZËS trajtohen ekskluzivisht në SEKSIONIN 8
+   "KONSTATIMET E ANALIZËS" — NUK ripërsëriten këtu.
+
+STRUKTURA (4 seksione):
 
 ### A. Gabime në nene
-VETËM nëse ka gabime reale. Format:
-  [X] Neni X i [Ligjit] — **Statusi:** NUK EKZISTON / I PAPËRDORSHËM 
-       / KONTEKST I GABUAR
-      - Problem: [shpjegim]
-      - Impakti: [sa i rëndësishëm]
-      - Korrigjim: [veprim konkret]
+VETËM nëse ka gabime reale.
 
-Nëse nuk ka → "Nuk u identifikuan gabime në nene."
-
-### B. Kontradikta të brendshme
-VETËM nga blloku "[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT".
-Për çdo kontradiktë:
-  - Cito TË DYJA vlerat me burimin specifik:
-    "X (dispozitiv, faqe Y) vs. Z (arsyetim, faqe W)"
-  - Shpjego impaktin praktik
-
-Nëse nuk ka → "Nuk u identifikuan kontradikta të brendshme."
+### B. Mospërputhje të brendshme
+VETËM nga blloku "[!] MOSPËRPUTHJE TË IDENTIFIKUARA AUTOMATIKISHT".
+Për çdo mospërputhje:
+  - Cito TË DYJA vlerat me burimin specifik
+  - Shpjego ndikimin praktik
 
 ### C. Gabime procedurale
-Vetëm gabime reale procedurale (jo vëzhgime të përgjithshme).
-Format: [shkelja] — [baza ligjore] — [impakti praktik]
+Vetëm gabime reale nga vetë drafti ose fashikulli.
 
-### D. Korrigjime të rekomanduara
+### D. Veprime korrigjuese të rekomanduara
 3-5 veprime konkrete. Çdo veprim:
   - Përshkrim (5-10 fjalë)
   - Baza ligjore
-  - Prioriteti (i menjëhershëm / afatgjatë)
-
-### E. **Vulnerabilitete Strategjike**
-Ku mund ta godasë pala kundërshtare?
-- Cilat pika të arsyetimit janë të dobëta?
-- Çfarë do të bënte një avokat i kundërshtarit?
-- Cilat fakte mund të sfidohen?
-
-Listo 2-3 vulnerabilitete ME BAZË NË FAKTE (jo hamendje).
+  - Prioriteti
 
 RREGULLA:
 - NUK LEJOHET të shpikësh gabime
-- NUK LEJOHET të përsëritësh nga seksione të tjera
-- Çdo gjetje duhet të ketë impakt praktik
-- Nëse nuk ka gabime reale → thuaj atë qartë
+- NUK liston konstatime të analizës (ato janë në seksionin 8)
+- Çdo gjetje ka ndikim praktik
 
-""" + DEDUP_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + LAW_NUMBER_RULE + CASE_CONTEXT_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════
-    # 6. PLANI I VEPRIMIT (V4.18: + RREGULL FINAL pa boilerplate)
+    # 6. PLANI I VEPRIMIT
     # ═══════════════════════════════════════════════════════════════════
     "action_steps": {
         "title": "PLANI I VEPRIMIT DHE REKOMANDIMET",
-        "max_tokens": 3000,
+        "max_tokens": 3200,
         "prompt": """Ti je "Strateg i Lartë Procedural" në zyrën këshilluese 
-të Gjykatës Supreme. Ti nuk bën listë detyrash — jep PLAN me prioritet.
+të Gjykatës Supreme.
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
-MISIONI: Jep 3-5 veprime konkrete, të renditura me prioritet, që klienti 
-duhet të ndërmarrë. Fokus në ATË QË KA RËNDËSI, jo gjithçka.
+MISIONI: Jep 3-5 veprime konkrete, të renditura me prioritet.
 
-STRUKTURA (4 seksione — jo më shumë):
+STRUKTURA (4 seksione):
 
-### A. Vlerësimi i Situatës (2-3 fjali)
-- Ku jemi në procedurë
-- Sa urgjente është situata
-- Kufizimet kryesore (afate, prova)
+### A. Vlerësimi i situatës (2-3 fjali)
+### B. Hapat kritikë (24-48 orë)
+### C. Hapat e rëndësishëm (1-7 ditë)
+### D. Hapat afatgjatë (1-3 muaj)
 
-### B. HAPAT KRITIKË (para çdo gjëje tjetër)
-Vetëm veprimet që DUHET të ndodhin brenda 24-48 orësh:
-- Bullet-point me përshkrim (5-8 fjalë)
-- Me baza ligjore
-- Me afat konkret
-
-### C. HAPAT E RËNDËSISHËM (1-7 ditë)
-3-4 veprime të planifikuara për javën e parë.
-
-### D. HAPAT AFATGJATË (1-3 muaj)
-3-4 veprime për strategjinë afatgjatë.
-
-🛑 RREGULLI PËR SECILIN VEPRIM:
+🛑 PËR SECILIN VEPRIM:
 - Emri i veprimit (5-10 fjalë)
-- Baza ligjore (1 fjali, me referencë)
-- Prioriteti (i menjëhershëm / 1-7 ditë / afatgjatë)
+- Baza ligjore
+- Prioriteti
+
+🛑 KONSTATIMET E ANALIZËS:
+- Për ÇDO konstatim kritik ose të rëndësishëm:
+  → SHTO një hap konkret në seksionin B ose C.
+- Për konstatim kritik: prioritet i menjëhershëm (24-48h).
+- Për konstatim të rëndësishëm: prioritet 1-7 ditë.
 
 🛑 NUK LEJOHET:
-- Veprime të përgjithshme si "Rishikoni dokumentet" — TË GJITHA veprimet 
-  duhet të jenë KONKRETE
-- Të listosh më shumë se 12 veprime totalisht — cilësia > sasia
-- Rekomandime pa bazë ligjore
+- Veprime të përgjithshme si "Rishikoni dokumentet"
+- Të listosh më shumë se 12 veprime
+- Të përdorësh "HIGH"/"CRITICAL" në output
 
-RREGULLA PËR AFATET:
-- Nëse dokumenti përmend afat → cituoje ME BURIMIN.
-- Nëse NUK përmend → "Afati ligjor: kontrollo manualisht."
-
-🛑 RREGULL FINAL (V4.18) — PA BOILERPLATE:
-- NUK LEJOHET të shtosh seksione "⛔ KUJDES", "SHËNIM", "VËREJTJE", 
-  "MENDIM", "REKOMANDIM SHTESË" në fund të këtij seksioni.
-- Përfundo NATYRSHËM me seksionin D.
-- Çdo shënim i tillë është boilerplate dhe minon tonin këshillues.
-
-""" + DEDUP_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + FORENSIC_FINDINGS_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════
@@ -511,70 +279,96 @@ RREGULLA PËR AFATET:
     # ═══════════════════════════════════════════════════════════════════
     "analiza_e_thelluar": {
         "title": "ANALIZA E THELLUAR",
-        "max_tokens": 3500,
-        "prompt": """Ti je "Analist i Thelluar i Akteve Gjyqësore" në zyrën 
-këshilluese të Gjykatës Supreme.
+        "max_tokens": 3800,
+        "prompt": """Ti je "Analist i Thelluar i Akteve Gjyqësore".
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
 
-MISIONI: Identifiko ATE QË NJË AVOKAT I ZENE NUK E SHEH — shenja, 
-modele, boshllëqe që NUK SHFAQEN në seksionet 1-6.
+MISIONI: Identifiko ATE QË NJË AVOKAT I ZENE NUK E SHEH.
 
 🛑 RREGULL ABSOLUT — PA PËRSËRITJE:
-Ky seksion është DALLIMI midis një asistenti dhe një kolegu me përvojë.
 NËSE një gjetje është përmendur në:
-  - Seksionin 1 (document_summary) → mos e përsërit
-  - Seksionin 4 (drafting_quality) → mos e përsërit
-  - Seksionin 5 (errors_corrections) → mos e përsërit
+  - Seksionin 1 → mos e përsërit
+  - Seksionin 4 → mos e përsërit
+  - Seksionin 5 → mos e përsërit
 
-SHEMBUJ KONKRETË TË PËRSËRITJES (NUK LEJOHET):
-❌ "Perseritje e diagnozës psikiatrike" — kjo u tha në dokument_summary
-❌ "Mungesa e konsentimit" — kjo u tha në errors_corrections (nëse është 
-   gabim procedural)
-❌ "Kontradikta në diagnozën psikiatrike" — kjo u tha në errors_corrections
-❌ "Nenet 194, 208, 209 LPK u përdorën për të justifikuar vendimin" — 
-   kjo u tha në article_verification
-
-SHEMBUJ TË MIRË (gjëra të reja):
-✅ "Gjykata e Apelit citon nenin 182 LPK për shkelje thelbësore, por 
-   dokumenti nuk e specifikon SE CILA nga shkeljet (b, g, j, k, m) 
-   u konstatua — duke e lënë të paqartë bazën për apelim."
-✅ "Përdorimi i shprehjes 'kjo nuk do të jetë pengesë që me rastin e 
-   vendosjes në procedura tjera të rregullta' — fragment 2-fjalësh që 
-   hap rrugën për padi të re, pa qartësi procedurale."
-✅ "Kalimi nga 'caktim i përkohshëm' (neni 34.3) në 'urdhër mbrojtje' 
-   (neni 29-31) — dy institute të ndryshme me kohëzgjatje të ndryshme."
-
-STRUKTURA (4 seksione):
+STRUKTURA (5 seksione):
 
 ### A. Modele dhe Shenja të Fshehta (2-3)
-Shenja që nuk u trajtuan në seksione të tjera.
-
 ### B. Omissions dhe Boshllëqe Kritike (2-3)
-- Nene që DUHET të ishin cituar por mungon
-- Procedura që nuk përmenden (konsentim, njoftim, prani)
-- Afate që nuk specifikohen
-
 ### C. Standarde Provash (1-2)
-A është zbatuar standardi i duhur i provës?
-
 ### D. Arme të Mundshme të Kundërshtarit (1-2)
-Shenja specifike që mund të përdoren në apelim.
+### E. **Ndikimi i Konstatimeve të Analizës**
+
+PËR SEKSIONIN E:
+- NUK ripërsërit konstatimet direkt.
+- INTERPRETOJI: çfarë nënkuptojnë për strategjinë e rishqyrtimit në apel.
+- Shembull:
+  → "Konstatimi kritik për 5 dokumente me numër identik nuk është
+     thjesht gabim administrativ — është model sistematik. Kjo tregon
+     ose neglizhencë të vazhdueshme ose dashje për të maskuar veprime.
+     Bazë për procedim penal ndaj personit përgjegjës për regjistrim."
 
 🛑 RREGULLA FINALE:
 - Vetëm shenja të reja — jo rifrazim i seksioneve 1-6
-- 5-7 shenja TOTAL (jo më shumë)
+- 5-7 shenja TOTAL
 - Çdo shenjë bazohet në FAKTE me referencë
 - Nëse s'ka shenja të reja → shkruaj SAKTËSISHT:
   "Nuk u identifikuan shenja të reja përveç atyre të trajtuara në 
    seksionet 1-6. Dokumenti u analizua në thellësi."
+- 🛑 NUK CITE KODE LIGJORE që nuk shfaqen në [NENE] / [LIGJE]
+- 🛑 NUK përdor "flamuj" ose "HIGH"/"CRITICAL"
 
-RREGULLA:
-- Fokus ne shenja qe NUK shfaqen ne seksionet e tjera
-- Cilësia > Sasia
-- Shmang hamendjen — bazo çdo shenje ne FAKTE
+""" + PROFESSIONAL_LANGUAGE_RULE + FORENSIC_FINDINGS_RULE + CASE_CONTEXT_RULE + DEDUP_RULE,
+    },
 
-""" + DEDUP_RULE,
+    # ═══════════════════════════════════════════════════════════════════
+    # 8. KONSTATIMET E ANALIZËS
+    # ═══════════════════════════════════════════════════════════════════
+    "konstatimet_e_analizes": {
+        "title": "KONSTATIMET E ANALIZËS",
+        "max_tokens": 2400,
+        "prompt": """Ti je "Analist i Lartë" që interpretons konstatimet e 
+analizës së dokumentacionit.
+
+⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
+
+MISIONI: Ky seksion është PËRMBLEDHJE E KONSTATIMEVE — jo analizë e re.
+- Cito konstatimet.
+- Shto ndikim praktik.
+- NUK përsërit analizën e seksioneve 1-7.
+
+STRUKTURA (3 seksione):
+
+### A. Konstatime kritike
+Për secilin konstatim me shkallë "Kritike" nga [KONSTATIMET_E_ANALIZËS]:
+
+**[Kodi i konstatimit]**
+- **Konstatimi:** [cito përmbajtjen e konstatimit]
+- **Baza ligjore:** [cito]
+- **Ndikimi praktik:** [pse ka rëndësi për klientin]
+- **Veprimi i rekomanduar:** [cito ose përshtat]
+
+Nëse nuk ka → "Nuk u identifikuan konstatime kritike."
+
+### B. Konstatime të rëndësishme
+Për secilin me shkallë "E rëndësishme": i njëjti format.
+
+### C. Përmbledhje ekzekutive
+1-3 fjali që përmbledhin konstatimet:
+- Sa konstatime kritike ka
+- Sa konstatime të rëndësishme ka
+- Çfarë vlere ligjore kanë
+
+SHEMBULL PËRMBLEDHJE:
+"U identifikuan 2 konstatime kritike dhe 4 të rëndësishme që përbëjnë bazë të fortë për rishqyrtim në apel dhe procedim penal. Konstatimet kryesore: 5 dokumente me numër identik dhe mospërputhje midis dispozitivit dhe arsyetimit. Rekomandimi: apelim urgjent brenda afatit ligjor."
+
+🛑 RREGULLA:
+- Vetëm konstatimet e listuara në [KONSTATIMET_E_ANALIZËS] — nuk shpik.
+- 🛑 NUK përdor "flamuj", "HIGH", "CRITICAL" — përdor "konstatime kritike" / "konstatime të rëndësishme".
+- Cito kodin e konstatimit ashtu siç jepet.
+
+""" + PROFESSIONAL_LANGUAGE_RULE + FORENSIC_FINDINGS_RULE + DEDUP_RULE,
     },
 }
 
@@ -587,29 +381,37 @@ SECTION_CONTEXT_MAP: Dict[str, List[str]] = {
     "document_summary": [
         "client", "meta", "parties", "dispositive", "medical", "tests",
         "convictions", "judge_court", "contradictions", "articles", "laws",
-        "deadlines",
-        "suspects",
+        "deadlines", "suspects",
+        "case_context",
     ],
     "article_verification": ["articles", "laws"],
     "supreme_court_precedents": ["case_numbers", "meta", "precedents"],
     "drafting_quality": [
         "client", "meta", "parties", "dispositive", "articles", "laws",
         "contradictions", "reported_contradictions",
+        "case_context",
+        "forensic_findings",
     ],
     "errors_corrections": [
         "articles", "laws", "contradictions", "reported_contradictions",
         "dispositive", "medical",
+        "case_context",
     ],
     "action_steps": [
         "client", "meta", "parties", "dates", "deadlines", "case_numbers",
         "dispositive", "judge_court",
+        "forensic_findings",
     ],
     "analiza_e_thelluar": [
         "client", "meta", "parties", "dispositive", "articles", "laws",
         "case_numbers", "contradictions", "reported_contradictions",
         "medical", "tests", "convictions", "judge_court",
-        "dates", "deadlines",
-        "suspects",
+        "dates", "deadlines", "suspects",
+        "case_context",
+        "forensic_findings",
+    ],
+    "konstatimet_e_analizes": [
+        "forensic_findings",
     ],
 }
 
@@ -618,11 +420,13 @@ ALL_CONTEXT_BLOCKS = [
     "deadlines", "dispositive", "medical", "tests", "convictions",
     "judge_court", "contradictions", "reported_contradictions", "precedents",
     "suspects",
+    "case_context",
+    "forensic_findings",
 ]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CONTEXT BLOCK BUILDERS — të pandryshuara nga V4.17
+# CONTEXT BLOCK BUILDERS (të pandryshuara)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _block_client_context(
@@ -636,7 +440,6 @@ def _block_client_context(
             "=" * 70,
             "",
             "⚠️ Emri i klientit nuk është i disponueshëm.",
-            "Në seksionin 2, shkruaj 'NUK PËRCAKTOHET (klienti nuk është identifikuar)'.",
             "",
         ]
 
@@ -652,23 +455,13 @@ def _block_client_context(
     ]
 
     if client_position and str(client_position).strip():
-        lines.append(f"🎯 Roli i deklaruar në rast (case-level): **{client_position.strip()}**")
+        lines.append(f"🎯 Roli i deklaruar në rast: **{client_position.strip()}**")
         lines.append("")
         lines.append("⚠️ RREGULL I DETYRUAR PËR SEKSIONIN 2:")
         lines.append("")
-        lines.append(f"  1. **Roli i klientit në dokument** — identifikoje nga teksti.")
-        lines.append(f"  2. **Roli i klientit në rast** = '{client_position.strip()}'.")
-        lines.append(f"  3. **Nëse rolet ndryshojnë**, shkruaj TË DYJA:")
-        lines.append(f"     \"Klienti ({clean_name}) është {client_position.strip()} në")
-        lines.append(f"      rastin kryesor, por në këtë dokument shfaqet si [roli_dokument].\"")
-        lines.append(f"  4. **Nëse përputhen**, raporto vetëm një rol.")
-        lines.append(f"  5. **Nëse emri '{clean_name}' nuk shfaqet** → 'NUK PËRCAKTOHET'.")
-        lines.append("")
-    else:
-        lines.append("⚠️ Roli i deklaruar në case nuk është i disponueshëm.")
-        lines.append("")
-        lines.append(f"  - Cakto rolin e '{clean_name}' bazuar VETËM në tekst.")
-        lines.append(f"  - Nëse emri nuk shfaqet → 'NUK PËRCAKTOHET në dokument'.")
+        lines.append("  1. Roli i klientit në dokument — identifikoje nga teksti.")
+        lines.append(f"  2. Roli i klientit në rast = '{client_position.strip()}'.")
+        lines.append("  3. Nëse rolet ndryshojnë, shkruaj TË DYJA.")
         lines.append("")
 
     return lines
@@ -716,13 +509,31 @@ def _block_document_header(doc_text: Optional[str]) -> List[str]:
     return lines
 
 
+def _block_case_context(case_profile: Optional[Dict[str, Any]]) -> List[str]:
+    if not case_profile or not case_profile.get("has_context"):
+        return []
+    block = case_profile.get("block") or ""
+    if not block.strip():
+        return []
+    return [block, ""]
+
+
+def _block_forensic_findings(
+    forensic_findings: Optional[Dict[str, Any]],
+) -> List[str]:
+    if not forensic_findings:
+        return []
+    block = forensic_findings.get("block") or ""
+    if not block.strip():
+        return []
+    return [block, ""]
+
+
 def _block_precedents(precedents: Optional[List[Dict[str, Any]]]) -> List[str]:
     lines: List[str] = []
     lines.append("=" * 70)
     lines.append("🏛️ PRECEDENTE RELEVANTE (nga baza e Gjykatës Supreme)")
     lines.append("=" * 70)
-    lines.append("")
-    lines.append("ℹ️ KETA PRECEDENTE VIJNE NGA BAZA GLOBALE E GJYKATES SUPREME — jo nga fashikulli.")
     lines.append("")
 
     if not precedents:
@@ -741,7 +552,6 @@ def _block_precedents(precedents: Optional[List[Dict[str, Any]]]) -> List[str]:
         excerpt = (p.get("text_excerpt") or "").strip()
         source = p.get("source", "?")
         page = p.get("page", "?")
-        chunk_id = p.get("chunk_id", "?")
         topic_label = p.get("topic_label")
         rerank_score = p.get("rerank_score")
 
@@ -753,19 +563,14 @@ def _block_precedents(precedents: Optional[List[Dict[str, Any]]]) -> List[str]:
         if excerpt:
             lines.append(f'     Fragment: "{excerpt[:400]}"')
         lines.append(f"     Burimi: {source}, faqe {page}")
-        lines.append(f"     chunk_id: {chunk_id}")
         lines.append("")
 
-    lines.append("⚠️ RREGULL: Paraqit VETËM këta precedentë. NUK LEJOHET të shpikësh asnjë.")
+    lines.append("⚠️ RREGULL: Paraqit VETËM këta precedentë.")
     lines.append("")
     return lines
 
 
-def _collect_allowed_values(
-    citation_profile: Dict[str, Any],
-    fact_profile: Dict[str, Any],
-    verification_report: Dict[str, Any],
-) -> Dict[str, Set[str]]:
+def _collect_allowed_values(citation_profile, fact_profile, verification_report):
     allowed: Dict[str, Set[str]] = {
         "dates": set(), "law_numbers": set(), "law_abbrevs": set(),
         "article_numbers": set(), "case_numbers": set(),
@@ -798,11 +603,7 @@ def _collect_allowed_values(
     return allowed
 
 
-def _block_antihallucination(
-    citation_profile: Dict[str, Any],
-    fact_profile: Dict[str, Any],
-    verification_report: Dict[str, Any],
-) -> List[str]:
+def _block_antihallucination(citation_profile, fact_profile, verification_report) -> List[str]:
     allowed = _collect_allowed_values(citation_profile, fact_profile, verification_report)
 
     lines: List[str] = []
@@ -854,7 +655,7 @@ def _block_antihallucination(
     return lines
 
 
-def _block_dispositive(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_dispositive(fact_profile) -> List[str]:
     lines = []
     points = fact_profile.get("dispositive_points", [])
     if not points:
@@ -869,7 +670,7 @@ def _block_dispositive(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_medical(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_medical(fact_profile) -> List[str]:
     lines = []
     findings = fact_profile.get("medical_findings", [])
     if not findings:
@@ -888,7 +689,7 @@ def _block_medical(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_tests(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_tests(fact_profile) -> List[str]:
     lines = []
     tests = fact_profile.get("medical_tests", [])
     if not tests:
@@ -908,7 +709,7 @@ def _block_tests(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_convictions(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_convictions(fact_profile) -> List[str]:
     lines = []
     convictions = fact_profile.get("prior_convictions", [])
     if not convictions:
@@ -924,7 +725,7 @@ def _block_convictions(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_judge_court(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_judge_court(fact_profile) -> List[str]:
     lines = []
     info = fact_profile.get("judge_and_court", {})
     if not info or not any(info.values()):
@@ -942,7 +743,7 @@ def _block_judge_court(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_articles(verification_report: Dict[str, Any]) -> List[str]:
+def _block_articles(verification_report) -> List[str]:
     lines = []
     verified_articles = verification_report.get("articles", [])
     if not verified_articles:
@@ -988,7 +789,7 @@ def _block_articles(verification_report: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_laws(verification_report: Dict[str, Any]) -> List[str]:
+def _block_laws(verification_report) -> List[str]:
     lines = []
     laws = verification_report.get("laws_by_number", [])
     if not laws:
@@ -1009,7 +810,7 @@ def _block_laws(verification_report: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_case_numbers(verification_report: Dict[str, Any]) -> List[str]:
+def _block_case_numbers(verification_report) -> List[str]:
     lines = []
     cases = verification_report.get("case_numbers", [])
     if not cases:
@@ -1037,7 +838,7 @@ def _block_case_numbers(verification_report: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_parties(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_parties(fact_profile) -> List[str]:
     lines = []
     parties = fact_profile.get("parties", [])
     if not parties:
@@ -1051,7 +852,7 @@ def _block_parties(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_suspects(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_suspects(fact_profile) -> List[str]:
     lines = []
     suspects = fact_profile.get("suspects", [])
     if not suspects:
@@ -1060,7 +861,6 @@ def _block_suspects(fact_profile: Dict[str, Any]) -> List[str]:
     lines.append(f"[PERSONA] PERSONA TE DYSHUAR NE DOKUMENT ({len(suspects)})")
     lines.append("=" * 70)
     lines.append("⚠️ Lista e personave që dokumenti identifikon si të dyshuar.")
-    lines.append("⚠️ Përfshin emrin + pozicionin/rolin e tyre në dokument.")
     lines.append("")
     current_group = ""
     for s in suspects:
@@ -1072,7 +872,7 @@ def _block_suspects(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_dates(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_dates(fact_profile) -> List[str]:
     lines = []
     dates = fact_profile.get("dates", [])
     if not dates:
@@ -1086,7 +886,7 @@ def _block_dates(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_deadlines(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_deadlines(fact_profile) -> List[str]:
     lines = []
     deadlines = fact_profile.get("legal_deadlines", [])
     if not deadlines:
@@ -1104,19 +904,16 @@ def _block_deadlines(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_contradictions(fact_profile) -> List[str]:
     lines = []
     contradictions = fact_profile.get("contradictions", [])
     if not contradictions:
         return lines
     lines.append("=" * 70)
-    lines.append(f"[!] KONTRADIKTA TE IDENTIFIKUARA AUTOMATIKISHT ({len(contradictions)})")
+    lines.append(f"[!] MOSPËRPUTHJE TË IDENTIFIKUARA AUTOMATIKISHT ({len(contradictions)})")
     lines.append("=" * 70)
     lines.append("[!] KETO JANE FAKTE KRITIKE - DUHET LISTUAR NE RAPORT!")
-    lines.append("[!] KETO JANE KONTRADIKTA TE DOKUMENTIT TONE (INTERNE).")
-    lines.append("[!] Per secilen kontradikte, cito BURIMIN specifik:")
-    lines.append("    - Kush është në DISPOZITIV? Kush është në ARSYETIM?")
-    lines.append("    - Kush është në PROPOZIM/KËRKESË? Kush është në Fakte?")
+    lines.append("[!] KETO JANE MOSPËRPUTHJE TE DOKUMENTIT TONE (INTERNE).")
     lines.append("")
     for c in contradictions:
         values = " vs ".join(str(v) for v in c.get("values", []))
@@ -1130,16 +927,16 @@ def _block_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _block_reported_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
+def _block_reported_contradictions(fact_profile) -> List[str]:
     lines = []
     reported = fact_profile.get("reported_contradictions", [])
     if not reported:
         return lines
     lines.append("=" * 70)
-    lines.append(f"[i] KONTRADIKTA TE RAPORTUARA NGA DOKUMENTI ({len(reported)})")
+    lines.append(f"[i] MOSPËRPUTHJE TË RAPORTUARA NGA DOKUMENTI ({len(reported)})")
     lines.append("=" * 70)
-    lines.append("ℹ️ KETO JANE KONTRADIKTA QE DOKUMENTI RAPORTON PER DOKUMENTE TE TJERE.")
-    lines.append("ℹ️ NUK JANE KONTRADIKTA TE DOKUMENTIT TONE!")
+    lines.append("ℹ️ KETO JANE MOSPËRPUTHJE QE DOKUMENTI RAPORTON PER DOKUMENTE TE TJERE.")
+    lines.append("ℹ️ NUK JANE MOSPËRPUTHJE TE DOKUMENTIT TONE!")
     lines.append("")
     for c in reported:
         values = " vs ".join(str(v) for v in c.get("values", []))
@@ -1153,6 +950,10 @@ def _block_reported_contradictions(fact_profile: Dict[str, Any]) -> List[str]:
     return lines
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN API
+# ═══════════════════════════════════════════════════════════════════════════
+
 def build_verified_context(
     citation_profile: Dict[str, Any],
     fact_profile: Dict[str, Any],
@@ -1164,6 +965,8 @@ def build_verified_context(
     doc_text: Optional[str] = None,
     client_name: Optional[str] = None,
     client_position: Optional[str] = None,
+    case_profile: Optional[Dict[str, Any]] = None,
+    forensic_findings: Optional[Dict[str, Any]] = None,
 ) -> str:
     if section_key:
         blocks_needed = SECTION_CONTEXT_MAP.get(section_key, ALL_CONTEXT_BLOCKS)
@@ -1193,6 +996,12 @@ def build_verified_context(
         lines.extend(_block_document_header(doc_text))
 
     lines.extend(_block_antihallucination(citation_profile, fact_profile, verification_report))
+
+    if "forensic_findings" in blocks_needed:
+        lines.extend(_block_forensic_findings(forensic_findings))
+
+    if "case_context" in blocks_needed:
+        lines.extend(_block_case_context(case_profile))
 
     if "contradictions" in blocks_needed:
         lines.extend(_block_contradictions(fact_profile))

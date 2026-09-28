@@ -1,14 +1,9 @@
 # FILE: backend/app/services/document_review/citation_extractor.py
-# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.19
-# V1.19: DYNAMIC COMPOUND ABBREVIATIONS —
-#        - Hequr LONG_COMPOUND_ABBREV_ALIASES (hardcoded map për 
-#          "LMDhFDhGDhBGj" → "LMDHF"). Zëvendësuar me CAMELCASE_COMPOUND_PATTERN
-#          që detekton DINAMIKISHT kandidatë me strukturë mixed-case.
-#        - Kriteri: ≥8 chars, ≥3 shkronja të mëdha, ≥1 lowercase (jo KFOR, 
-#          jo EULEX, jo fjalë normale).
-#        - Akronimet e përbëra regjistrohen me formën RAW në law_index; 
-#          mongo_verifier i match-on dinamisht kundrejt titujve në DB.
-#        - Rregulli #13 PHOENIX: ZERO HARDCODING.
+# PHOENIX PROTOCOL - CITATION EXTRACTOR V1.20
+# V1.20: DEAD CODE REMOVAL —
+#        - Hequr _extract_uppercase_sequence() — ishte e përdorur vetëm në
+#          draftin e V1.19, por jo e thirrur askund. A1 nga auditimi.
+# V1.19: DYNAMIC COMPOUND ABBREVIATIONS.
 # V1.18: CLOSE-AFTER DISTANCE 35 → 100.
 # V1.17: LOW CLEANUP.
 # V1.16: NAMED LAW PATTERNS.
@@ -108,13 +103,6 @@ def _is_compound_abbrev_candidate(s: str) -> bool:
     return upper_count >= 3 and lower_count >= 1
 
 
-def _extract_uppercase_sequence(s: str) -> str:
-    """V1.19: 'LMDhFDhGDhBGj' → 'LMDFDGDBG'."""
-    if not s:
-        return ""
-    return ''.join(c for c in s if c.isupper())
-
-
 # ═══════════════════════════════════════════════════════════════════════════
 # NAMED LAW PATTERNS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -208,7 +196,7 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
         abbr_upper = abbr.upper()
 
         if _is_case_number_prefix(abbr_upper, text, match.end()):
-            logger.debug(f"[V1.19] Skip abbrev '{abbr}' — case number prefix")
+            logger.debug(f"[V1.20] Skip abbrev '{abbr}' — case number prefix")
             continue
 
         too_close = any(abs(pos - match.start()) < 30 for pos, _ in laws)
@@ -259,7 +247,7 @@ def _build_law_position_index(text: str) -> List[Tuple[int, str]]:
         if too_close:
             continue
         logger.debug(
-            f"[V1.19] Compound abbrev candidate: '{raw}' @ {match.start()}"
+            f"[V1.20] Compound abbrev candidate: '{raw}' @ {match.start()}"
         )
         laws.append((match.start(), raw))
 
@@ -296,7 +284,7 @@ def _find_nearest_law(
         following_close.sort(key=lambda x: x[0] - position)
         chosen = following_close[0][1]
         logger.debug(
-            f"[V1.19] Neni@{position}: SUPER CLOSE AFTER → '{chosen}' "
+            f"[V1.20] Neni@{position}: SUPER CLOSE AFTER → '{chosen}' "
             f"(dist={following_close[0][0] - position})"
         )
         return chosen
@@ -310,7 +298,7 @@ def _find_nearest_law(
         best_pos, best_law = preceding[0]
         if position - best_pos <= max_distance:
             logger.debug(
-                f"[V1.19] Neni@{position}: CLOSEST BEFORE → '{best_law}' "
+                f"[V1.20] Neni@{position}: CLOSEST BEFORE → '{best_law}' "
                 f"(dist={position - best_pos})"
             )
             return best_law
@@ -324,7 +312,7 @@ def _find_nearest_law(
         best_pos, best_law = following[0]
         if best_pos - position <= max_distance:
             logger.debug(
-                f"[V1.19] Neni@{position}: CLOSEST AFTER → '{best_law}' "
+                f"[V1.20] Neni@{position}: CLOSEST AFTER → '{best_law}' "
                 f"(dist={best_pos - position})"
             )
             return best_law
@@ -384,7 +372,7 @@ def _dedupe_articles_by_number(
     removed = len(citations) - len(deduped)
     if removed > 0:
         logger.info(
-            f"🧹 [V1.19 Dedup] Hequr {removed} nene te dyfishuara "
+            f"🧹 [V1.20 Dedup] Hequr {removed} nene te dyfishuara "
             f"({len(citations)} → {len(deduped)})"
         )
     return deduped
@@ -487,7 +475,7 @@ def extract_law_numbers(text: str) -> List[Dict[str, Any]]:
             "context": extract_context(text, match.start(), window=80),
         })
 
-    logger.info(f"🔬 [V1.19] extract_law_numbers: {len(results)} ligje")
+    logger.info(f"🔬 [V1.20] extract_law_numbers: {len(results)} ligje")
     return results
 
 
@@ -588,7 +576,7 @@ def extract_case_numbers(text: str) -> List[Dict[str, Any]]:
         context = extract_context(text, position, window=100)
 
         if _looks_like_law_code(normalized, context):
-            logger.debug(f"[V1.19] Skip case_number '{normalized}' — ne fakt kod ligji")
+            logger.debug(f"[V1.20] Skip case_number '{normalized}' — ne fakt kod ligji")
             continue
 
         seen.add(normalized)
@@ -638,7 +626,7 @@ def build_citation_profile(text: str) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"🔬 [EXTRACTOR V1.19] Profile built: "
+        f"🔬 [EXTRACTOR V1.20] Profile built: "
         f"articles={stats['total_articles']} "
         f"(with_law_hint={stats['articles_with_law_hint']}, "
         f"with_paragraph={stats['articles_with_paragraph']}), "

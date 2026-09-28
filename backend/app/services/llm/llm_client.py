@@ -1,5 +1,8 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V88.2
+# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V88.3
+# V88.3: MODEL MIGRATION — DEEP_ANALYSIS_MODEL dhe fallback ndryshuar nga
+#        "deepseek/deepseek-chat" (deprecated) në
+#        "deepseek/deepseek-v4-flash-0731" (Together AI, BYOK).
 # V88.2: EMBEDDING FAILURE HARDENING — get_embedding / get_embeddings_batch
 #        kthejnë [] (listë bosh) në dështim, jo [0.0]*1536 (vector zero).
 #        Vector zero shkaktonte kërkime me cosine undefined → rezultate të
@@ -35,13 +38,13 @@ EMBEDDING_MODEL = "openai/text-embedding-3-small"
 EMBEDDING_DIMENSIONS = 1536   # V88.2: konstantë referimi (dokumentim)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# MODEL STRATEGY (V87.0 — Hybrid)
+# MODEL STRATEGY (V88.3 — Hybrid)
 # ═══════════════════════════════════════════════════════════════════════════
 # FAST_SEARCH_MODEL    → Detyra mekanike: NER, Metadata, Law Search
 # DEEP_ANALYSIS_MODEL  → Analiza të thella: Synthesis, Document Review
 # ═══════════════════════════════════════════════════════════════════════════
 FAST_SEARCH_MODEL = "openai/gpt-4o-mini"
-DEEP_ANALYSIS_MODEL = "deepseek/deepseek-chat"
+DEEP_ANALYSIS_MODEL = "deepseek/deepseek-v4-flash-0731"
 
 TEMP_ANALYSIS = 0.0
 TEMP_DRAFTING = 0.0
@@ -65,7 +68,7 @@ def _get_api_key() -> str:
 
 def _get_target_model() -> str:
     """
-    V88.0: Lexon modelin e parazgjedhur global (DeepSeek).
+    V88.3: Lexon modelin e parazgjedhur global (DeepSeek V4 Flash 0731).
 
     Heq override-in silent "claude" → "deepseek". Claude nuk përdoret më;
     model-i i ENV respektohet verbatim.
@@ -73,7 +76,7 @@ def _get_target_model() -> str:
     model = (
         getattr(settings, "LLM_MODEL", None)
         or os.getenv("LLM_MODEL", "")
-        or "deepseek/deepseek-chat"
+        or "deepseek/deepseek-v4-flash-0731"
     )
     return model
 

@@ -1,15 +1,13 @@
 # FILE: backend/app/services/document_review/mongo_verifier.py
-# PHOENIX PROTOCOL - MONGO VERIFIER V2.7 (LCS COMPOUND ABBREVIATIONS)
-# V2.7: LCS-BASED COMPOUND ABBREVIATION MATCHING —
-#       - Shtuar _lcs_length (Longest Common Subsequence, memory-optimized).
-#       - Shtuar _compound_abbrev_matches që krahaso sekuencën uppercase të
-#         hint-it me akronimin e plotë të gjeneruar nga titulli i DB duke
-#         përdorur LCS — jo prefix-based.
-#       - Shembull: 'LMDhFDhGDhBGJj' (uppercase 'LMDFDGDBGJ') vs DB
-#         "Ligji për Parandalimin dhe Mbrojtjen nga Dhuna në Familje..."
-#         (generated 'LPMDFDGDGBG'). LCS = 9, min_len = 10, ratio 0.9 → match.
-#       - Arsye: prefix-based V2.6 dështoi sepse titulli ka fjalë shtesë
-#         ("parandalimin") që zhvendos pozicionin e shkronjave.
+# PHOENIX PROTOCOL - MONGO VERIFIER V2.11 (DYNAMIC CONFIG)
+# V2.11: H2+H4+H5 — LAW_SUCCESSOR_MAP, KNOWN_ABBREV_KEYWORDS,
+#        KNOWN_ABBREV_EXCLUDES lexohen nga data/dynamic_config.json me
+#        fallback në default-in e hardcoduara. Zero hardcoding aktiv.
+# V2.10: H1 — DYNAMIC SUCCESSOR KEYWORDS (nuk hardcode më fjalë kyçe).
+# V2.9.1: RAW DOCSTRING FIX.
+# V2.9: CASE NUMBER MORPHOLOGY.
+# V2.8: FALLBACK në LEGAL_KB_COLLECTION.
+# V2.7: LCS-BASED COMPOUND ABBREVIATION MATCHING.
 # V2.6: DYNAMIC COMPOUND ABBREVIATION MATCHING.
 # V2.5: INTERNATIONAL TREATIES.
 # V2.4: CONTEXT FIELD UNIFIED.
@@ -26,6 +24,11 @@ from .constants import (
     ALBANIAN_STOPWORDS,
 )
 from .helpers import normalize_albanian, normalize_law_number, normalize_case_number
+from .dynamic_config import (
+    get_law_successors,
+    get_known_abbrev_keywords,
+    get_known_abbrev_excludes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +69,10 @@ LAW_ABBREV_ALIASES: Dict[str, str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# KNOWN_ABBREV_KEYWORDS
+# KNOWN_ABBREV_KEYWORDS — V2.11 (H4)
 # ═══════════════════════════════════════════════════════════════════════════
 
-KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
+_DEFAULT_KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
     "LMDHF": ["ligj", "mbrojtj", "dhun", "familj"],
     "LMD":   ["ligj", "marrëdhënie", "detyrim"],
     "LPK":   ["ligj", "procedur", "kontestim"],
@@ -81,8 +84,16 @@ KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = {
     "KRK":   ["kushtetut"],
 }
 
+KNOWN_ABBREV_KEYWORDS: Dict[str, List[str]] = get_known_abbrev_keywords(
+    _DEFAULT_KNOWN_ABBREV_KEYWORDS
+)
 
-KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
+
+# ═══════════════════════════════════════════════════════════════════════════
+# KNOWN_ABBREV_EXCLUDES — V2.11 (H5)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_DEFAULT_KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
     "KPRK":  ["procedur"],
     "KPRKS": ["procedur"],
     "KPK":   [],
@@ -94,6 +105,10 @@ KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = {
     "LSHT":  [],
     "KRK":   [],
 }
+
+KNOWN_ABBREV_EXCLUDES: Dict[str, List[str]] = get_known_abbrev_excludes(
+    _DEFAULT_KNOWN_ABBREV_EXCLUDES
+)
 
 
 KEYWORD_MATCH_STOPWORDS: Set[str] = {
@@ -157,10 +172,10 @@ def _check_if_international_treaty(law_hint: str) -> Optional[Dict[str, str]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# LAW SUCCESSOR MAP
+# LAW SUCCESSOR MAP — V2.11 (H2)
 # ═══════════════════════════════════════════════════════════════════════════
 
-LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
+_DEFAULT_LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
     "03/L-182": {
         "successor": "08/L-185",
         "name": "Ligji për Parandalimin dhe Mbrojtjen nga Dhuna në Familje, Dhuna Ndaj Grave dhe Dhuna në Bazë Gjinore",
@@ -172,6 +187,10 @@ LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = {
         "note": "Ligji Nr. 2004/32 — version i konsoliduar",
     },
 }
+
+LAW_SUCCESSOR_MAP: Dict[str, Dict[str, str]] = get_law_successors(
+    _DEFAULT_LAW_SUCCESSOR_MAP
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -268,10 +287,6 @@ def _generate_abbreviation_from_title(title: str) -> str:
 
 
 def _generate_full_abbreviation_from_title(title: str) -> str:
-    """
-    V2.6: Njësoj si _generate_abbreviation_from_title, POR pa [:6] limit.
-    Përdoret për matching me akronime të përbëra si "LMDhFDhGDhBGj".
-    """
     if not title:
         return ""
     title_clean = re.sub(
@@ -287,14 +302,12 @@ def _generate_full_abbreviation_from_title(title: str) -> str:
 
 
 def _extract_uppercase_sequence(s: str) -> str:
-    """V2.6: 'LMDhFDhGDhBGj' → 'LMDFDGDBG'."""
     if not s:
         return ""
     return ''.join(c for c in s if c.isupper())
 
 
 def _is_compound_abbrev_hint(s: str) -> bool:
-    """V2.6: Kontroll nëse string-u është kandidat akronimi i përbërë."""
     if not s or len(s) < 8:
         return False
     upper_count = sum(1 for c in s if c.isupper())
@@ -307,14 +320,9 @@ def _is_compound_abbrev_hint(s: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _lcs_length(a: str, b: str) -> int:
-    """
-    V2.7: Llogarit gjatësinë e Longest Common Subsequence (LCS).
-    Memory-optimized: mban vetëm 2 rreshta (O(min(m,n)) memory).
-    """
     if not a or not b:
         return 0
     m, n = len(a), len(b)
-    # Sigurohu që rreshti i ruajtur është më i vogli
     if n > m:
         a, b = b, a
         m, n = n, m
@@ -332,19 +340,6 @@ def _lcs_length(a: str, b: str) -> int:
 
 
 def _compound_abbrev_matches(cit_hint: str, db_title: str) -> Tuple[bool, str]:
-    """
-    V2.7: Match DINAMIK për akronime të përbëra (mixed-case, ≥8 chars).
-    Përdor LCS (Longest Common Subsequence) midis sekuencës uppercase të
-    hint-it dhe akronimit të plotë të gjeneruar nga titulli i DB.
-
-    Shembull:
-      - cit_hint   = 'LMDhFDhGDhBGJj'
-      - cit_seq    = 'LMDFDGDBGJ' (uppercase only)
-      - db_title   = "Ligji për Parandalimin dhe Mbrojtjen nga Dhuna në 
-                      Familje, Dhuna Ndaj Grave dhe Dhuna në Bazë Gjinore"
-      - generated  = 'LPMDFDGDGBG'
-      - LCS        = 9, min_len = 10, ratio = 0.90 ≥ 0.70 → MATCH
-    """
     if not _is_compound_abbrev_hint(cit_hint):
         return False, ""
 
@@ -488,7 +483,6 @@ def _title_matches_citation(db_title: str, citation_law_hint: str) -> Tuple[bool
         if re.search(pattern, db_upper):
             return True, f"full_name_match:{cit_upper}"
 
-    # V2.7: LCS-based compound abbreviation matching
     if _is_compound_abbrev_hint(citation_law_hint):
         matched, reason = _compound_abbrev_matches(citation_law_hint, db_title)
         if matched:
@@ -548,21 +542,33 @@ def _try_successor_law(
         }).limit(10))
 
         if not candidates:
-            successor_keywords = ["parandalimin", "mbrojtjen", "dhuna", "familje"]
-            alt_query = {
-                "is_article": True,
-                "article_number": {"$in": article_variants},
-            }
-            alt_candidates = list(collection.find(alt_query, {
-                "law_title": 1, "article_number": 1, "source": 1,
-                "text": 1, "chunk_index": 1, "page": 1,
-            }).limit(20))
-            for c in alt_candidates:
-                title_norm = normalize_albanian(c.get("law_title", ""))
-                if all(kw in title_norm for kw in successor_keywords):
-                    candidates.append(c)
-                    if len(candidates) >= 10:
-                        break
+            law_name = (successor_info.get("name") or "").strip()
+            name_kw = _extract_keywords(law_name) - KEYWORD_MATCH_STOPWORDS
+
+            if name_kw:
+                alt_query = {
+                    "is_article": True,
+                    "article_number": {"$in": article_variants},
+                }
+                alt_candidates = list(collection.find(alt_query, {
+                    "law_title": 1, "article_number": 1, "source": 1,
+                    "text": 1, "chunk_index": 1, "page": 1,
+                }).limit(20))
+
+                MIN_SUCCESSOR_KEYWORD_OVERLAP = 2
+
+                for c in alt_candidates:
+                    title_norm = normalize_albanian(c.get("law_title", ""))
+                    title_kw = _extract_keywords(title_norm)
+
+                    if not title_kw:
+                        continue
+
+                    overlap = name_kw & title_kw
+                    if len(overlap) >= MIN_SUCCESSOR_KEYWORD_OVERLAP:
+                        candidates.append(c)
+                        if len(candidates) >= 10:
+                            break
 
         if not candidates:
             return None
@@ -735,7 +741,7 @@ def _verify_single_article(
             return result
 
         logger.info(
-            f"🔎 [MULTI-LAW V2.7] Neni {article_number} me hint='{law_hint}' "
+            f"🔎 [MULTI-LAW V2.11] Neni {article_number} me hint='{law_hint}' "
             f"nuk u gjet direkt — provo strategji alternative..."
         )
 
@@ -825,7 +831,7 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.7] Articles: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.11] Articles: {len(results)} total, "
         f"{verified} verified (including {successor_matches} in successor laws, "
         f"{alias_matches} via alias, {compound_matches} via compound abbrev, "
         f"{treaty_matches} international treaties), "
@@ -919,26 +925,118 @@ def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[st
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.7] Laws by number: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V2.11] Laws by number: {len(results)} total, "
         f"{verified} verified, {replaced} replaced"
     )
     return results
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERIFY CASE NUMBERS
+# V2.9: CASE NUMBER MATCHING HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+CASE_NUMBER_SEP_REGEX = r'[\s\.\/\-_]*'
+
+
+def _case_number_patterns(case_number: str) -> List[str]:
+    r"""
+    V2.9: Ndërton pattern-e regex fleksibël për numrin e lëndës.
+    """
+    if not case_number:
+        return []
+
+    clean = case_number.strip().upper()
+    sep = CASE_NUMBER_SEP_REGEX
+
+    m = re.match(
+        rf'^([A-ZÇË]+){sep}(?:NR{sep})?(\d+){sep}(\d{{2,4}})\s*$',
+        clean,
+    )
+    if not m:
+        parts = re.split(r'[\.\/\-\s]+', clean)
+        parts = [re.escape(p) for p in parts if p]
+        if not parts:
+            return []
+        return [rf'\b{sep.join(parts)}\b']
+
+    prefix, num, year = m.group(1), m.group(2), m.group(3)
+    prefix_esc = re.escape(prefix)
+    num_esc = re.escape(num)
+
+    patterns: List[str] = []
+
+    patterns.append(
+        rf'\b{prefix_esc}{sep}(?:NR{sep})?{num_esc}{sep}{re.escape(year)}\b'
+    )
+
+    if len(year) == 4 and year.startswith("20"):
+        short_year = year[2:]
+        patterns.append(
+            rf'\b{prefix_esc}{sep}(?:NR{sep})?{num_esc}{sep}{re.escape(short_year)}\b'
+        )
+    elif len(year) == 2:
+        patterns.append(
+            rf'\b{prefix_esc}{sep}(?:NR{sep})?{num_esc}{sep}20{re.escape(year)}\b'
+        )
+
+    return patterns
+
+
+def _find_case_number_doc(
+    collection,
+    case_number: str,
+) -> Optional[Dict[str, Any]]:
+    patterns = _case_number_patterns(case_number)
+    if not patterns:
+        return None
+
+    projection = {
+        "case_number": 1, "text": 1, "source": 1,
+        "page": 1, "actual_page": 1, "chunk_id": 1,
+        "law_title": 1, "title": 1,
+    }
+
+    for pattern in patterns:
+        try:
+            doc = collection.find_one(
+                {"case_number": {"$regex": pattern, "$options": "i"}},
+                projection,
+            )
+            if doc:
+                return doc
+        except Exception as e:
+            logger.warning(
+                f"⚠️ [_find_case_number_doc] Regex failed for '{pattern}': {e}"
+            )
+            continue
+
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VERIFY CASE NUMBERS (V2.9)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not case_numbers:
         return []
-    results = []
-    case_law_available = False
+
+    results: List[Dict[str, Any]] = []
+
+    available_collections: Set[str] = set()
     if db is not None:
         try:
-            case_law_available = CASE_LAW_COLLECTION in db.list_collection_names()
-        except Exception:
-            pass
+            available_collections = set(db.list_collection_names())
+        except Exception as e:
+            logger.warning(
+                f"⚠️ [verify_case_numbers] list_collection_names failed: {e}"
+            )
+
+    search_collections: List[str] = []
+    if CASE_LAW_COLLECTION in available_collections:
+        search_collections.append(CASE_LAW_COLLECTION)
+    if LEGAL_KB_COLLECTION in available_collections:
+        search_collections.append(LEGAL_KB_COLLECTION)
 
     for case in case_numbers:
         case_number = case["case_number"]
@@ -951,53 +1049,54 @@ def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str
             "matched_doc": None,
             "match_reason": "",
         }
+
         if case.get("is_likely_own"):
             result["match_reason"] = "own_case_number"
             results.append(result)
             continue
+
         if db is None:
             result["match_reason"] = "no_db"
             results.append(result)
             continue
-        if not case_law_available:
-            result["match_reason"] = "case_law_collection_not_available"
+
+        if not search_collections:
+            result["match_reason"] = "no_case_law_collection_available"
             results.append(result)
             continue
-        try:
-            collection = db[CASE_LAW_COLLECTION]
-            clean_number = case_number.replace(" ", "").upper()
-            variants = [
-                clean_number,
-                clean_number.replace(".", ""),
-                clean_number.replace(".nr.", "/"),
-            ]
-            doc = None
-            for variant in variants:
-                doc = collection.find_one(
-                    {"case_number": {"$regex": re.escape(variant), "$options": "i"}},
-                    {"case_number": 1, "text": 1, "source": 1},
-                )
+
+        found = False
+        for collection_name in search_collections:
+            try:
+                collection = db[collection_name]
+                doc = _find_case_number_doc(collection, case_number)
                 if doc:
+                    result["is_precedent"] = True
+                    result["matched_doc"] = {
+                        "case_number": doc.get("case_number", ""),
+                        "source": doc.get("source", ""),
+                    }
+                    result["match_reason"] = f"found_in_{collection_name}"
+                    found = True
                     break
-            if doc:
-                result["is_precedent"] = True
-                result["matched_doc"] = {
-                    "case_number": doc.get("case_number", ""),
-                    "source": doc.get("source", ""),
-                }
-                result["match_reason"] = "found_in_case_law"
-            else:
-                result["match_reason"] = "not_in_case_law"
-        except Exception as e:
-            logger.warning(f"⚠️ [verify_case_numbers] Error for {case_number}: {e}")
-            result["match_reason"] = f"error:{type(e).__name__}"
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ [verify_case_numbers] Error searching "
+                    f"{collection_name} for {case_number}: {e}"
+                )
+
+        if not found:
+            result["match_reason"] = "not_found_in_any_collection"
+
         results.append(result)
 
     precedents = sum(1 for r in results if r["is_precedent"])
     cited = sum(1 for r in results if not r["is_likely_own"])
+
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.7] Case numbers: {len(results)} total, "
-        f"{cited} cited, {precedents} real precedents"
+        f"📚 [MONGO_VERIFIER V2.11] Case numbers: {len(results)} total, "
+        f"{cited} cited, {precedents} real precedents "
+        f"(searched: {search_collections})"
     )
     return results
 
@@ -1054,7 +1153,7 @@ def verify_all(db, citation_profile: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.7] Complete: "
+        f"📚 [MONGO_VERIFIER V2.11] Complete: "
         f"articles {stats['articles_verified']}/{stats['articles_total']} "
         f"(+{stats['articles_in_successor_laws']} in successor laws, "
         f"{stats['articles_via_alias']} via alias, "

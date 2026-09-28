@@ -1,57 +1,65 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V6.4
-// V6.4: TIMEZONE FIX — formatAuditDate tani:
-//       (1) Nëse ISO mungon timezone (Z ose +HH:MM) → trajtoje si UTC duke
-//           shtuar 'Z'.
-//       (2) Përdor Intl.DateTimeFormat me Europe/Belgrade për të shfaqur
-//           OREN LOKALE TË KOSOVËS, pavarësisht nga timezone i browser-it.
-//       Bug-i: backend dërgonte ISO UTC pa Z → JS parse si local → UI shfaqte
-//       orë UTC (18:20) në vend të orës lokale (20:20).
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V7.0
+// V7.0: PROFESSIONAL REDESIGN — i njëjti stil si DraftVerificationModal V4.1:
+//       - Header i thjeshtuar (pa cockpit, pa 4-box stats).
+//       - Metadata line me · ndarës.
+//       - Trupi me serif (Georgia) + status si linja.
+//       - Ripërdorim i moduleve report/typography, report/preprocess,
+//         report/ReportComponents (parameterized me h1Label="Raport Auditimi").
+//       - Print CSS për eksport PDF.
+// V6.4: TIMEZONE FIX — formatAuditDate (Europe/Belgrade).
 // V6.3: COLOR UNIFIED.
 // V6.2.1: HEQUR "Në Fund" button.
 // V6.2: STATS PANEL.
 // V6.1.5: LAW CITATION LINK.
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Copy, CheckCircle2,
-  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, Lock, Scale, Folder,
-  ShieldCheck, RotateCcw, Calendar, Sparkles, AlertTriangle, XCircle, TrendingUp,
+  X, Copy, CheckCircle2, Loader2, Maximize2, Minimize2,
+  Trash2, ZoomIn, ZoomOut, Lock, Scale, Folder,
+  ShieldCheck, RotateCcw, Calendar, Sparkles,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { apiService } from '../../services/api';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
-import { LawCitationLink } from '../LawCitationLink';
 
-const WORD_CODE_BG = '#f1f5f9';
-const WORD_BLOCKQUOTE_BORDER = '#2563eb';
-const WORD_BLOCKQUOTE_BG = '#f8fafc';
-const WORD_BLOCKQUOTE_TEXT = '#334155';
-const WORD_HR_COLOR = '#cbd5e1';
-const WORD_HEADING_COLOR = '#0f172a';
-const WORD_BODY_COLOR = '#1e293b';
+// Modulet e përbashkëta të raportit
+import {
+  FONT_LEVELS,
+  REPORT_FONT,
+  READINESS_STYLES,
+  STATUS_MARK,
+} from './report/typography';
+import {
+  preprocessReport,
+  markdownToPlainText,
+  markdownToWordHtml,
+} from './report/preprocess';
+import { buildReportComponents } from './report/ReportComponents';
+
+// ───────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ───────────────────────────────────────────────────────────────────────────
 
 const ALBANIAN_MONTHS = [
   'Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor',
   'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor',
 ];
 
-// V6.4: Timezone-aware formatim
+// V6.4: Timezone-aware formatim (Europe/Belgrade)
 const formatAuditDate = (isoDate: string | Date | undefined | null): string => {
   if (!isoDate) return '';
   try {
     let dateStr = typeof isoDate === 'string' ? isoDate : isoDate.toISOString();
-    // V6.4: Nëse mungon timezone info → trajtoje si UTC
     if (!/[Zz]$/.test(dateStr) && !/[+-]\d{2}:?\d{2}$/.test(dateStr)) {
       dateStr += 'Z';
     }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
 
-    // V6.4: Forco konvertim në Europe/Belgrade (Kosovë)
     const formatter = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Europe/Belgrade',
       day: '2-digit',
@@ -77,29 +85,8 @@ const formatAuditDate = (isoDate: string | Date | undefined | null): string => {
 };
 
 // ───────────────────────────────────────────────────────────────────────────
-// PREPROCESS
+// STATS DERIVATION
 // ───────────────────────────────────────────────────────────────────────────
-
-const preprocessReport = (markdown: string): string => {
-  if (!markdown) return '';
-  return markdown
-    .replace(/\[OK\]/g, '✅')
-    .replace(/\[X\]/g, '❌')
-    .replace(/\[!\]/g, '⚠️')
-    .replace(/\[\?\]/g, '💡')
-    .replace(/\*\*File:\*\*/g, '**Dokumenti:**')
-    .replace(/\*\*File\*\*/g, '**Dokumenti**')
-    .replace(/\*\*Gatishmëria:\*\*\s*\*\*NEEDS WORK\*\*/g, '**Gatishmëria:** **KËRKON PUNË**')
-    .replace(/\*\*Gatishmëria:\*\*\s*\*\*READY\*\*/g, '**Gatishmëria:** **GATI**')
-    .replace(/\*\*Gatishmëria:\*\*\s*\*\*INCOMPLETE\*\*/g, '**Gatishmëria:** **I PËRPLOTË**')
-    .replace(/\*\*Gatishmëria:\*\*\s*\*\*UNKNOWN\*\*/g, '**Gatishmëria:** **I PANJOHUR**')
-    .replace(/\bNEEDS WORK\b/g, 'KËRKON PUNË')
-    .replace(/\bINCOMPLETE\b/g, 'I PËRPLOTË')
-    .replace(/\bUNKNOWN\b/g, 'I PANJOHUR')
-    .replace(/🛑\s*/g, '⛔ ')
-    .replace(/⚠️ SUGJERIM/g, '💡 **SUGJERIM**')
-    .replace(/ℹ️\s*/g, 'ℹ️  ');
-};
 
 interface DerivedStats {
   countOK: number;
@@ -109,22 +96,29 @@ interface DerivedStats {
   readiness: string;
 }
 
-function deriveStats(content: string): DerivedStats {
-  if (!content) {
+const deriveStats = (rawMarkdown: string): DerivedStats => {
+  if (!rawMarkdown) {
     return { countOK: 0, countX: 0, countWarn: 0, countSug: 0, readiness: 'I PANJOHUR' };
   }
-  const countOK = (content.match(/✅/g) || []).length;
-  const countX = (content.match(/❌/g) || []).length;
-  const countWarn = (content.match(/⚠️/g) || []).length;
-  const countSug = (content.match(/💡/g) || []).length;
+
+  // Numëro marker-at tipografikë pas preprocess
+  const processed = preprocessReport(rawMarkdown);
+  const countOK = (processed.match(new RegExp(STATUS_MARK.ok, 'g')) || []).length;
+  const countX = (processed.match(new RegExp(STATUS_MARK.fail, 'g')) || []).length;
+  const countWarn = (processed.match(new RegExp(STATUS_MARK.warn, 'g')) || []).length;
+  const countSug = (processed.match(new RegExp(STATUS_MARK.hint, 'g')) || []).length;
 
   let readiness = 'I PANJOHUR';
-  if (/GATI|READY/i.test(content)) readiness = 'GATI';
-  if (/KËRKON PUNË|NEEDS WORK/i.test(content)) readiness = 'KËRKON PUNË';
-  if (/I PËRPLOTË|INCOMPLETE/i.test(content)) readiness = 'I PËRPLOTË';
+  if (/GATI|READY/i.test(rawMarkdown)) readiness = 'GATI';
+  if (/KËRKON PUNË|NEEDS WORK/i.test(rawMarkdown)) readiness = 'KËRKON PUNË';
+  if (/I PËRPLOTË|INCOMPLETE/i.test(rawMarkdown)) readiness = 'I PËRPLOTË';
 
   return { countOK, countX, countWarn, countSug, readiness };
-}
+};
+
+// ───────────────────────────────────────────────────────────────────────────
+// TYPES
+// ───────────────────────────────────────────────────────────────────────────
 
 interface CaseDossierAuditModalProps {
   isOpen: boolean;
@@ -139,355 +133,6 @@ interface CaseDossierAuditModalProps {
   preGeneratedSource?: 'fresh' | 'cache' | 'saved';
   onRegenerate?: () => void;
 }
-
-const FONT_LEVELS = [
-  { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
-  { label: '100%', base: 15, h1: 21, h2: 18, h3: 16, line: 1.65 },
-  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 },
-  { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 },
-];
-
-// ───────────────────────────────────────────────────────────────────────────
-// CUSTOM MARKDOWN COMPONENTS (V6.3 — primary-start për chrome)
-// ───────────────────────────────────────────────────────────────────────────
-
-const buildReportComponents = () => ({
-  h1: ({ children }: any) => {
-    const text = String(children);
-    return (
-      <div className="mt-2 mb-6 pb-5 border-b-2 border-primary-start/30">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-primary-start/15 border border-primary-start/30 flex items-center justify-center shrink-0">
-            <ShieldCheck size={22} className="text-primary-start" />
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-text-primary tracking-tight">
-            {text.replace(/^RAPORT\s*—\s*/, '').replace(/^RAPORT VERIFIKIMI\s*—\s*/, '')}
-          </h1>
-        </div>
-        <p className="text-[11px] text-text-muted uppercase tracking-widest font-bold mt-2 ml-14">
-          Raport Auditimi
-        </p>
-      </div>
-    );
-  },
-
-  h2: ({ children }: any) => {
-    const text = String(children);
-    const match = text.match(/^(\d+)\.\s+(.+)$/);
-    if (match) {
-      return (
-        <h2 className="flex items-center gap-3 mt-8 mb-4 pb-3 border-b border-main">
-          <span className="w-9 h-9 rounded-xl bg-primary-start text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
-            {match[1]}
-          </span>
-          <span className="text-base sm:text-lg font-black text-text-primary tracking-tight uppercase">
-            {match[2]}
-          </span>
-        </h2>
-      );
-    }
-    return (
-      <h2 className="text-base sm:text-lg font-black text-text-primary mt-8 mb-4 pb-3 border-b border-main uppercase tracking-tight">
-        {children}
-      </h2>
-    );
-  },
-
-  h3: ({ children }: any) => {
-    const text = String(children);
-    const match = text.match(/^([A-Z])\.\s+(.+)$/);
-    if (match) {
-      return (
-        <h3 className="flex items-center gap-2.5 mt-5 mb-3">
-          <span className="w-1 h-5 rounded-full bg-primary-start shrink-0" />
-          <span className="text-sm sm:text-base font-bold text-text-primary">
-            <span className="text-primary-start mr-1">{match[1]}.</span>
-            {match[2]}
-          </span>
-        </h3>
-      );
-    }
-    return (
-      <h3 className="flex items-center gap-2.5 mt-5 mb-3">
-        <span className="w-1 h-5 rounded-full bg-primary-start shrink-0" />
-        <span className="text-sm sm:text-base font-bold text-text-primary">{children}</span>
-      </h3>
-    );
-  },
-
-  h4: ({ children }: any) => (
-    <h4 className="text-sm font-bold text-text-primary mt-4 mb-2 pl-3 border-l-2 border-primary-start/40">
-      {children}
-    </h4>
-  ),
-
-  p: ({ children }: any) => (
-    <p className="text-xs sm:text-sm leading-relaxed text-text-primary mb-3">
-      {children}
-    </p>
-  ),
-
-  ul: ({ children }: any) => (
-    <ul className="list-none pl-0 mb-3 space-y-1.5">
-      {children}
-    </ul>
-  ),
-
-  ol: ({ children }: any) => (
-    <ol className="list-decimal pl-6 mb-3 space-y-1.5 text-xs sm:text-sm text-text-primary">
-      {children}
-    </ol>
-  ),
-
-  // Semantikët e statusit (✅❌⚠️💡) mbeten
-  li: ({ children }: any) => {
-    const firstText = Array.isArray(children)
-      ? String(children[0] || '')
-      : String(children || '');
-    const trimmed = firstText.trim();
-
-    if (trimmed.startsWith('✅')) {
-      return (
-        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs sm:text-sm">
-          <span className="text-emerald-500 font-bold shrink-0 leading-relaxed">✓</span>
-          <span className="flex-1 leading-relaxed text-text-primary">
-            {Array.isArray(children)
-              ? [String(children[0]).replace('✅', '').trim(), ...children.slice(1)]
-              : String(children).replace('✅', '').trim()}
-          </span>
-        </li>
-      );
-    }
-
-    if (trimmed.startsWith('❌')) {
-      return (
-        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 text-xs sm:text-sm">
-          <span className="text-rose-500 font-bold shrink-0 leading-relaxed">✗</span>
-          <span className="flex-1 leading-relaxed text-text-primary">
-            {Array.isArray(children)
-              ? [String(children[0]).replace('❌', '').trim(), ...children.slice(1)]
-              : String(children).replace('❌', '').trim()}
-          </span>
-        </li>
-      );
-    }
-
-    if (trimmed.startsWith('⚠️')) {
-      return (
-        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs sm:text-sm">
-          <span className="text-amber-500 font-bold shrink-0 leading-relaxed">!</span>
-          <span className="flex-1 leading-relaxed text-text-primary">
-            {Array.isArray(children)
-              ? [String(children[0]).replace('⚠️', '').trim(), ...children.slice(1)]
-              : String(children).replace('⚠️', '').trim()}
-          </span>
-        </li>
-      );
-    }
-
-    if (trimmed.startsWith('💡')) {
-      return (
-        <li className="flex items-start gap-2 p-2.5 rounded-lg bg-sky-500/5 border border-sky-500/20 text-xs sm:text-sm">
-          <span className="text-sky-500 font-bold shrink-0 leading-relaxed">?</span>
-          <span className="flex-1 leading-relaxed text-text-primary">
-            {Array.isArray(children)
-              ? [String(children[0]).replace('💡', '').trim(), ...children.slice(1)]
-              : String(children).replace('💡', '').trim()}
-          </span>
-        </li>
-      );
-    }
-
-    return (
-      <li className="flex items-start gap-2.5 pl-1 text-xs sm:text-sm leading-relaxed text-text-primary">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary-start/60 mt-2 shrink-0" />
-        <span className="flex-1">{children}</span>
-      </li>
-    );
-  },
-
-  strong: ({ children }: any) => (
-    <strong className="font-bold text-text-primary">{children}</strong>
-  ),
-
-  em: ({ children }: any) => (
-    <em className="italic text-text-secondary">{children}</em>
-  ),
-
-  code: ({ children }: any) => (
-    <code className="px-1.5 py-0.5 rounded bg-canvas border border-main font-mono text-[11px] text-primary-start font-semibold">
-      {children}
-    </code>
-  ),
-
-  hr: () => (
-    <div className="my-7 flex items-center justify-center">
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-primary-start/40 to-transparent" />
-      <div className="mx-3 w-1.5 h-1.5 rounded-full bg-primary-start/60" />
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-primary-start/40 to-transparent" />
-    </div>
-  ),
-
-  blockquote: ({ children }: any) => (
-    <blockquote className="my-4 pl-4 py-3 pr-3 border-l-4 border-primary-start/50 bg-primary-start/5 rounded-r-lg">
-      <div className="text-xs sm:text-sm italic text-text-secondary leading-relaxed">
-        {children}
-      </div>
-    </blockquote>
-  ),
-
-  a: ({ children, href }: any) => {
-    const isArticleLink = typeof href === 'string' && href.includes('/laws/article');
-
-    if (isArticleLink) {
-      return (
-        <LawCitationLink
-          lawTitle=""
-          articleNum=""
-          fullMatch={String(children)}
-          targetUrl={href}
-        />
-      );
-    }
-
-    return (
-      <a
-        href={href}
-        className="text-primary-start hover:text-primary-end underline underline-offset-2 transition-colors font-medium"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {children}
-      </a>
-    );
-  },
-
-  table: ({ children }: any) => (
-    <div className="overflow-x-auto my-4 rounded-xl border border-main">
-      <table className="min-w-full text-xs">
-        {children}
-      </table>
-    </div>
-  ),
-
-  thead: ({ children }: any) => (
-    <thead className="bg-canvas/60">{children}</thead>
-  ),
-
-  th: ({ children }: any) => (
-    <th className="px-3 py-2 text-left font-bold text-text-primary border-b border-main">
-      {children}
-    </th>
-  ),
-
-  td: ({ children }: any) => (
-    <td className="px-3 py-2 border-b border-main/60 text-text-primary">
-      {children}
-    </td>
-  ),
-});
-
-// ───────────────────────────────────────────────────────────────────────────
-// MARKDOWN → DOCX HTML
-// ───────────────────────────────────────────────────────────────────────────
-
-const markdownToWordHtml = (markdown: string): string => {
-  const lines = markdown.split(/\r?\n/);
-  const htmlOutput: string[] = [];
-  let inList: 'ul' | 'ol' | null = null;
-  let inBlockquote = false;
-  let blockquoteLines: string[] = [];
-
-  const formatInline = (text: string): string => {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/__(.+?)__/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/_(.+?)_/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, `<code style="background-color: ${WORD_CODE_BG}; padding: 2px 4px; font-family: Consolas, monospace; font-size: 10pt;">$1</code>`);
-  };
-
-  const flushList = () => {
-    if (inList) {
-      htmlOutput.push(inList === 'ul' ? '</ul>' : '</ol>');
-      inList = null;
-    }
-  };
-
-  const flushBlockquote = () => {
-    if (inBlockquote) {
-      htmlOutput.push(`<blockquote style="border-left: 4px solid ${WORD_BLOCKQUOTE_BORDER}; margin: 10px 0; padding: 8px 16px; background-color: ${WORD_BLOCKQUOTE_BG}; color: ${WORD_BLOCKQUOTE_TEXT}; font-style: italic; font-family: Calibri, Arial, sans-serif;">${blockquoteLines.map(formatInline).join('<br>')}</blockquote>`);
-      blockquoteLines = [];
-      inBlockquote = false;
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
-    const line = rawLine.trim();
-
-    if (/^(---|---|\*\*\*|___)$/.test(line)) {
-      flushList(); flushBlockquote();
-      htmlOutput.push(`<hr style="border: 0; border-top: 1px solid ${WORD_HR_COLOR}; margin: 16px 0;" />`);
-      continue;
-    }
-
-    const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (hMatch) {
-      flushList(); flushBlockquote();
-      const level = hMatch[1].length;
-      const text = formatInline(hMatch[2]);
-      const fontSize = level === 1 ? '16pt' : level === 2 ? '14pt' : '12pt';
-      htmlOutput.push(`<h${level} style="font-size: ${fontSize}; font-family: Calibri, Arial, sans-serif; font-weight: bold; color: ${WORD_HEADING_COLOR}; margin-top: 14px; margin-bottom: 6px;">${text}</h${level}>`);
-      continue;
-    }
-
-    if (line.startsWith('>')) {
-      flushList();
-      inBlockquote = true;
-      blockquoteLines.push(line.replace(/^>\s?/, ''));
-      continue;
-    } else if (inBlockquote) {
-      flushBlockquote();
-    }
-
-    const bulletMatch = line.match(/^([•\-\*])\s+(.+)$/);
-    if (bulletMatch) {
-      if (inList !== 'ul') {
-        flushList();
-        htmlOutput.push('<ul style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
-        inList = 'ul';
-      }
-      htmlOutput.push(`<li style="margin-bottom: 4px; color: ${WORD_BODY_COLOR}; font-size: 11pt;">${formatInline(bulletMatch[2])}</li>`);
-      continue;
-    }
-
-    const numMatch = line.match(/^(\d+)\.\s+(.+)$/);
-    if (numMatch) {
-      if (inList !== 'ol') {
-        flushList();
-        htmlOutput.push('<ol style="margin: 6px 6px 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
-        inList = 'ol';
-      }
-      htmlOutput.push(`<li style="margin-bottom: 4px; color: ${WORD_BODY_COLOR}; font-size: 11pt;">${formatInline(numMatch[2])}</li>`);
-      continue;
-    }
-
-    flushList();
-    if (line.length === 0) continue;
-    htmlOutput.push(`<p style="margin: 6px 0; font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: ${WORD_BODY_COLOR};">${formatInline(line)}</p>`);
-  }
-
-  flushList(); flushBlockquote();
-
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Raport</title>
-    <style>body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: ${WORD_BODY_COLOR}; }</style>
-    </head><body>${htmlOutput.join('\n')}</body></html>`.trim();
-};
 
 // ───────────────────────────────────────────────────────────────────────────
 // COMPONENT
@@ -521,7 +166,12 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(1);
   const activeFont = FONT_LEVELS[fontLevelIndex];
-  const reportComponents = useMemo(() => buildReportComponents(), []);
+
+  // Report components me label audit
+  const reportComponents = useMemo(
+    () => buildReportComponents({ h1Label: 'Raport Auditimi' }),
+    []
+  );
 
   const isSingleDoc = Boolean(documentIds && documentIds.length > 0);
   const singleDocName = isSingleDoc && documentNames && documentNames.length > 0
@@ -539,6 +189,9 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     : `${caseName} • ${clientName} • ${documentCount} shkresa`;
 
   const derivedStats = useMemo(() => deriveStats(reportContent), [reportContent]);
+
+  const readinessStyle =
+    READINESS_STYLES[(derivedStats.readiness || '').toUpperCase()] || READINESS_STYLES.UNKNOWN;
 
   // ── LOAD ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -570,7 +223,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       })
       .catch((err) => {
         if (fetchAbortRef.current) return;
-        console.warn('[CaseDossierAuditModal V6.4] Ngarkimi i raportit të ruajtur dështoi:', err);
+        console.warn('[CaseDossierAuditModal V7.0] Ngarkimi i raportit të ruajtur dështoi:', err);
         setLoadError('Ngarkimi i raportit të ruajtur dështoi.');
       })
       .finally(() => {
@@ -633,22 +286,22 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     if (onRegenerate) onRegenerate();
   };
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     if (!reportContent) return;
 
     const processed = preprocessReport(reportContent);
     const htmlContent = markdownToWordHtml(processed);
-    const plainContent = processed;
+    const plainContent = markdownToPlainText(processed);
 
     try {
-      if (navigator.clipboard && window.ClipboardItem) {
-        const clipboardItem = new ClipboardItem({
+      if (navigator.clipboard && (window as any).ClipboardItem) {
+        const item = new (window as any).ClipboardItem({
           'text/html': new Blob([htmlContent], { type: 'text/html' }),
           'text/plain': new Blob([plainContent], { type: 'text/plain' }),
         });
-        await navigator.clipboard.write([clipboardItem]);
+        await navigator.clipboard.write([item]);
       } else {
-        throw new Error();
+        await navigator.clipboard.writeText(plainContent);
       }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -657,21 +310,52 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
-  };
+  }, [reportContent]);
 
   if (!isOpen) return null;
-
-  const showReportBanner = Boolean(reportContent.trim())
-    && (reportSource === 'cache' || reportSource === 'saved');
 
   const processedContent = preprocessReport(reportContent);
   const linkedContent = processedContent ? autoLinkLegalCitations(processedContent) : '';
 
-  const hasDerivedStats = derivedStats.countOK + derivedStats.countX + derivedStats.countWarn > 0;
+  const hasStats = derivedStats.countOK + derivedStats.countX + derivedStats.countWarn + derivedStats.countSug > 0;
+  const showStatsRow = Boolean(reportContent) && hasStats;
+
+  // Ndërto metadata segments
+  const metaSegments: string[] = [];
+  if (derivedStats.countOK > 0) metaSegments.push(`${derivedStats.countOK} gjetje OK`);
+  if (derivedStats.countX > 0)   metaSegments.push(`${derivedStats.countX} gabime`);
+  if (derivedStats.countWarn > 0) metaSegments.push(`${derivedStats.countWarn} kujdes`);
+  if (derivedStats.countSug > 0) metaSegments.push(`${derivedStats.countSug} sugjerime`);
 
   return (
     <AnimatePresence>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[250] p-2 sm:p-4 md:p-6 select-none">
+        {/* Print CSS */}
+        <style>{`
+          @media print {
+            .print-hide { display: none !important; }
+            .fast-case-dossier-audit,
+            .fast-case-dossier-audit * {
+              background: #fff !important;
+              color: #000 !important;
+              box-shadow: none !important;
+            }
+            .fast-case-dossier-audit {
+              padding: 0 !important;
+              max-height: none !important;
+              overflow: visible !important;
+            }
+            .fast-case-dossier-audit p,
+            .fast-case-dossier-audit li,
+            .fast-case-dossier-audit blockquote,
+            .fast-case-dossier-audit td {
+              font-family: Georgia, serif !important;
+              font-size: 11pt !important;
+              line-height: 1.5 !important;
+            }
+          }
+        `}</style>
+
         <motion.div
           initial={{ opacity: 0, scale: 0.98, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -679,180 +363,129 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
           className={`glass-panel w-full ${
             isFullscreen
               ? 'h-full max-h-screen rounded-none border-0'
-              : 'h-[92vh] max-w-5xl max-h-[880px] rounded-2xl sm:rounded-3xl border border-main'
-          } p-4 sm:p-6 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
+              : 'h-[96vh] sm:h-[92vh] max-w-5xl max-h-[880px] rounded-2xl sm:rounded-3xl border border-main'
+          } p-2.5 sm:p-4 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
         >
-          {/* HEADER — V6.3: primary-start */}
-          <div className="flex items-center justify-between pb-3.5 border-b border-main shrink-0 gap-3">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-10 h-10 bg-primary-start/15 text-primary-start rounded-2xl flex items-center justify-center border border-primary-start/30 shrink-0">
-                {effectiveScope === 'document' ? <ShieldCheck className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-black text-text-primary uppercase tracking-tight truncate">
+          {/* ═══════════════════════════════════════════════════════════════
+              HEADER — V7.0 PROFESIONAL
+          ═══════════════════════════════════════════════════════════════ */}
+          <div className="shrink-0 border-b border-main/60 pb-3 print-hide">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 bg-primary-start/10 text-primary-start rounded-lg flex items-center justify-center border border-primary-start/20 shrink-0">
+                  {effectiveScope === 'document' ? <ShieldCheck className="w-4 h-4" /> : <Folder className="w-4 h-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs sm:text-sm font-bold text-text-primary tracking-tight truncate">
                     {reportTitle}
                   </h3>
+                  <p className="text-[10px] sm:text-[11px] text-text-muted truncate mt-0.5">
+                    {headerSubtitle}
+                  </p>
                 </div>
-                <p className="text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
-                  {headerSubtitle}
-                </p>
+              </div>
+
+              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                <div className="hidden sm:flex items-center bg-surface border border-main/60 rounded-md p-0.5">
+                  <button type="button" onClick={() => setFontLevelIndex((p) => Math.max(0, p - 1))} disabled={fontLevelIndex <= 0}
+                    className="px-1.5 py-0.5 text-text-muted hover:text-text-primary disabled:opacity-30 rounded hover:bg-hover cursor-pointer" title="Zvogëlo">
+                    <ZoomOut size={12} />
+                  </button>
+                  <span className="px-1 text-[10px] font-mono font-bold text-text-muted min-w-[28px] text-center">{activeFont.label}</span>
+                  <button type="button" onClick={() => setFontLevelIndex((p) => Math.min(FONT_LEVELS.length - 1, p + 1))} disabled={fontLevelIndex >= FONT_LEVELS.length - 1}
+                    className="px-1.5 py-0.5 text-text-muted hover:text-text-primary disabled:opacity-30 rounded hover:bg-hover cursor-pointer" title="Zmadho">
+                    <ZoomIn size={12} />
+                  </button>
+                </div>
+
+                {reportContent && (
+                  <button type="button" onClick={handleClearContent} disabled={isPurging}
+                    className="p-1.5 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-md transition-colors cursor-pointer disabled:opacity-40"
+                    title={isSingleDoc ? "Fshi raportin e këtij dokumenti" : "Fshi raportin e rastit"}>
+                    {isPurging ? <Loader2 size={14} className="animate-spin text-danger-start" /> : <Trash2 size={14} />}
+                  </button>
+                )}
+
+                <button type="button" onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="hidden sm:flex p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded-md transition-colors cursor-pointer"
+                  title={isFullscreen ? 'Zvogëlo' : 'Zmadho'}>
+                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
+
+                <button type="button" onClick={onClose}
+                  className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded-md transition-colors cursor-pointer" title="Mbyll">
+                  <X size={16} />
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              <div className="flex items-center bg-surface border border-main rounded-xl p-0.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setFontLevelIndex(prev => Math.max(0, prev - 1))}
-                  disabled={fontLevelIndex <= 0}
-                  className="px-2 py-1 text-text-muted hover:text-text-primary disabled:opacity-30 rounded-lg hover:bg-hover font-bold cursor-pointer"
-                  title="Zvogëlo"
-                >
-                  <ZoomOut size={13} />
-                </button>
-                <span className="px-1.5 text-[10px] font-mono font-bold text-primary-start">
-                  {activeFont.label}
+            {/* Metadata line */}
+            {showStatsRow && (
+              <div className="mt-2.5 flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] sm:text-[11px] font-mono text-text-muted tabular-nums">
+                {lastAuditedAt && (
+                  <span className="whitespace-nowrap">
+                    <span className="opacity-70">{reportSource === 'fresh' ? 'Gjeneruar' : reportSource === 'cache' ? 'Nga cache' : 'Ruajtur'}</span>{' '}
+                    {formatAuditDate(lastAuditedAt)}
+                  </span>
+                )}
+
+                {metaSegments.length > 0 && (
+                  <>
+                    <span className="opacity-40">·</span>
+                    <span className="whitespace-nowrap">{metaSegments.join('  ·  ')}</span>
+                  </>
+                )}
+
+                {reportContent && derivedStats.readiness && (
+                  <span className="ml-auto flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="text-text-muted opacity-70">Gatishmëria</span>
+                    <span className={`font-sans font-bold uppercase tracking-wide ${readinessStyle.color}`}>
+                      {readinessStyle.label}
+                    </span>
+                  </span>
+                )}
+
+                {onRegenerate && (
+                  <button type="button" onClick={handleRegenerate} disabled={isPurging}
+                    className={`h-6 px-2 rounded-md border border-main/60 hover:border-primary-start/50 hover:text-primary-start text-text-muted font-sans font-medium text-[10px] transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer shrink-0 ${reportContent && derivedStats.readiness ? '' : 'ml-auto'}`}
+                    title="Rigjenero">
+                    <RotateCcw size={10} />
+                    <span className="hidden sm:inline">Rigjenero</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Banner për cache/saved (V7.0: minimal) */}
+            {reportContent && (reportSource === 'cache' || reportSource === 'saved') && (
+              <div className="mt-2 flex items-center gap-2 text-[10px] sm:text-[11px] text-text-muted">
+                <Calendar size={11} className="text-primary-start shrink-0" />
+                <span>
+                  {reportSource === 'cache'
+                    ? 'Ky raport është shfaqur nga memoria e serverit.'
+                    : 'Ky raport është ruajtur më parë.'}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setFontLevelIndex(prev => Math.min(FONT_LEVELS.length - 1, prev + 1))}
-                  disabled={fontLevelIndex >= FONT_LEVELS.length - 1}
-                  className="px-2 py-1 text-text-muted hover:text-text-primary disabled:opacity-30 rounded-lg hover:bg-hover font-bold cursor-pointer"
-                  title="Zmadho"
-                >
-                  <ZoomIn size={13} />
-                </button>
               </div>
-
-              {reportContent && (
-                <button
-                  type="button"
-                  onClick={handleClearContent}
-                  disabled={isPurging}
-                  className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-colors cursor-pointer disabled:opacity-40"
-                  title={isSingleDoc ? "Fshi raportin e këtij dokumenti" : "Fshi raportin e rastit"}
-                >
-                  {isPurging ? <Loader2 size={16} className="animate-spin text-danger-start" /> : <Trash2 size={16} />}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="hidden sm:flex p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
-                title={isFullscreen ? "Zvogëlo" : "Zmadho"}
-              >
-                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-              </button>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
-                title="Mbyll"
-              >
-                <X size={18} />
-              </button>
-            </div>
+            )}
           </div>
 
-          {/* BANNER — V6.3: primary-start */}
-          {showReportBanner && (
-            <div className="mt-3 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
-              <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                <div className="w-8 h-8 rounded-lg bg-primary-start/15 flex items-center justify-center shrink-0">
-                  <Calendar size={15} className="text-primary-start" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-text-primary">
-                    {reportSource === 'cache'
-                      ? 'Ky raport është shfaqur nga memoria e serverit'
-                      : 'Ky raport është ruajtur më parë'}
-                  </p>
-                  <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
-                    {reportSource === 'cache'
-                      ? 'Klikoni "Rigjenero" për ta krijuar nga e para'
-                      : <>Gjeneruar më <span className="font-mono font-semibold text-text-secondary">{formatAuditDate(lastAuditedAt)}</span></>}
-                  </p>
-                </div>
-              </div>
-              {onRegenerate && (
-                <button
-                  type="button"
-                  onClick={handleRegenerate}
-                  disabled={isPurging}
-                  className="h-9 px-4 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
-                  title="Rigjenero nga e para"
-                >
-                  <RotateCcw size={13} />
-                  <span>Rigjenero</span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* STATS PANEL — V6.3: SEMANTIK (mbetet me ngjyrat e tij) */}
-          {reportContent && hasDerivedStats && (
-            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
-              <div className="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/25 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
-                  <p className="text-[9px] uppercase tracking-widest font-bold text-emerald-500/80 truncate">
-                    Gjetje OK
-                  </p>
-                </div>
-                <p className="text-sm font-black text-emerald-500 tabular-nums leading-tight">
-                  {derivedStats.countOK}
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/25 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <XCircle size={11} className="text-rose-500 shrink-0" />
-                  <p className="text-[9px] uppercase tracking-widest font-bold text-rose-500/80 truncate">
-                    Gabime
-                  </p>
-                </div>
-                <p className="text-sm font-black text-rose-500 tabular-nums leading-tight">
-                  {derivedStats.countX}
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/25 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <AlertTriangle size={11} className="text-amber-500 shrink-0" />
-                  <p className="text-[9px] uppercase tracking-widest font-bold text-amber-500/80 truncate">
-                    Kujdes
-                  </p>
-                </div>
-                <p className="text-sm font-black text-amber-500 tabular-nums leading-tight">
-                  {derivedStats.countWarn}
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-sky-500/5 border border-sky-500/25 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <TrendingUp size={11} className="text-sky-500 shrink-0" />
-                  <p className="text-[9px] uppercase tracking-widest text-sky-500/80 truncate">
-                    Sugjerime
-                  </p>
-                </div>
-                <p className="text-sm font-black text-sky-500 tabular-nums leading-tight">
-                  {derivedStats.countSug}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* BODY */}
-          <div
-            className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-6 my-2 bg-surface/30 rounded-2xl border border-main text-text-primary select-text relative flex flex-col"
-          >
+          {/* ═══════════════════════════════════════════════════════════════
+              BODY
+          ═══════════════════════════════════════════════════════════════ */}
+          <div className="flex-1 overflow-y-auto custom-finance-scroll p-3 sm:p-6 my-2 bg-surface/20 rounded-xl sm:rounded-2xl border border-main/60 text-text-primary select-text relative flex flex-col">
             <style>{`
-              .fast-case-dossier-audit p, .fast-case-dossier-audit li {
+              .fast-case-dossier-audit p,
+              .fast-case-dossier-audit li,
+              .fast-case-dossier-audit blockquote {
+                font-family: ${REPORT_FONT.serif} !important;
                 font-size: ${activeFont.base}px !important;
                 line-height: ${activeFont.line} !important;
+              }
+              .fast-case-dossier-audit h1,
+              .fast-case-dossier-audit h2,
+              .fast-case-dossier-audit h3,
+              .fast-case-dossier-audit h4 {
+                font-family: ${REPORT_FONT.serif} !important;
               }
             `}</style>
 
@@ -899,29 +532,32 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             )}
           </div>
 
-          {/* FOOTER — V6.3: primary-start per Kopjo */}
-          <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
+          {/* ═══════════════════════════════════════════════════════════════
+              FOOTER
+          ═══════════════════════════════════════════════════════════════ */}
+          <div className="flex flex-row items-center justify-between pt-2 border-t border-main/60 gap-1.5 sm:gap-3 shrink-0 print-hide">
             {reportContent && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium">
-                <Lock size={12} className="text-text-muted" />
-                <span className="hidden sm:inline">
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-main/60 text-text-muted text-[10px] sm:text-xs font-medium shrink-0">
+                <Lock size={11} className="text-text-muted" />
+                <span className="hidden lg:inline">
                   {isSingleDoc
                     ? 'Raporti i dokumentit është ruajtur veçmas'
                     : 'Raporti i rastit është ruajtur'}
                 </span>
-                <span className="sm:hidden">I ruajtur</span>
+                <span className="lg:hidden">I ruajtur</span>
               </div>
             )}
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="flex flex-row items-center gap-1.5 sm:gap-2 ml-auto w-full sm:w-auto justify-end">
               <button
                 type="button"
                 onClick={handleCopy}
                 disabled={!reportContent}
-                className="h-9 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
+                className="h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg sm:rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shrink-0"
               >
-                {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-                <span>{copied ? 'U Kopjua!' : 'Kopjo për Dokument'}</span>
+                {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+                <span className="hidden lg:inline">{copied ? 'U Kopjua!' : 'Kopjo për Dokument'}</span>
+                <span className="hidden sm:inline lg:hidden">{copied ? 'U Kopjua!' : 'Kopjo'}</span>
               </button>
             </div>
           </div>

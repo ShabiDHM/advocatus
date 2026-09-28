@@ -1,0 +1,225 @@
+{
+  "_comment": "Rregullat e analizës — pa hardcoding rasti. Shto/skalo sipas juridiksionit dhe domain-it. Çdo rregull deklaron primitive, filtra, threshold dhe dependencies. V1.3: ID-të e rregullave janë etiketa profesionale shqipe (lexohen drejtpërdrejt në raport).",
+
+  "version": "1.3",
+
+  "document_type_to_profile": {
+    "_comment": "Mapping document_type → profile. Përdoret për auto-detect kur drafti ka document_type të njohur. Fallback: _default.",
+    "Kallëzim Penal": "criminal_complaint",
+    "Vendim Gjyqësor": "judicial_decision",
+    "Vendim": "judicial_decision",
+    "Aktvendim": "judicial_decision",
+    "Aktgjykim": "judicial_decision",
+    "Padi Civile": "civil_contract",
+    "Përgjigje në Padi": "civil_contract",
+    "Kontratë": "civil_contract",
+    "Kërkesë / Propozim": "generic",
+    "Ankesë / Kundërshtim": "generic",
+    "Tjetër": "generic",
+    "_default": "generic"
+  },
+
+  "profiles": {
+    "_comment": "Profile aplikimi sipas llojit të rastit. Çdo profil aktivizon një subset rregullash.",
+
+    "criminal_complaint": {
+      "label": "Kallëzim Penal",
+      "active_rules": [
+        "Numër dokumenti i përsëritur",
+        "Dënim i skaduar i përdorur",
+        "Data seancash të përsëritura",
+        "Mospërputhje numerike",
+        "Vetëreferim si precedent",
+        "Shumë ngjarje në të njëjtën datë"
+      ]
+    },
+
+    "judicial_decision": {
+      "label": "Vendim Gjyqësor",
+      "active_rules": [
+        "Numër dokumenti i përsëritur",
+        "Dënim i skaduar i përdorur",
+        "Data seancash të përsëritura",
+        "Mospërputhje numerike",
+        "Bazë psikiatrike e pamjaftueshme",
+        "Nënshkrim i detyrueshëm mungon",
+        "Mospërputhje dispozitiv-arsyetim",
+        "Shumë ngjarje në të njëjtën datë",
+        "Vetëreferim si precedent"
+      ]
+    },
+
+    "civil_contract": {
+      "label": "Kontratë",
+      "active_rules": [
+        "Mospërputhje numerike",
+        "Nënshkrim i detyrueshëm mungon",
+        "Data të përsëritura"
+      ]
+    },
+
+    "generic": {
+      "label": "I përgjithshëm",
+      "active_rules": [
+        "Numër dokumenti i përsëritur",
+        "Mospërputhje numerike",
+        "Shumë ngjarje në të njëjtën datë"
+      ]
+    }
+  },
+
+  "rules": [
+
+    {
+      "id": "Numër dokumenti i përsëritur",
+      "enabled": true,
+      "type": "duplicate_value",
+      "field": "document_numbers",
+      "min_occurrences": 2,
+      "min_distinct_contexts": 2,
+      "severity": "critical",
+      "message_template": "Numri i dokumentit '{value}' shfaqet në {count} dokumente të ndryshme: {files}",
+      "legal_basis": "Falsifikim dokumenti — vepër penale",
+      "recommended_action": "Verifiko vlefshmërinë e dokumenteve me numër identik. Nëse konfirmohet falsifikim, kallëzim penal.",
+      "detector_dependencies": ["document_numbers", "file_name"]
+    },
+
+    {
+      "id": "Dënim i skaduar i përdorur",
+      "enabled": true,
+      "type": "age_threshold",
+      "field": "case_numbers",
+      "prefix_filter": ["P", "PK", "K", "KM"],
+      "max_age_years": 5,
+      "severity": "high",
+      "message_template": "Lënda penale '{value}' është {years} vjet e vjetër — mund të jetë subjekt i rehabilitimit ligjor.",
+      "legal_basis": "Rehabilitim ligjor — dënimi nuk mund të përdoret si provë",
+      "recommended_action": "Kontrollo nëse dënimi është skaduar. Nëse është përdorur si provë, apelo.",
+      "detector_dependencies": ["case_numbers", "latest_date", "file_name"]
+    },
+
+    {
+      "id": "Data seancash të përsëritura",
+      "enabled": true,
+      "type": "duplicate_value",
+      "field": "earliest_date",
+      "filter_by_doc_type": "session_protocol",
+      "min_occurrences": 2,
+      "severity": "high",
+      "message_template": "{count} seanca kanë të njëjtën datë: '{value}'",
+      "legal_basis": "Kontradiktë procedurale",
+      "recommended_action": "Kontradiktë procedurale — seancat në data të njëjta janë të dyshimta.",
+      "detector_dependencies": ["earliest_date", "doc_type_hints", "file_name"]
+    },
+
+    {
+      "id": "Mospërputhje numerike",
+      "enabled": true,
+      "type": "numeric_conflict",
+      "field": "numeric_claims",
+      "unit_filter": ["muaj", "vjet", "metra", "orë"],
+      "min_context_shared": 2,
+      "severity": "high",
+      "message_template": "Vlera kontradiktore për '{unit}': {values}",
+      "legal_basis": "Kontradiktë e brendshme ose ndër-dokumentale",
+      "recommended_action": "Cito të dyja vlerat me burimin — baza për apelim.",
+      "detector_dependencies": ["numeric_claims", "file_name"]
+    },
+
+    {
+      "id": "Shumë ngjarje në të njëjtën datë",
+      "enabled": true,
+      "type": "multi_event_same_date",
+      "min_events": 3,
+      "severity": "medium",
+      "message_template": "{count} ngjarje/takime të dokumentuara në të njëjtën datë: '{date}'",
+      "legal_basis": "",
+      "recommended_action": "Kontrollo a janë të gjitha ngjarjet reale apo fabrikim.",
+      "detector_dependencies": ["dates_iso", "file_name"]
+    },
+
+    {
+      "id": "Vetëreferim si precedent",
+      "enabled": true,
+      "type": "self_reference",
+      "severity": "high",
+      "message_template": "Lënda '{case_number}' është e vetë dokumentit, por citohet si precedent i huaj.",
+      "legal_basis": "Konfuzion i brendshëm procedural",
+      "recommended_action": "Korrigjo referencën — nuk mund të citosh lëndën tënde si precedent.",
+      "detector_dependencies": ["own_case_number", "case_numbers", "file_name"]
+    },
+
+    {
+      "id": "Bazë psikiatrike e pamjaftueshme",
+      "enabled": true,
+      "type": "keyword_absence",
+      "document_filter": {"doc_type_hints": ["psychiatric_report"]},
+      "required_keywords_any": [
+        "ekzaminim",
+        "vëzhgim klinik",
+        "testim",
+        "klinik",
+        "raport psikologjik"
+      ],
+      "suspicious_keywords_any": [
+        "anamnezë",
+        "deklaratë verbale",
+        "dëgjim",
+        "raport social"
+      ],
+      "severity": "high",
+      "message_template": "Raporti psikiatrik bazohet në '{found_suspicious}' — pa {missing_required}",
+      "legal_basis": "Standard shkencor i provës mjekësore",
+      "recommended_action": "Kërko kundër-ekspertizë me ekzaminim klinik të pavarur.",
+      "detector_dependencies": ["full_text", "doc_type_hints"]
+    },
+
+    {
+      "id": "Nënshkrim i detyrueshëm mungon",
+      "enabled": true,
+      "type": "keyword_absence",
+      "document_filter": {"doc_type_hints": ["decision"]},
+      "required_keywords_any": [
+        "Gjyqtari",
+        "Kryetari",
+        "nënshkrimi",
+        "vula",
+        "KËSHILLË JURIDIKE"
+      ],
+      "severity": "high",
+      "message_template": "Vendimi nuk përmban elementin e detyrueshëm '{missing_required}'",
+      "legal_basis": "Forma e detyrueshme e aktit gjyqësor",
+      "recommended_action": "Verifiko nëse dokumenti është i vlefshëm ose i cunguar.",
+      "detector_dependencies": ["full_text", "doc_type_hints"]
+    },
+
+    {
+      "id": "Mospërputhje dispozitiv-arsyetim",
+      "enabled": true,
+      "type": "numeric_conflict",
+      "field": "numeric_claims",
+      "unit_filter": ["muaj", "vjet"],
+      "min_context_shared": 2,
+      "section_filter": ["dispositive", "reasoning"],
+      "severity": "critical",
+      "message_template": "Dispozitivi dhe arsyetimi kontradiktojnë njëri-tjetrin: {values}",
+      "legal_basis": "Neni 15 LMDHF — kohëzgjatja duhet të përshkruhet saktësisht",
+      "recommended_action": "Apelim për konfuzion në akt — kontradiktë substanciale.",
+      "detector_dependencies": ["numeric_claims", "file_name"]
+    },
+
+    {
+      "id": "Data të përsëritura",
+      "enabled": true,
+      "type": "duplicate_value",
+      "field": "dates_iso",
+      "min_occurrences": 2,
+      "severity": "low",
+      "message_template": "Data '{value}' shfaqet {count} herë në dokument — mund të jetë gabim kopjimi.",
+      "legal_basis": "",
+      "recommended_action": "Verifiko manualisht nëse datat janë të sakta.",
+      "detector_dependencies": ["dates_iso", "file_name"]
+    }
+
+  ]
+}

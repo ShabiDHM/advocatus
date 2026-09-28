@@ -1,0 +1,52 @@
+{
+  "_comment": "Konfigurim dinamik për Juristi AI. Ndryshimet aplikohen pas restart (ose reload_dynamic_config()).",
+
+  "law_successors": {
+    "03/L-182": {
+      "successor": "08/L-185",
+      "name": "Ligji për Parandalimin dhe Mbrojtjen nga Dhuna në Familje, Dhuna Ndaj Grave dhe Dhuna në Bazë Gjinore",
+      "note": "LMDHF u zëvendësua në vitin 2023 me versionin e ri 08/L-185"
+    },
+    "2004/32": {
+      "successor": "2004/32",
+      "name": "Ligji për Familjen i Kosovës",
+      "note": "Ligji Nr. 2004/32 — version i konsoliduar"
+    }
+  },
+
+  "international_law_keywords": [
+    "konvent",
+    "kednj",
+    "gjednj",
+    "okb",
+    "kombet e bashkuara",
+    "kombeve te bashkuara",
+    "njeriut",
+    "femijes"
+  ],
+
+  "known_abbrev_keywords": {
+    "LMDHF": ["ligj", "mbrojtj", "dhun", "familj"],
+    "LMD":   ["ligj", "marrëdhënie", "detyrim"],
+    "LPK":   ["ligj", "procedur", "kontestim"],
+    "KPRK":  ["kodi", "penal"],
+    "KPK":   ["kodi", "procedur", "penal"],
+    "KPPRK": ["kodi", "procedur", "penal"],
+    "LFK":   ["ligj", "familj"],
+    "LSHT":  ["ligj", "shoqëri", "tregtar"],
+    "KRK":   ["kushtetut"]
+  },
+
+  "known_abbrev_excludes": {
+    "KPRK":  ["procedur"],
+    "KPRKS": ["procedur"],
+    "KPK":   [],
+    "KPPRK": [],
+    "LMDHF": [],
+    "LMD":   [],
+    "LPK":   [],
+    "LFK":   [],
+    "LSHT":  [],
+    "KRK":   []
+  }
+}

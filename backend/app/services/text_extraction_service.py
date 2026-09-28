@@ -1,7 +1,15 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR & SEQUENTIAL DOCX ENGINE V17.1 (IN-LINE TABLES + REAL PAGE SEGMENTATION)
+# PHOENIX PROTOCOL - OCR & SEQUENTIAL DOCX ENGINE V17.2 (AUDIT FIXES)
+# V17.2: AUDIT FIXES —
+#   C1 (BUG): extract_text_from_file tani inferon extension-in e saktë nga
+#       file_type (mime ose emërtim i shkurtër). Më parë, "application/pdf"
+#       prodhonte suffix ".application/pdf" (i pavlefshëm).
+#   C2 (MEMORY): _extract_text_from_pdf shkruan JPEG-t në temp files në vend
+#       që t'i mbajë të gjitha në RAM. Parandalon memory peak me PDF-e të
+#       skanuara (100+ faqe). Pastrim në finally.
+#   C5 (.ods): extract_text tani mbështet edhe LibreOffice .ods (përmes
+#       pandas + odfpy nëse i instaluar).
 # V17.1: COMMENT CLEANUP — Hequr referenca historike ndaj Claude në docstring.
-# 100% COMPLETE CODE • ZERO PY WARNINGS • BACKWARD COMPATIBLE SERVICE ADAPTER
 
 import fitz
 import logging
@@ -37,6 +45,60 @@ FOOTER_PATTERN = re.compile(r'Rasti:\s*\S+\s*\|\s*Juristi AI System')
 # OCR parallelization settings
 OCR_WORKERS = int(os.environ.get("OCR_WORKERS", "4"))
 OCR_PAGE_DELAY = float(os.environ.get("OCR_PAGE_DELAY", "0.0"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V17.2 (C1): MIME/EXTENSION INFERENCE
+# ═══════════════════════════════════════════════════════════════════════════
+
+_MIME_TO_EXT: Dict[str, str] = {
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.oasis.opendocument.spreadsheet": "ods",
+    "application/vnd.oasis.opendocument.text": "odt",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "text/plain": "txt",
+    "text/csv": "csv",
+}
+
+_KNOWN_EXTENSIONS = {
+    "pdf", "doc", "docx", "xls", "xlsx", "ods", "odt",
+    "jpg", "jpeg", "png", "webp", "txt", "csv",
+}
+
+
+def _infer_extension_from_file_type(file_type: str) -> str:
+    """
+    V17.2 (C1): Kthen extension me pikë ('.pdf') nga mime ose emërtim i shkurtër.
+    Fallback: extension bosh nëse nuk mund të inferohet.
+    """
+    if not file_type:
+        return ""
+    ft = str(file_type).strip().lower()
+
+    if ft in _MIME_TO_EXT:
+        return "." + _MIME_TO_EXT[ft]
+
+    if "/" in ft:
+        tail = ft.split("/")[-1]
+        if tail.startswith("x-"):
+            tail = tail[2:]
+        tail = tail.split("+")[0].split(";")[0].strip()
+        if tail in _KNOWN_EXTENSIONS:
+            return "." + tail
+        return "." + tail if tail else ""
+
+    cleaned = ft.lstrip(".")
+    if cleaned in _KNOWN_EXTENSIONS:
+        return "." + cleaned
+    return "." + cleaned if cleaned else ""
+
 
 def _sanitize_text(text: str) -> str: 
     return text.replace("\x00", "") if text else ""
@@ -167,7 +229,7 @@ def _extract_docx_text(file_path: str) -> str:
 
 
 def _ocr_single_page_bytes(page_num: int, jpeg_bytes: bytes) -> str:
-    """Ekzekuton OCR me përpikëri të lartë për një faqe të vetme."""
+    """Ekzekuton OCR me përpikëri të lartë për një faqe të vetme (nga bytes)."""
     marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
     if not advanced_bytes_ocr:
         return marker + "[SCANNED - NO OCR ENGINE AVAILABLE]"
@@ -182,7 +244,37 @@ def _ocr_single_page_bytes(page_num: int, jpeg_bytes: bytes) -> str:
         return marker + ""
 
 
+def _ocr_single_page_file(page_num: int, tmp_path: str) -> str:
+    """
+    V17.2 (C2): Lexon JPEG-n nga temp file dhe ekzekuton OCR.
+    Pastron temp file në finally.
+    """
+    marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
+    if not advanced_bytes_ocr:
+        return marker + "[SCANNED - NO OCR ENGINE AVAILABLE]"
+
+    try:
+        with open(tmp_path, "rb") as f:
+            jpeg_bytes = f.read()
+        ocr_text = _sanitize_text(advanced_bytes_ocr(jpeg_bytes))
+        if ocr_text and len(ocr_text.strip()) > 15:
+            return marker + ocr_text.strip()
+        return marker + "[Faqe pa tekst të dallueshëm]"
+    except Exception as e:
+        logger.error(f"❌ [OCR] Gabim në Faqen {page_num + 1}: {e}")
+        return marker + ""
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+
 def _extract_text_from_pdf(file_path: str) -> str:
+    """
+    V17.2 (C2): Në vend që të mbajë të gjitha JPEG-t në RAM, shkruan pixmap-et
+    në temp files; worker-at lexojnë + fshijnë. Peak memory = ~OCR_WORKERS JPEG.
+    """
     try:
         doc = fitz.open(file_path)
         total = len(doc)
@@ -191,27 +283,39 @@ def _extract_text_from_pdf(file_path: str) -> str:
             return ""
         
         pages_results: Dict[int, str] = {}
-        pages_needing_ocr: List[Tuple[int, bytes]] = []
+        pages_needing_ocr: List[Tuple[int, str]] = []  # (page_num, tmp_path)
 
-        for i in range(total):
-            page = doc[i]
-            digital_text = _strip_footer(_sanitize_text("\n".join([b[4] for b in sorted(page.get_text("blocks"), key=lambda b: (int(b[1]/3), int(b[0])))])))
-            
-            if digital_text and len(digital_text.strip()) > 100:
-                pages_results[i] = f"\n--- [FAQJA {i + 1}] ---\n" + digital_text.strip()
-            else:
-                pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
-                jpeg_bytes = pix.tobytes("jpeg", jpg_quality=92)
-                pages_needing_ocr.append((i, jpeg_bytes))
-
-        doc.close()
+        try:
+            for i in range(total):
+                page = doc[i]
+                digital_text = _strip_footer(_sanitize_text("\n".join([b[4] for b in sorted(page.get_text("blocks"), key=lambda b: (int(b[1]/3), int(b[0])))])))
+                
+                if digital_text and len(digital_text.strip()) > 100:
+                    pages_results[i] = f"\n--- [FAQJA {i + 1}] ---\n" + digital_text.strip()
+                else:
+                    # V17.2 (C2): pix.save() shkruan direkt në disk — nuk mban bytes në RAM
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+                    fd, tmp_path = tempfile.mkstemp(suffix=".jpg", prefix="ocr_pg_")
+                    os.close(fd)
+                    try:
+                        pix.save(tmp_path)
+                        pages_needing_ocr.append((i, tmp_path))
+                    except Exception as e:
+                        logger.error(f"❌ [OCR] Pixmap save failed për faqen {i + 1}: {e}")
+                        try:
+                            os.remove(tmp_path)
+                        except Exception:
+                            pass
+                        pages_results[i] = f"\n--- [FAQJA {i + 1}] ---\n[Gabim render]"
+        finally:
+            doc.close()
 
         if pages_needing_ocr:
             logger.info(f"📄 [OCR Parallel] Filloi leximi i {len(pages_needing_ocr)} faqeve të skanuara me {OCR_WORKERS} punëtorë...")
             with ThreadPoolExecutor(max_workers=OCR_WORKERS) as executor:
                 future_to_page = {
-                    executor.submit(_ocr_single_page_bytes, page_num, j_bytes): page_num
-                    for page_num, j_bytes in pages_needing_ocr
+                    executor.submit(_ocr_single_page_file, page_num, tmp_path): page_num
+                    for page_num, tmp_path in pages_needing_ocr
                 }
                 for future in as_completed(future_to_page):
                     page_num = future_to_page[future]
@@ -267,18 +371,35 @@ def extract_text(file_path: Union[str, bytes, os.PathLike], mime_type: str = "")
                 logger.error(f"❌ Direct Image OCR Error: {img_err}")
         return ""
 
-    if "excel" in mime_lower or "spreadsheet" in mime_lower or file_name_lower.endswith(".xlsx") or file_name_lower.endswith(".xls"):
+    # V17.2 (C5): mbështet edhe .ods (LibreOffice Calc) — kërkon odfpy.
+    if ("excel" in mime_lower or "spreadsheet" in mime_lower or 
+        file_name_lower.endswith(".xlsx") or file_name_lower.endswith(".xls") or
+        file_name_lower.endswith(".ods")):
         try:
             import pandas as pd
-            return _sanitize_text("\n".join(df.to_string() for _, df in pd.read_excel(path_str, sheet_name=None).items()))
-        except Exception:
+            engine = None
+            if file_name_lower.endswith(".ods"):
+                engine = "odf"
+            try:
+                sheets = pd.read_excel(path_str, sheet_name=None, engine=engine)
+                return _sanitize_text("\n".join(df.to_string() for _, df in sheets.items()))
+            except ImportError as ie:
+                logger.warning(f"⚠️ [Excel/ODS] Kërkohet 'odfpy' për .ods: {ie}")
+                return ""
+        except Exception as ex:
+            logger.warning(f"⚠️ [Excel/ODS] Leximi dështoi: {ex}")
             return ""
 
     return ""
 
 
 def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
-    with tempfile.NamedTemporaryFile(suffix=f".{file_type.lower()}", delete=False) as tmp:
+    """
+    V17.2 (C1): file_type mund të jetë extension ('PDF', 'pdf') OSE mime
+    ('application/pdf'). Suffix-i i temp file llogaritet saktë.
+    """
+    suffix = _infer_extension_from_file_type(file_type) or ".bin"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(file_obj.getvalue())
         path = tmp.name
     try: 

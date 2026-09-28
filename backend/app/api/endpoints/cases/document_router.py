@@ -1,10 +1,17 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V66.0 (ORG-AWARE)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V67.0 (SECURITY + PERF HARDENING)
+# V67.0: AUDIT FIXES —
+#   B1 (SECURITY): _safe_decode_token heq fallback-un base64 pa verifikim.
+#       Tani kthen None nëse JWT verifikimi dështon. Parandalon falsifikim
+#       identiteti në /preview.
+#   B2 (DESTRUCTIVE DEFAULT): bulk-delete kërkon OSE listë jo-vak dokument_ids,
+#       OSE flag eksplicit ?delete_all=true. Parandalon fshirje aksidentale
+#       të të gjithë fashikullit me body boshe/None.
+#   B4 (N+1 QUERY): get_documents_for_case bën NJË query të vetëm për
+#       user_vectors (jo një për dokument) dhe grumbullon max_page në Python.
+#   B5 (OWNER_ID TYPE): _resolve_service_owner trajton si ObjectId ashtu
+#       edhe string (defensive kundër migrimeve historike).
 # V66.0: ORG-AWARE — user me org mund të shikojë/modifikojë/fshijë dokumentet e org-ut.
-#        Përdor _build_case_access_query nga case_service për konsistencë.
-#        Shtuar _require_case_access helper.
-#        Service calls: kalon owner-in e doc-it (jo current_user) për të shmangur mismatch org.
-# V65.0: Removed dead code — DocumentAuditPayload, save_document_audit_endpoint, clear_document_audit_endpoint.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
 from typing import List, Annotated, Optional, Dict, Any
@@ -56,11 +63,26 @@ def _resolve_service_owner(db: Database, doc: Dict[str, Any], current_user: User
     """
     V66.0: ORG-AWARE — service pret owner si UserInDB.
     Për të shmangur mismatch-in në org, kalon owner-in e vërtetë të doc-it.
+    V67.0: B5 — trajto owner_id si ObjectId ose string (defensive).
     """
     doc_owner_id = doc.get("owner_id")
     if not doc_owner_id or str(doc_owner_id) == str(current_user.id):
         return current_user
-    owner_doc = db.users.find_one({"_id": doc_owner_id})
+
+    owner_doc = None
+    # Provo ObjectId nëse është e mundur
+    try:
+        owner_oid = doc_owner_id if isinstance(doc_owner_id, ObjectId) else ObjectId(str(doc_owner_id))
+        owner_doc = db.users.find_one({"_id": owner_oid})
+    except Exception:
+        pass
+    # Fallback: provo si string (për të dhëna historike)
+    if owner_doc is None:
+        try:
+            owner_doc = db.users.find_one({"_id": str(doc_owner_id)})
+        except Exception:
+            owner_doc = None
+
     if owner_doc:
         try:
             return UserInDB.model_validate(owner_doc)
@@ -79,6 +101,10 @@ class RenameDocumentRequest(BaseModel):
 
 
 def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
+    """
+    V67.0 (B1): Verifikon JWT dhe kthen payload-in. NËSE verifikimi dështon
+    → kthen None (NUK bëhet fallback në base64-decode pa verifikim).
+    """
     if not token_str or "." not in token_str:
         return None
 
@@ -93,20 +119,9 @@ def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
         )
         algorithm = getattr(settings, "ALGORITHM", "HS256")
         return jwt.decode(token_str, secret, algorithms=[algorithm])
-    except Exception:
-        pass
-
-    try:
-        parts = token_str.split(".")
-        if len(parts) >= 2:
-            payload_b64 = parts[1]
-            payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-            decoded_bytes = base64.urlsafe_b64decode(payload_b64)
-            return json.loads(decoded_bytes.decode("utf-8"))
-    except Exception:
-        pass
-
-    return None
+    except Exception as e:
+        logger.debug(f"[V67.0] JWT verification failed: {e}")
+        return None
 
 
 def _resolve_media_type(filename: str, doc_mime: Optional[str] = None) -> str:
@@ -145,6 +160,29 @@ async def get_documents_for_case(
     })
     docs = list(cursor)
 
+    # V67.0 (B4): Batch query për user_vectors — NJË query për të gjithë doc-at.
+    all_doc_ids: List[str] = [str(d["_id"]) for d in docs]
+    pages_by_doc: Dict[str, int] = {}
+    if all_doc_ids:
+        try:
+            vector_chunks = list(db.user_vectors.find(
+                {"document_id": {"$in": all_doc_ids}},
+                {"document_id": 1, "page": 1}
+            ))
+            for vc in vector_chunks:
+                did = str(vc.get("document_id", ""))
+                if not did:
+                    continue
+                p_val = vc.get("page", 1)
+                try:
+                    p_int = int(p_val) if not isinstance(p_val, bool) else 1
+                except (ValueError, TypeError):
+                    p_int = 1
+                if p_int > pages_by_doc.get(did, 0):
+                    pages_by_doc[did] = p_int
+        except Exception as e:
+            logger.debug(f"[V67.0] user_vectors batch query failed: {e}")
+
     validated_docs = []
     for d in docs:
         doc_id_str = str(d["_id"])
@@ -157,18 +195,7 @@ async def get_documents_for_case(
         current_page_count = d.get("page_count") or d.get("pages") or 0
         if current_page_count <= 1:
             raw_text = d.get("extracted_text") or ""
-            max_vector_page = 0
-            try:
-                vector_chunks = list(db.user_vectors.find({"document_id": doc_id_str}, {"page": 1}))
-                if vector_chunks:
-                    for vc in vector_chunks:
-                        p_val = vc.get("page", 1)
-                        if isinstance(p_val, int) and p_val > max_vector_page:
-                            max_vector_page = p_val
-                        elif isinstance(p_val, str) and p_val.isdigit() and int(p_val) > max_vector_page:
-                            max_vector_page = int(p_val)
-            except Exception:
-                pass
+            max_vector_page = pages_by_doc.get(doc_id_str, 0)
 
             if max_vector_page > 1:
                 calculated_pages = max_vector_page
@@ -460,6 +487,8 @@ async def upload_document_for_case(
         logger.warning(f"Could not populate local preview cache: {e}")
 
     # V66.0: ORG-AWARE — kontrollo konflikt në nivel case (jo owner)
+    # V67.0 (B7): Rekomandohet unique index në (case_id, file_name, status) për
+    # të shmangur race në uploads paralelë. Supozohet të jetë krijuar në migrim.
     existing_doc = db.documents.find_one({
         "case_id": case_oid,
         "file_name": filename,
@@ -534,6 +563,7 @@ async def archive_case_document_endpoint(
 async def bulk_delete_documents_endpoint(
     case_id: str,
     body: Optional[BulkDeleteDocumentsRequest] = Body(None),
+    delete_all: bool = Query(False, description="Kërkohet eksplicit për fshirje masive të TË GJITHË dokumenteve të lëndës (V67.0)."),
     current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
@@ -544,7 +574,14 @@ async def bulk_delete_documents_endpoint(
     if body:
         doc_ids = body.document_ids or body.documentIds or []
     
+    # V67.0 (B2): Kërkohet ose listë e qartë, ose flag eksplicit delete_all=True.
     if not doc_ids:
+        if not delete_all:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Për fshirje masive të të gjithë dokumenteve kërkohet flag-u eksplicit 'delete_all=true'. "
+                       "Përndryshe, jep një listë jo-vak të document_ids."
+            )
         docs = list(db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "status": {"$nin": ["DELETED", "ARCHIVED"]}
@@ -556,7 +593,13 @@ async def bulk_delete_documents_endpoint(
 
     # V66.0: ORG-AWARE — kaloj owner-in e doc-it të parë te service
     # (shmang mismatch kur user B fshin doc të user A në të njëjtin org)
-    first_doc = db.documents.find_one({"_id": ObjectId(doc_ids[0])}) if doc_ids else None
+    first_doc = None
+    try:
+        first_oid = ObjectId(doc_ids[0]) if ObjectId.is_valid(doc_ids[0]) else None
+        if first_oid is not None:
+            first_doc = db.documents.find_one({"_id": first_oid})
+    except Exception:
+        first_doc = None
     service_owner = _resolve_service_owner(db, first_doc, current_user) if first_doc else current_user
 
     result = await asyncio.to_thread(
@@ -666,6 +709,8 @@ async def get_document_preview(
                 user_doc = db.users.find_one({"_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id})
 
     if not user_doc and token:
+        # V67.0 (B1): token query param mbetet për backwards-compat, por kërkon
+        # verifikim të vlefshëm JWT (nuk pranon payload të padeklaruar).
         payload = _safe_decode_token(token)
         if payload:
             user_id = payload.get("sub") or payload.get("id")
@@ -742,7 +787,7 @@ async def get_document_preview(
                             "Accept-Ranges": "bytes"
                         }
                     )
-            except Exception as e:
+            except Exception:
                 # fallback to serving original
                 return FileResponse(
                     path=cached_path,
