@@ -1,6 +1,15 @@
 # FILE: backend/app/services/document_review/hallucination/constants.py
-# PHOENIX PROTOCOL - HALLUCINATION CONSTANTS V1.25
-# Word lists, role-aware section, keywords. Zero logjikë, vetëm data.
+# PHOENIX PROTOCOL - HALLUCINATION CONSTANTS V1.26
+# V1.26: ROLE_AWARE FULL VERIFY — Shtuar TË GJITHA seksionet VERIFY në
+#        ROLE_AWARE_SECTIONS. Arsyeja: çdo seksion VERIFY propozon nene
+#        shtesë për draftin ("Nene që mund të mungojnë", "Rekomandime",
+#        "Nëse mungon, shto..."). Këto janë SUGJERIME legjitime, jo
+#        halucinacione. Pa këtë, raporti bllokohet kot.
+#        Shtuar: formal_completeness, legal_quality, supporting_precedents,
+#                weaknesses_risks, concrete_recommendations, readiness.
+# V1.25: ROLE_AWARE (drafting_quality).
+# V1.24: ROLE-AWARE EXTENSION (errors_corrections).
+# V1.21: HEADING FILTER + ROLE-AWARE DOWNGRADE.
 
 from typing import List, Set, Tuple
 
@@ -88,6 +97,12 @@ COMMON_ALBANIAN_UPPERCASE_WORDS: Set[str] = {
     "PARASHTRESA", "PARASHTRESE",
     "PALË", "PALE", "PALËT", "PALET",
     "SHOQËRIA", "SHOQERIA",
+    # V1.26: Terma shtesë që ABBREV_PATTERN kap gabimisht
+    "LARTË", "LARTE", "MESME", "MESME",
+    "ULËT", "ULET", "MESËM", "MESEM",
+    "SHKALLË", "SHKALLE",
+    "IMPACT", "IMPACT",
+    "SEVERITY",
 }
 
 
@@ -124,18 +139,36 @@ COMMON_HEADING_WORDS: Set[str] = {
     "REKOMANDIMI", "REKOMANDIM", "REKOMANDIME",
     "BAZA", "BAZAT",
     "DETAJE", "DETAJ",
+    # V1.26: Terma shtesë që shfaqen në output-in e VERIFY
+    "LARTË", "LARTE", "MESME",
+    "ULËT", "ULET",
+    "GATI", "PUNË", "PUNE",
+    "KËRKON", "KERKON",
+    "PËRPLOTË", "PERPLOTE",
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ROLE-AWARE SECTIONS (medium nuk bllokon, vetëm high)
+# V1.26: ROLE-AWARE SECTIONS — TË GJITHA seksionet e VERIFY
 # ═══════════════════════════════════════════════════════════════════════════
+# Arsyeja: çdo seksion i VERIFY-t propozon nene shtesë, sugjerime ligjore,
+# ose referenca të reja për përmirësimin e draftit. Këto janë SUGJERIME
+# legjitime — jo halucinacione. Vetëm HIGH severity bllokon (dmth vetëm
+# kur LLM shpik fakte/numra që nuk ekzistojnë fare, jo sugjerime).
 
 ROLE_AWARE_SECTIONS: Set[str] = {
+    # ═══ ANALIZO sections (draft review) ═══
     "action_steps",
     "analiza_e_thelluar",
     "errors_corrections",
     "drafting_quality",
+    # ═══ VERIFY sections (draft verification) ═══
+    "formal_completeness",
+    "legal_quality",
+    "supporting_precedents",
+    "weaknesses_risks",
+    "concrete_recommendations",
+    "readiness",
 }
 
 
@@ -223,4 +256,10 @@ SUGGESTION_CONTEXT_KEYWORDS: Tuple[str, ...] = (
     "rregullorja:", "rregullore:",
     "nene që mund", "nene qe mund",
     "sugjerime:", "sugjerim:",
+    # V1.26: Fjalë të reja për raportet VERIFY
+    "rekomandohet të shtohet",
+    "kërkohet verifikim",
+    "verifikim manual i nevojshëm",
+    "nuk mund të konfirmohet",
+    "supozohet se",
 )

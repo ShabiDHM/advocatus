@@ -1,14 +1,14 @@
 # FILE: backend/app/services/document_review/verify/prompt_sections.py
-# PHOENIX PROTOCOL - VERIFY PROMPT SECTIONS V1.6
-# V1.6: MAX_TOKENS INCREASE — legal_quality: 2200 → 3500. Në testimin e
-#       fundit output-i prodhoi 5157 chars (~2063 tokens), duke u cunguar
-#       me max_tokens=2200. Rritja në 3500 eliminon truncation-in.
-# V1.5: PROFESSIONAL LANGUAGE (vazhdim) —
-#       - "Impakti:" → "Ndikimi:" (legal_quality, Seksioni B).
-#       - "similarity" në udhëzimet për LLM → "ngjashmëri".
-#       - Titulli 4: "DOBËSI & RREZIQE" → "DOBËSI DHE RREZIQE".
-# V1.4: ABBREV_REPLACEMENT_RULE — concrete_recommendations merr rregullin
-#       që parandalon rekomandimet e gabuara për zëvendësim akronimesh.
+# PHOENIX PROTOCOL - VERIFY PROMPT SECTIONS V1.7
+# V1.7: MAX_TOKENS INCREASE (2 sections) — Sipas vëzhgimit në prod, u
+#       konstatuan 2 truncations:
+#       - legal_quality: 3500 → 5500 (output=8039 chars, u cungua)
+#       - readiness: 1600 → 3000 (output=3821 chars, u cungua)
+#       Raporti real i gjuhës shqipe është ~2.3-2.4 chars/token (jo 2.5),
+#       kështu që buxheti duhet rritur për seksionet e gjata.
+# V1.6: MAX_TOKENS INCREASE — legal_quality: 2200 → 3500.
+# V1.5: PROFESSIONAL LANGUAGE (vazhdim).
+# V1.4: ABBREV_REPLACEMENT_RULE.
 # V1.3: FORMAL_COMPLETENESS HARDENED.
 # V1.2: CASE_CONTEXT.
 # V1.1: (P7) concrete_recommendations merr "precedents" në `needs`.
@@ -126,7 +126,7 @@ RREGULLA:
     # ═══════════════════════════════════════════════════════════════════════
     "legal_quality": {
         "title": "2. CILËSIA LIGJORE (NENET)",
-        "max_tokens": 3500,   # V1.6: 2200 → 3500 (u cungua në testim)
+        "max_tokens": 5500,   # V1.7: 3500 → 5500 (output=8039 chars u cungua)
         "needs": ["draft", "checklist", "articles", "case_context"],
         "prompt": """Ti je "Verifikues i Cilësisë Ligjore" me specializim në legjislacionin e Kosovës.
 
@@ -309,7 +309,7 @@ RREGULLA:
 
     "weaknesses_risks_ab": {
         "title": "4. DOBËSI DHE RREZIQE — A+B",
-        "max_tokens": 1500,
+        "max_tokens": 1800,
         "needs": ["draft", "checklist"],
         "prompt": """Ti je "Analist i Rreziqeve Ligjore" me përvojë në kontestime.
 
@@ -349,7 +349,7 @@ RREGULLA:
 
     "weaknesses_risks_cde": {
         "title": "4. DOBËSI DHE RREZIQE — C+D+E",
-        "max_tokens": 1500,
+        "max_tokens": 1800,
         "needs": ["draft", "checklist"],
         "prompt": """Ti je "Analist i Rreziqeve Ligjore" me përvojë në kontestime.
 
@@ -394,7 +394,7 @@ RREGULLA:
     # ═══════════════════════════════════════════════════════════════════════
     "concrete_recommendations": {
         "title": "5. REKOMANDIME KONKRETE",
-        "max_tokens": 2200,
+        "max_tokens": 2500,
         "needs": ["draft", "checklist", "articles", "precedents", "case_context"],
         "prompt": """Ti je "Partner i Lartë" që jep rekomandime për përmirësim.
 
@@ -493,7 +493,7 @@ SHEMBUJ TË SAKTË (i mirë vs i dobët):
     # ═══════════════════════════════════════════════════════════════════════
     "readiness": {
         "title": "6. GATISHMËRIA",
-        "max_tokens": 1600,
+        "max_tokens": 3000,   # V1.7: 1600 → 3000 (output=3821 chars u cungua)
         "needs": ["draft", "checklist"],
         "prompt": """Ti je "Partner i Lartë" që jep verdiktin final.
 

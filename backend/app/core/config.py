@@ -1,13 +1,9 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIG V16.1 (MODEL MIGRATION — V4 FLASH 0731)
-# V16.1: LLM_MODEL ndryshuar nga "deepseek/deepseek-chat" (deprecated) në
-#        "deepseek/deepseek-v4-flash-0731" (Together AI, BYOK).
-#        Arsyet:
-#        - Modeli i vjetër deprecate (03/24 → 29 Shtator 2026)
-#        - Rate limit 429 në shared pool → BYOK Together
-#        - 10x më lirë ($0.14/$0.28 vs $0.24/$0.90)
-#        - Konteksti 1.3M (vs 164K)
-# V16.0: 100% PURE MINIMALIST • ZERO LEGACY SHIMS
+# PHOENIX PROTOCOL - CONFIG V16.2
+# V16.2: HALLUCINATION MODE — Shtuar HALLUCINATION_MODE (strict/balanced/lenient).
+#        Default: balanced (vetëm HIGH bllokon).
+# V16.1: LLM_MODEL → deepseek/deepseek-v4-flash-0731.
+# V16.0: 100% PURE MINIMALIST.
 
 import os
 from pathlib import Path
@@ -50,6 +46,15 @@ class Settings(BaseSettings):
     # 🏛️ MODELI I VETËM DHE I UNIFIKUAR GLOBAL (SINGLE SOURCE OF TRUTH)
     # =========================================================================
     LLM_MODEL: str = "deepseek/deepseek-v4-flash-0731"
+
+    # =========================================================================
+    # 🛡️ HALLUCINATION MODE — Sjellja e gate-it anti-hallucination
+    # =========================================================================
+    # Vlerat e lejuara:
+    #   strict   — HIGH + MEDIUM bllokojnë (maksimalisht konservatore)
+    #   balanced — VETËM HIGH bllokon, MEDIUM bëhet warning (default prod)
+    #   lenient  — Asgjë nuk bllokon; vetëm warnings (vetëm për debug)
+    HALLUCINATION_MODE: str = "balanced"
 
     # Audio Forensics
     ASSEMBLYAI_API_KEY: str = ""

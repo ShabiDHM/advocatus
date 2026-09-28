@@ -1,0 +1,52 @@
+[
+  {
+    "file_name": "vendim_urdher_mbrojtje.pdf",
+    "path": "C:\\Users\\Shaban\\Desktop\\MyProject\\advocatus\\backend\\scripts\\golden\\documents\\analizo\\vendim_urdher_mbrojtje.pdf",
+    "text_length": 25356,
+    "counts": {
+      "articles": 8,
+      "laws_by_number": 1,
+      "laws_by_name": 2,
+      "abbreviations": 2,
+      "case_numbers": 2,
+      "dates": 8,
+      "deadlines": 3,
+      "parties": 29,
+      "suspects": 0,
+      "contradictions": 1
+    },
+    "forensic_total": 3,
+    "forensic_rules": [
+      "Dënim i skaduar i përdorur",
+      "Mospërputhje dispozitiv-arsyetim",
+      "Mospërputhje numerike"
+    ],
+    "anomalies": [],
+    "error": null
+  },
+  {
+    "file_name": "deep_seek_kallxim.docx",
+    "path": "C:\\Users\\Shaban\\Desktop\\MyProject\\advocatus\\backend\\scripts\\golden\\documents\\verifiko\\deep_seek_kallxim.docx",
+    "text_length": 44045,
+    "counts": {
+      "articles": 59,
+      "laws_by_number": 6,
+      "laws_by_name": 2,
+      "abbreviations": 23,
+      "case_numbers": 13,
+      "dates": 28,
+      "deadlines": 0,
+      "parties": 0,
+      "suspects": 15,
+      "contradictions": 0
+    },
+    "forensic_total": 3,
+    "forensic_rules": [
+      "Dënim i skaduar i përdorur",
+      "Mospërputhje dispozitiv-arsyetim",
+      "Mospërputhje numerike"
+    ],
+    "anomalies": [],
+    "error": null
+  }
+]

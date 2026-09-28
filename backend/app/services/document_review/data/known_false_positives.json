@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "_comment": "False-positive whitelist për hallucination_checker. Nëse një vlerë (nene/ligj/lëndë/abbrev/date) përputhet me një pattern këtu, ajo NUK raportohet si halucinacion. Data-driven — shto pattern të re pa prekur kodin. Ndryshimet aplikohen pas reload_fp_whitelist().",
+
+  "entries": [
+    {
+      "id": "conventions_articles",
+      "enabled": true,
+      "kinds": ["article"],
+      "value_regex": "^\\d{1,3}(\\.\\d{1,2})?$",
+      "section_must_contain_any": [
+        "KEDNJ", "Konventa", "Konventës", "Konventën", "Konvente",
+        "OKB", "Evropiane", "Njeriut", "Fëmijës", "Femijes",
+        "Kushtetut", "Neni 22 i Kushtetutës"
+      ],
+      "comment": "Nenet e konventave ndërkombëtare dhe kushtetutës — citime legjitime edhe pse nuk janë në citimet origjinale të dokumentit."
+    },
+    {
+      "id": "legacy_law_numbers",
+      "enabled": true,
+      "kinds": ["law"],
+      "value_regex": "^(19|20)\\d{2}\\/\\d{1,4}$",
+      "section_must_contain_any": ["ligj", "kodi", "familje", "pun", "penal", "civil", "tregtar"],
+      "comment": "Ligjet e vjetra (2004/32, 2011/04) — format i vlefshëm i Kosovës para 2008."
+    },
+    {
+      "id": "eu_directives",
+      "enabled": true,
+      "kinds": ["law"],
+      "value_regex": "^\\d{4}\\/\\d{1,4}(\\/\\w+)?$",
+      "section_must_contain_any": ["BE", "Bashkimit Evropian", "Direktiv", "Rregullore"],
+      "comment": "Direktivat dhe rregulloret e Bashkimit Evropian."
+    },
+    {
+      "id": "un_resolutions",
+      "enabled": true,
+      "kinds": ["law", "case"],
+      "value_regex": "^\\d{3,4}$",
+      "section_must_contain_any": ["Rezoluta", "OKB", "Kombet e Bashkuara", "KS"],
+      "comment": "Rezolutat e OKB-së dhe Këshillit të Sigurimit."
+    },
+    {
+      "id": "proposed_articles_suffix",
+      "enabled": true,
+      "kinds": ["article"],
+      "value_regex": "^\\d{1,4}$",
+      "section_must_contain_any": [
+        "sugjerohet", "rekomandohet", "mund të mungojë", "nene që mund",
+        "duhet shtuar", "konsiderohet të shtohet"
+      ],
+      "comment": "Nenet e propozuara si sugjerim — jo halucinacion."
+    },
+    {
+      "id": "constitution_articles",
+      "enabled": true,
+      "kinds": ["article"],
+      "value_regex": "^\\d{1,3}$",
+      "section_must_contain_any": ["Kushtetutës", "Kushtetuta", "Kushtetut"],
+      "comment": "Nenet e Kushtetutës së Kosovës."
+    }
+  ]
+}

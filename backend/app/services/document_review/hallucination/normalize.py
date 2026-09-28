@@ -1,11 +1,17 @@
 # FILE: backend/app/services/document_review/hallucination/normalize.py
-# PHOENIX PROTOCOL - HALLUCINATION NORMALIZE V1.25
-# Normalizim i emrave/numrave të ligjeve, precedentëve, neneve.
-# Plus: known laws (dinamik nga JSON) + globally allowed laws.
+# PHOENIX PROTOCOL - HALLUCINATION NORMALIZE V1.27
+# V1.27: FALSE-POSITIVE WHITELIST — Shtuar _load_fp_whitelist(),
+#        reload_fp_whitelist(), is_whitelisted_fp(). Lexohet nga
+#        data/known_false_positives.json. Zero hardcoding.
+# V1.25: Dynamic known laws (JSON).
+# V1.20: Normalizime.
 
 import re
+import json
 import logging
-from typing import Dict, List, Optional, Set
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
 from ..patterns import (
     LAW_NUMBER_PATTERN,
@@ -123,7 +129,6 @@ def split_article_numbers(raw: str) -> List[str]:
 # KNOWN LAWS — dynamic nga data/dynamic_config.json
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Fallback minimal — nëse JSON mungon, këto mbeten.
 _DEFAULT_KNOWN_LAWS: Dict[str, List[str]] = {
     "kodi penal": ["06/L-074"],
     "kodi i procedures penale": ["08/L-032"],
@@ -155,3 +160,95 @@ def get_globally_allowed_laws() -> Set[str]:
             if normalized:
                 allowed.add(normalized)
     return allowed
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.27: FALSE-POSITIVE WHITELIST
+# ═══════════════════════════════════════════════════════════════════════════
+
+_FP_WHITELIST_PATH = Path(__file__).parent.parent / "data" / "known_false_positives.json"
+
+
+@lru_cache(maxsize=1)
+def _load_fp_whitelist() -> Dict[str, Any]:
+    """
+    Lexon false-positive whitelist nga data/known_false_positives.json.
+    Cache-on një herë. Reload me reload_fp_whitelist().
+    """
+    if not _FP_WHITELIST_PATH.exists():
+        logger.info(
+            f"ℹ️ [FP WHITELIST V1.27] {_FP_WHITELIST_PATH} nuk ekziston — "
+            f"whitelist bosh."
+        )
+        return {"entries": []}
+
+    try:
+        with _FP_WHITELIST_PATH.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            logger.warning(
+                f"⚠️ [FP WHITELIST V1.27] {_FP_WHITELIST_PATH} nuk përmban objekt JSON."
+            )
+            return {"entries": []}
+        entries_count = len(data.get("entries", []))
+        logger.info(
+            f"✅ [FP WHITELIST V1.27] U lexua: {_FP_WHITELIST_PATH} "
+            f"({entries_count} entries aktive)"
+        )
+        return data
+    except Exception as e:
+        logger.warning(f"⚠️ [FP WHITELIST V1.27] Leximi dështoi: {e}")
+        return {"entries": []}
+
+
+def reload_fp_whitelist() -> None:
+    """Pastron cache-in — ndryshimet në JSON aplikohen menjëherë."""
+    _load_fp_whitelist.cache_clear()
+    logger.info("🔄 [FP WHITELIST V1.27] Cache u pastrua — rilexohet me thirrjen tjetër.")
+
+
+def is_whitelisted_fp(kind: str, value: str, section_content: str) -> bool:
+    """
+    Kontrollon nëse vlera është false-positive e njohur.
+
+    Argumentet:
+        kind: "article" | "law" | "case" | "date" | "abbreviation"
+        value: vlera e papërpunuar (p.sh. "5", "06/L-074", "C.nr.385/2024")
+        section_content: teksti i plotë i seksionit (për kontekst)
+
+    Kthen: True nëse vlera duhet të filtrohet (whitelisted).
+    """
+    if not value:
+        return False
+
+    content_lower = (section_content or "").lower()
+    value_str = str(value).strip()
+
+    for entry in _load_fp_whitelist().get("entries", []):
+        if not entry.get("enabled", True):
+            continue
+        if kind not in entry.get("kinds", []):
+            continue
+
+        # 1. Kontrollo value_regex
+        regex = entry.get("value_regex")
+        if regex:
+            try:
+                if not re.search(regex, value_str, re.IGNORECASE):
+                    continue
+            except re.error as re_err:
+                logger.warning(
+                    f"⚠️ [FP WHITELIST V1.27] Regex e pavlefshme '{regex}': {re_err}"
+                )
+                continue
+
+        # 2. Kontrollo kontekstin (section_must_contain_any)
+        contexts = entry.get("section_must_contain_any", [])
+        if contexts:
+            if not any(c.lower() in content_lower for c in contexts):
+                continue
+
+        # Përputhje e plotë
+        return True
+
+    return False
