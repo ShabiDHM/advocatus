@@ -1,25 +1,32 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.3
-# V98.3: MODEL MIGRATION — fallback ndryshuar nga "deepseek/deepseek-chat"
-#        (deprecated) në "deepseek/deepseek-v4-flash-0731" (Together AI, BYOK).
-# V98.2: Hequr 4 dead items: LLM_TIMEOUT, OPENROUTER_BASE_URL,
-#        OPENROUTER_HEADERS, import AsyncOpenAI, _get_api_key, self.api_key.
-# V98.1: CLAUDE OVERRIDE REMOVED — Hequr override-i silent "claude"→"deepseek"
-#        në _get_target_model() (i njëjti fix si llm_client.py V88.0).
-#        Claude nuk përdoret më; model-i i ENV respektohet verbatim.
-# V98.0: Shtuar parametër opsional `model` në generate_stream/_call_with_retry.
-#        Chat-i i klientit kalon FAST_SEARCH_MODEL (gpt-4o-mini).
-#        Law Audit vazhdon me default (DEEP_ANALYSIS_MODEL - deepseek).
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.4
+# V98.4: CHAT METRICS — Integrim i compute_chat_metrics() dhe
+#        log_chat_metrics(). generate_stream() tani grumbullon output-in
+#        dhe nxjerr metrika automatike pas përfundimit:
+#        - response_chars, empty, truncated
+#        - duration_sec, ttft_sec (time to first token)
+#        - grounding (burimet e RAG-ut të përmendura në përgjigje)
+#        - cost_estimate_usd, quality_score
+#        Zero kosto ekstra LLM. Vetëm statistika në Python.
+# V98.3: MODEL MIGRATION.
+# V98.2: Hequr 4 dead items.
+# V98.1: CLAUDE OVERRIDE REMOVED.
+# V98.0: Shtuar parametër opsional `model`.
 
 import logging
 import asyncio
 import os
+import time
 from typing import Optional, List, Dict, Any, AsyncGenerator
 
 from app.core.config import settings
 
 from app.services.llm.llm_client import (
     _get_async_client
+)
+from app.services.document_review.quality_metrics import (
+    compute_chat_metrics,
+    log_chat_metrics,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,9 +38,6 @@ MAX_SINGLE_PASS_CHARS = 1_500_000
 def _get_target_model() -> str:
     """
     V98.3: Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL.
-
-    Përdoret si fallback kur generate_stream nuk jep model eksplicit.
-    Model-i i ENV respektohet verbatim — asnjë override silent.
     """
     model = (
         getattr(settings, "LLM_MODEL", None)
@@ -44,7 +48,7 @@ def _get_target_model() -> str:
 
 
 def _get_provider_routing_payload() -> Dict[str, Any]:
-    """Lejon të gjithë ofruesit zyrtarë me failover automatik dhe zero bllokime 404."""
+    """Lejon të gjithë ofruesit zyrtarë me failover automatik."""
     return {
         "provider": {
             "allow_fallbacks": True
@@ -54,11 +58,12 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
 
 class ResponseGenerator:
     """
-    Gjeneruesi Qendror i Përgjigjeve (V98.3):
+    Gjeneruesi Qendror i Përgjigjeve (V98.4):
     - Motor i vetëm me parametër opsional `model`:
         * Chat-i i klientit → FAST_SEARCH_MODEL (gpt-4o-mini)
         * Law Audit / other → default DEEP_ANALYSIS_MODEL (deepseek v4 flash)
     - Mbrojtje e plotë nga mbingarkesat (429 Auto-Retry me 3 tentativa).
+    - Matje automatike e cilësisë së përgjigjes (V98.4).
     """
 
     def __init__(self):
@@ -109,9 +114,21 @@ class ResponseGenerator:
         model: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
+        V98.4: Grumbullon output-in, mat metrikat, i logon pas përfundimit.
         model: Nëse None → përdor _get_target_model() (DeepSeek V4 Flash 0731).
                Nëse jepet → përdor atë model (p.sh. FAST_SEARCH_MODEL për chat).
         """
+        target_model = model if model else _get_target_model()
+
+        # ═══════════════════════════════════════════════════════════════
+        # V98.4: ACCUMULATOR PËR METRIKA
+        # ═══════════════════════════════════════════════════════════════
+        accumulated_chunks: List[str] = []
+        start_time = time.time()
+        first_token_time: Optional[float] = None
+        stream_error: Optional[str] = None
+        completed_normally = False
+
         try:
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
 
@@ -145,9 +162,45 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
                 if chunk.choices and len(chunk.choices) > 0:
                     choice = chunk.choices[0]
                     if choice.delta and choice.delta.content:
-                        yield choice.delta.content
+                        delta_text = choice.delta.content
+
+                        # V98.4: Gjurmim TTFT
+                        if first_token_time is None:
+                            first_token_time = time.time()
+
+                        accumulated_chunks.append(delta_text)
+                        yield delta_text
+
+            completed_normally = True
 
         except Exception as e:
-            target_model = model if model else _get_target_model()
+            stream_error = str(e)
             logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve në {target_model}: {e}")
-            yield f"\n\n[Shërbimi është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
+            error_msg = "\n\n[Shërbimi është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
+            accumulated_chunks.append(error_msg)
+            yield error_msg
+
+        finally:
+            # ═══════════════════════════════════════════════════════════
+            # V98.4: METRICS LOGGING (gjithmonë, edhe në gabim)
+            # ═══════════════════════════════════════════════════════════
+            duration = time.time() - start_time
+            ttft = (first_token_time - start_time) if first_token_time else None
+            full_response = "".join(accumulated_chunks)
+
+            try:
+                metrics = compute_chat_metrics(
+                    response_text=full_response,
+                    context=context or "",
+                    duration_sec=duration,
+                    ttft_sec=ttft,
+                    model=target_model,
+                    input_chars=len(context or "") + len(user_query) + len(system_prompt),
+                    output_chars=len(full_response),
+                )
+                metrics["completed_normally"] = completed_normally
+                if stream_error:
+                    metrics["stream_error"] = stream_error[:200]
+                log_chat_metrics(metrics)
+            except Exception as me:
+                logger.warning(f"⚠️ [CHAT METRICS] Nxjerrja e metrikave dështoi: {me}")
