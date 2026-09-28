@@ -1,15 +1,14 @@
 # FILE: backend/app/services/document_review/hallucination_checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.21
-# V1.21: HEADING FILTER + ROLE-AWARE DOWNGRADE —
-#        (1) COMMON_HEADING_WORDS: filtrim i fjalëve headings (HAPAT, KRITIKË,
-#            RREZIQET, etj.) që ABBREV_PATTERN i kap si akronime.
-#        (2) ROLE_AWARE_SECTIONS = {action_steps, analiza_e_thelluar}:
-#            këto seksione LEGJITIMISHT citojnë ligje/nene të reja (jo në
-#            dokument) si referenca për veprime të reja. Për to, VETËM
-#            HIGH severity bllokon; MEDIUM bëhet warning banner.
-#        Fix për false-positive në Vendimi_per_urdher_mbrojtje.pdf ku
-#        action_steps dhe analiza_e_thelluar u bllokuan për citimin e
-#        03/L-006, 08/L-032, LPK — bazë ligjore standarde.
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.22
+# V1.22: GLOBALLY ALLOWED LAWS —
+#        Shtuar _get_globally_allowed_laws() që kthen numrat e ligjeve
+#        të njohura nga KNOWN_LAW_NAME_NUMBER_MAP. Zgjidh false-positive
+#        ku LLM citon "Ligji për Familjen Nr. 2004/32" saktë, por numri
+#        nuk shfaqet në dokument (LLM përdor njohuri ligjore eksterne).
+#        Kjo ndodh në article_verification ku LLM identifikon se neni X
+#        i cituar në dokument i përket një ligji TJETËR — citon saktë
+#        numrin e ligjit të vërtetë.
+# V1.21: HEADING FILTER + ROLE-AWARE DOWNGRADE.
 # V1.20: DATE DISPLAY FORMAT — ISO → shqip.
 # V1.19: SUGGESTION CONTEXT PËR TË GJITHA LLOJET.
 # V1.18: ABBREV WORD BLACKLIST + EXTRA_ALLOWED_ARTICLES.
@@ -308,6 +307,73 @@ def _normalize_law_num(num: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# V1.22: GLOBALLY ALLOWED LAWS
+# ═══════════════════════════════════════════════════════════════════════════
+
+_STRICT_LAW_OUTPUT_PATTERN = re.compile(
+    r'^(\d{2}/L-\d+|\d{4}/\d{1,4})$'
+)
+
+
+def _is_valid_law_output(s: str) -> bool:
+    if not s:
+        return False
+    return bool(_STRICT_LAW_OUTPUT_PATTERN.match(s.strip()))
+
+
+def _safe_normalize_law(raw_value: str) -> Optional[str]:
+    if not raw_value:
+        return None
+    s = str(raw_value).strip()
+    if not s:
+        return None
+
+    n = normalize_law_number(s)
+    if n and _is_valid_law_output(n):
+        return n
+
+    m = LAW_NUMBER_PATTERN.search(s)
+    if m:
+        n2 = normalize_law_number(m.group(0))
+        if n2 and _is_valid_law_output(n2):
+            return n2
+
+    stripped = re.sub(
+        r'^(ligj(?:it|i|ji)?|kodi)\s*(?:nr\.?\s*)?', '',
+        s, flags=re.IGNORECASE,
+    ).strip()
+    m = LAW_NUMBER_LEGACY_PATTERN.match(stripped)
+    if m:
+        candidate = f"{m.group(1)}/{m.group(2)}"
+        if _is_valid_law_output(candidate):
+            return candidate
+
+    return None
+
+
+def _get_globally_allowed_laws() -> Set[str]:
+    """
+    V1.22: Kthen numrat e ligjeve të njohura (nga KNOWN_LAW_NAME_NUMBER_MAP).
+
+    Pse: LLM-ja legjitimisht citon ligje sipas emrit dhe numrit edhe kur
+    numri nuk shfaqet në dokument. Shembull: dokumenti shkruan "Ligji për
+    Familjen" pa numër, ndërsa LLM saktë e quan "Ligji për Familjen Nr.
+    2004/32". Ky numër nuk gjendet në citimet e dokumentit, por është i
+    saktë dhe nuk duhet të konsiderohet halucinacion.
+
+    Këto janë të gjitha ligje standarde të Kosovës, të cilat LLM-ja mund
+    t'i referojë me emrin e tyre zyrtar.
+    """
+    allowed: Set[str] = set()
+    for numbers in KNOWN_LAW_NAME_NUMBER_MAP.values():
+        for n in numbers:
+            normalized = _safe_normalize_law(n)
+            if normalized:
+                allowed.add(normalized)
+    return allowed
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # SUGGESTION CONTEXT
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -385,51 +451,6 @@ def _iso_to_albanian_date(iso_str: str) -> str:
     if m:
         return f"{m.group(3)}.{m.group(2)}.{m.group(1)}{m.group(4)}"
     return iso_str
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# STRICT LAW VALIDATOR
-# ═══════════════════════════════════════════════════════════════════════════
-
-_STRICT_LAW_OUTPUT_PATTERN = re.compile(
-    r'^(\d{2}/L-\d+|\d{4}/\d{1,4})$'
-)
-
-
-def _is_valid_law_output(s: str) -> bool:
-    if not s:
-        return False
-    return bool(_STRICT_LAW_OUTPUT_PATTERN.match(s.strip()))
-
-
-def _safe_normalize_law(raw_value: str) -> Optional[str]:
-    if not raw_value:
-        return None
-    s = str(raw_value).strip()
-    if not s:
-        return None
-
-    n = normalize_law_number(s)
-    if n and _is_valid_law_output(n):
-        return n
-
-    m = LAW_NUMBER_PATTERN.search(s)
-    if m:
-        n2 = normalize_law_number(m.group(0))
-        if n2 and _is_valid_law_output(n2):
-            return n2
-
-    stripped = re.sub(
-        r'^(ligj(?:it|i|ji)?|kodi)\s*(?:nr\.?\s*)?', '',
-        s, flags=re.IGNORECASE,
-    ).strip()
-    m = LAW_NUMBER_LEGACY_PATTERN.match(stripped)
-    if m:
-        candidate = f"{m.group(1)}/{m.group(2)}"
-        if _is_valid_law_output(candidate):
-            return candidate
-
-    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -567,10 +588,10 @@ def _collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.21] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.22] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.21] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.22] No successor laws collected.")
 
     return successors
 
@@ -724,7 +745,7 @@ class HallucinationChecker:
             extra_allowed_articles=extra_allowed_articles,
         )
         logger.info(
-            f"[HALLUCINATION V1.21] Allowed values: "
+            f"[HALLUCINATION V1.22] Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])} ({sorted(self.allowed['laws'])}), "
             f"articles={len(self.allowed['articles'])}, "
@@ -770,9 +791,22 @@ class HallucinationChecker:
         successors = _collect_successor_laws(verification_report)
         laws.update(successors)
 
+        # V1.22: Shto ligjet globalisht të njohura (me emër → numër).
+        # Kjo zgjidh false-positive ku LLM citon ligj me emër + numër të
+        # saktë, edhe pse numri nuk shfaqet në citimet e dokumentit.
+        globally_allowed = _get_globally_allowed_laws()
+        new_globals = globally_allowed - laws
+        laws.update(globally_allowed)
+        if new_globals:
+            logger.info(
+                f"[HALLUCINATION V1.22] Globally allowed laws added: "
+                f"+{len(new_globals)} → {sorted(new_globals)}"
+            )
+
         logger.info(
-            f"[HALLUCINATION V1.21] Laws: base={len(base_laws)}, "
-            f"successors={len(successors)}, total={len(laws)}"
+            f"[HALLUCINATION V1.22] Laws: base={len(base_laws)}, "
+            f"successors={len(successors)}, "
+            f"global={len(globally_allowed)}, total={len(laws)}"
         )
 
         articles: Set[str] = set()
@@ -788,7 +822,7 @@ class HallucinationChecker:
             added = len(articles) - before
             if added > 0:
                 logger.info(
-                    f"[HALLUCINATION V1.21] Extra allowed articles "
+                    f"[HALLUCINATION V1.22] Extra allowed articles "
                     f"(from precedents): +{added} → {sorted(extra_allowed_articles)}"
                 )
 
@@ -810,7 +844,7 @@ class HallucinationChecker:
             added = len(cases) - before
             if added > 0:
                 logger.info(
-                    f"[HALLUCINATION V1.21] Extra allowed cases "
+                    f"[HALLUCINATION V1.22] Extra allowed cases "
                     f"(from precedents): +{added}"
                 )
 
@@ -974,7 +1008,7 @@ class HallucinationChecker:
         for d in sorted(unknown):
             if not _has_real_citation_context(content, d, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.21] Skip date '{d}' — "
+                    f"[HALLUCINATION V1.22] Skip date '{d}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -1000,7 +1034,7 @@ class HallucinationChecker:
         for a in sorted(unknown):
             if not _has_real_article_context(content, a):
                 logger.info(
-                    f"[HALLUCINATION V1.21] Skip article '{a}' — "
+                    f"[HALLUCINATION V1.22] Skip article '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -1022,7 +1056,7 @@ class HallucinationChecker:
         for l in sorted(unknown):
             if not _has_real_citation_context(content, l, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.21] Skip law '{l}' — "
+                    f"[HALLUCINATION V1.22] Skip law '{l}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -1041,7 +1075,7 @@ class HallucinationChecker:
         for c in sorted(unknown):
             if not _has_real_citation_context(content, c, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.21] Skip case '{c}' — "
+                    f"[HALLUCINATION V1.22] Skip case '{c}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -1060,7 +1094,7 @@ class HallucinationChecker:
         for a in sorted(unknown):
             if not _has_real_citation_context(content, a, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.21] Skip abbrev '{a}' — "
+                    f"[HALLUCINATION V1.22] Skip abbrev '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -1135,7 +1169,7 @@ class HallucinationChecker:
             else:
                 effective_status = "clean_low" if (medium + low) > 0 else "clean"
                 logger.info(
-                    f"[HALLUCINATION V1.21] Downgrade '{section_key}' "
+                    f"[HALLUCINATION V1.22] Downgrade '{section_key}' "
                     f"(role-aware): medium={medium} → nuk bllokon, "
                     f"status={effective_status}"
                 )
@@ -1174,8 +1208,9 @@ def check_all_sections(
     extra_allowed_articles: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """
-    V1.21: Kontrollon të gjitha section-t + log i detajuar + meta-layer
-    + role-aware downgrade për action_steps dhe analiza_e_thelluar.
+    V1.22: Kontrollon të gjitha section-t + log i detajuar + meta-layer
+    + role-aware downgrade për action_steps dhe analiza_e_thelluar
+    + globally allowed laws (fix për ligje të njohura si 2004/32).
     """
     checker = HallucinationChecker(
         citation_profile, fact_profile, verification_report,
@@ -1205,12 +1240,12 @@ def check_all_sections(
             imsg = issue.get("message", "")
             isnip = (issue.get("snippet", "") or "")[:160]
             logger.info(
-                f"[HALLUCINATION V1.21] 📌 section={key} severity={sev} "
+                f"[HALLUCINATION V1.22] 📌 section={key} severity={sev} "
                 f"type={itype} value='{ival}'"
             )
-            logger.info(f"[HALLUCINATION V1.21]    message: {imsg}")
+            logger.info(f"[HALLUCINATION V1.22]    message: {imsg}")
             if isnip:
-                logger.info(f"[HALLUCINATION V1.21]    snippet: {isnip}")
+                logger.info(f"[HALLUCINATION V1.22]    snippet: {isnip}")
 
         if report["status"] == "suspect":
             suspicious.append(key)
@@ -1227,12 +1262,12 @@ def check_all_sections(
     if global_status == "suspect" and not suspicious:
         global_status = "clean_low"
         logger.info(
-            "[HALLUCINATION V1.21] Global status downgraded to 'clean_low' "
+            "[HALLUCINATION V1.22] Global status downgraded to 'clean_low' "
             "— medium/low vetëm në role-aware sections."
         )
 
     logger.info(
-        f"[HALLUCINATION V1.21] Status={global_status}, "
+        f"[HALLUCINATION V1.22] Status={global_status}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "
         f"low={sev_totals['low']}), "

@@ -1,13 +1,18 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V88.3
+# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V88.4
+# V88.4: REASONING DISABLED — Shtuar `reasoning: {enabled: false}` në
+#        _get_provider_routing_payload(). Modeli DeepSeek V4 Flash 0731
+#        është reasoning model: harxhon max_tokens në "mendim të brendshëm"
+#        përpara se të nxjerrë përgjigjen, duke shkaktuar 0 chars output në
+#        seksionet me max_tokens të vogël. Çaktivizimi i reasoning i jep
+#        modelit të gjithë budget-in për përgjigjen reale.
+#        Konfirmuar nga OpenRouter: filtri "Reasoning effort" + Activity
+#        tregon 9.6B reasoning tokens aktualisht.
 # V88.3: MODEL MIGRATION — DEEP_ANALYSIS_MODEL dhe fallback ndryshuar nga
 #        "deepseek/deepseek-chat" (deprecated) në
 #        "deepseek/deepseek-v4-flash-0731" (Together AI, BYOK).
 # V88.2: EMBEDDING FAILURE HARDENING — get_embedding / get_embeddings_batch
 #        kthejnë [] (listë bosh) në dështim, jo [0.0]*1536 (vector zero).
-#        Vector zero shkaktonte kërkime me cosine undefined → rezultate të
-#        rastësishme/bosh në Atlas Vector Search. Tani dështimi është i
-#        dallueshëm dhe konsumatorët (precedent_search) e kapin me `if not`.
 # V88.1: STREAM RETRY FIX — stream_text_async nuk retry pas yield-imit.
 # V88.0: CLAUDE OVERRIDE REMOVED + MAX_TOKENS PARAMETRIZED.
 # V87.0: Shtuar DEEP_ANALYSIS_MODEL për analiza të thella.
@@ -38,7 +43,7 @@ EMBEDDING_MODEL = "openai/text-embedding-3-small"
 EMBEDDING_DIMENSIONS = 1536   # V88.2: konstantë referimi (dokumentim)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# MODEL STRATEGY (V88.3 — Hybrid)
+# MODEL STRATEGY (V88.4 — Hybrid)
 # ═══════════════════════════════════════════════════════════════════════════
 # FAST_SEARCH_MODEL    → Detyra mekanike: NER, Metadata, Law Search
 # DEEP_ANALYSIS_MODEL  → Analiza të thella: Synthesis, Document Review
@@ -102,9 +107,26 @@ def _get_async_client() -> AsyncOpenAI:
 
 
 def _get_provider_routing_payload() -> Dict[str, Any]:
+    """
+    V88.4: Shtuar `reasoning: {enabled: false}`.
+
+    Pse: DeepSeek V4 Flash 0731 është reasoning model. Pa këtë parametër,
+    harxhon max_tokens në "mendim të brendshëm" dhe nxjerr 0 chars për
+    seksionet e vogla (max_tokens < 4000). Çaktivizimi i reasoning i jep
+    modelit të gjithë budget-in për përgjigjen reale.
+
+    Përputhshmëri:
+    - OpenRouter e injoron automatikisht për modelet që nuk e mbështesin
+      (gpt-4o-mini, etj.).
+    - Në modelet reasoning (DeepSeek V4, V3.1+, GLM 5+, Kimi K3), çaktivizohet
+      mendimi i brendshëm → përgjigje direkte.
+    """
     return {
         "provider": {
             "allow_fallbacks": True
+        },
+        "reasoning": {
+            "enabled": False
         }
     }
 
@@ -313,8 +335,8 @@ async def stream_text_async(
     max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> AsyncGenerator[str, None]:
     """
+    V88.4: Reasoning disabled (trashëguar nga _get_provider_routing_payload).
     V88.1: Streaming me retry të sigurt.
-    V88.2: E pandryshuar (max_tokens default nga V88.0).
     """
     client = _get_async_client()
     full_sys = _prepare_system_prompt(sys_p)
@@ -350,7 +372,7 @@ async def stream_text_async(
 
             if stream_started:
                 logger.error(
-                    f"❌ [stream_text_async V88.1] Gabim MES stream-it në "
+                    f"❌ [stream_text_async V88.4] Gabim MES stream-it në "
                     f"{target_model} — retry nuk bëhet (shmang dublimin): {e}"
                 )
                 yield f"\n\n[Gabim i rrjetit mes përgjigjes. Ju lutem rifreskoni faqen dhe provoni përsëri.]"
