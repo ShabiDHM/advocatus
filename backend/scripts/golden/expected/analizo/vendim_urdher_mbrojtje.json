@@ -1,0 +1,18 @@
+{
+  "file_name": "vendim_urdher_mbrojtje.pdf",
+  "document_type": "Vendim Gjyqësor",
+  "min_thresholds": {
+    "articles": 5,
+    "laws_by_number": 1,
+    "case_numbers": 1,
+    "dates": 5,
+    "deadlines": 1,
+    "parties": 5,
+    "dispositive_points": 3
+  },
+  "expected_forensic_rules_any": [
+    "Mospërputhje dispozitiv-arsyetim"
+  ],
+  "expected_forensic_rules_min_count": 1,
+  "notes": "Vendim real C.nr.385/2024, Gjykata Themelore Prishtinë, 16.02.2024."
+}

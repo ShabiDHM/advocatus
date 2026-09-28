@@ -1,0 +1,27 @@
+{
+  "file_name": "deep_seek_kallxim.docx",
+  "document_type": "Kallëzim Penal",
+  "pipeline": "verifiko",
+  "min_thresholds": {
+    "articles": 15,
+    "laws_by_number": 4,
+    "case_numbers": 3,
+    "dates": 10,
+    "deadlines": 0,
+    "parties": 0,
+    "dispositive_points": 0
+  },
+  "expected_formal_parts": [
+    "Të dhënat e parashtruesit",
+    "Baza ligjore",
+    "Kronologjia",
+    "Provat materiale",
+    "Kualifikimi ligjor",
+    "Kërkesat procedurale",
+    "Deklarata përfundimtare",
+    "Nënshkrimi"
+  ],
+  "expected_status_any": ["GATI", "KËRKON PUNË"],
+  "expected_max_critical_recommendations": 3,
+  "notes": "Kallëzim Penal i plotë. Kufizim i njohur: PARTY_LABEL_PATTERN nuk njeh 'Parashtruesi' → parties=0. Për përmirësim të ardhshëm: shto role 'Parashtruesi', 'I dyshuari', 'I pandehuri' në patterns.py."
+}

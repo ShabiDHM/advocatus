@@ -1,7 +1,9 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.27
-# V5.27: PROFESSIONAL LANGUAGE — Section 8 riemërtuar nga "forensic_findings"
-#        → "konstatimet_e_analizes". Terminologji profesionale në logs.
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.28
+# V5.28: QUALITY METRICS — Integrim i modulit quality_metrics.
+#        Çdo analizë raporton: quality_score, empty/truncated/blocked sections,
+#        cost_estimate_usd. Zero varësi nga LLM. Log i strukturuar.
+# V5.27: PROFESSIONAL LANGUAGE — Section 8 riemërtuar "konstatimet_e_analizes".
 # V5.26: (P1 fix) — Vlerat e konstatimeve shtohen në extra_allowed_*.
 # V5.25: FORENSIC FINDINGS — integrimi fillestar.
 # V5.24: CASE CONTEXT.
@@ -32,6 +34,7 @@ from .prompts import (
 from .streaming import synthesize_section_streaming
 from .report_builder import build_full_report
 from .hallucination_checker import check_all_sections
+from .quality_metrics import compute_quality_metrics, log_quality_metrics
 from .precedent_search import (
     build_precedent_query,
     search_relevant_precedents,
@@ -166,7 +169,7 @@ def _merge_article_verification_batches(contents: List[str]) -> str:
             out_lines.append("")
 
     result = "\n".join(out_lines).strip()
-    logger.info(f"🧹 [V5.27 MERGE] {len(non_empty)} batches → {len(result)} chars")
+    logger.info(f"🧹 [V5.28 MERGE] {len(non_empty)} batches → {len(result)} chars")
     return result
 
 
@@ -223,7 +226,7 @@ class DocumentReviewService:
         file_name = document.get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.27] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.28] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, len={len(doc_text)} chars, "
             f"client={client_name or '?'} ({client_position or '?'}), "
             f"parallel x{MAX_CONCURRENT_SECTIONS}"
@@ -263,7 +266,7 @@ class DocumentReviewService:
             )
             if case_profile.get("has_context"):
                 logger.info(
-                    f"📚 [CASE_PROFILE V5.27] Aktiv: "
+                    f"📚 [CASE_PROFILE V5.28] Aktiv: "
                     f"docs={case_profile['stats']['documents_scanned']}, "
                     f"subjects={case_profile['stats']['unique_subjects']}, "
                     f"block_chars={len(case_profile.get('block', ''))}"
@@ -286,15 +289,15 @@ class DocumentReviewService:
             if forensic_result.has_findings:
                 forensic_dict = forensic_result.to_dict()
                 logger.info(
-                    f"🔴 [KONSTATIMET V5.27] Aktive: "
+                    f"🔴 [KONSTATIMET V5.28] Aktive: "
                     f"profile={forensic_result.profile_used}, "
                     f"total={len(forensic_result.flags)}, "
                     f"block_chars={len(forensic_result.block)}"
                 )
             else:
-                logger.info(f"ℹ️ [KONSTATIMET V5.27] Pa konstatime.")
+                logger.info(f"ℹ️ [KONSTATIMET V5.28] Pa konstatime.")
         except Exception as e:
-            logger.warning(f"⚠️ [KONSTATIMET V5.27] Dështoi: {e}")
+            logger.warning(f"⚠️ [KONSTATIMET V5.28] Dështoi: {e}")
             forensic_result = None
         _lap("run_forensic_analysis", t0)
 
@@ -327,7 +330,7 @@ class DocumentReviewService:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [PARALLEL V5.27] {len(DOCUMENT_REVIEW_PROMPTS)} seksione, "
+            f"🚀 [PARALLEL V5.28] {len(DOCUMENT_REVIEW_PROMPTS)} seksione, "
             f"max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -367,7 +370,7 @@ class DocumentReviewService:
             ]
 
             logger.info(
-                f"⚡ [V5.27 BATCH] article_verification: {total_articles} nene "
+                f"⚡ [V5.28 BATCH] article_verification: {total_articles} nene "
                 f"→ {len(batches)} batches"
             )
 
@@ -526,7 +529,7 @@ class DocumentReviewService:
             )
 
             logger.info(
-                f"▶️ [SECTION START V5.27] {section_key} "
+                f"▶️ [SECTION START V5.28] {section_key} "
                 f"(ctx={len(verified_context)}, concise={'ON' if concise_applied else 'off'}, "
                 f"case_context={'ON' if case_context_active else 'off'}, "
                 f"konstatime={'ON' if forensic_context_active else 'off'})"
@@ -547,7 +550,7 @@ class DocumentReviewService:
                     stream_callback=None,
                 )
                 elapsed = round(time.time() - section_start, 2)
-                logger.info(f"✅ [SECTION DONE V5.27] {section_key}: {elapsed}s, {len(content)} chars")
+                logger.info(f"✅ [SECTION DONE V5.28] {section_key}: {elapsed}s, {len(content)} chars")
                 return (
                     section_key,
                     {"title": section_title, "content": content},
@@ -630,7 +633,6 @@ class DocumentReviewService:
         extra_dates: Set[str] = set()
         extra_articles: Set[str] = set()
 
-        # V5.27: merge case_profile
         if case_profile and case_profile.get("has_context"):
             cp_dates = case_profile.get("dates_set") or set()
             cp_cases = case_profile.get("cases_set") or set()
@@ -639,7 +641,6 @@ class DocumentReviewService:
             extra_dates = extra_dates | cp_dates
             extra_articles = extra_articles | cp_articles
 
-        # V5.27: merge vlerat e konstatimeve
         if forensic_result and forensic_result.flags:
             try:
                 forensic_allowed = extract_allowed_values_from_flags(forensic_result.flags)
@@ -653,7 +654,7 @@ class DocumentReviewService:
 
                 if new_cases or new_dates or new_articles:
                     logger.info(
-                        f"📅 [V5.27 HALLUCINATION] Vlera nga konstatimet: "
+                        f"📅 [V5.28 HALLUCINATION] Vlera nga konstatimet: "
                         f"cases +{len(new_cases)}, dates +{len(new_dates)}, "
                         f"articles +{len(new_articles)}"
                     )
@@ -662,7 +663,7 @@ class DocumentReviewService:
                 extra_dates = extra_dates | fc_dates
                 extra_articles = extra_articles | fc_articles
             except Exception as e:
-                logger.warning(f"⚠️ [V5.27] extract_allowed_values_from_flags dështoi: {e}")
+                logger.warning(f"⚠️ [V5.28] extract_allowed_values_from_flags dështoi: {e}")
 
         t0 = time.time()
         hallucination_report = check_all_sections(
@@ -677,7 +678,7 @@ class DocumentReviewService:
         hallucination_time = _lap("hallucination_check", t0)
 
         logger.info(
-            f"🧪 [HALLUCINATION V5.27] status={hallucination_report['status']}, "
+            f"🧪 [HALLUCINATION V5.28] status={hallucination_report['status']}, "
             f"issues={hallucination_report['total_issues']}"
         )
 
@@ -711,7 +712,17 @@ class DocumentReviewService:
                 )
                 blocked_count += 1
 
-            logger.warning(f"🛡️ [V5.27 GATE] Bllokuan {blocked_count} seksione")
+            logger.warning(f"🛡️ [V5.28 GATE] Bllokuan {blocked_count} seksione")
+
+        # ═══ V5.28: QUALITY METRICS ═══
+        t0 = time.time()
+        quality_metrics = compute_quality_metrics(
+            sections=sections,
+            section_stats=section_stats,
+            hallucination_report=hallucination_report,
+        )
+        _lap("quality_metrics", t0)
+        log_quality_metrics(quality_metrics)
 
         # ═══ MONTIMI FINAL ═══
         document_meta = {"file_name": file_name, "document_type": document_type}
@@ -765,7 +776,7 @@ class DocumentReviewService:
                 "sections_blocked": len(hallucination_report.get("suspicious_sections", [])),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.27",
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.28",
                 "hallucination_status": hallucination_report["status"],
                 "hallucination_issues": hallucination_report["total_issues"],
                 "hallucination_suspicious_sections": hallucination_report["suspicious_sections"],
@@ -785,6 +796,7 @@ class DocumentReviewService:
                     {"rule_id": f.rule_id, "severity": f.severity, "message": f.message}
                     for f in (forensic_result.flags if forensic_result else [])[:20]
                 ],
+                "quality_metrics": quality_metrics,
                 "timing_breakdown": {
                     "citation_extract_sec": round(citation_time, 2),
                     "fact_extract_sec": round(fact_time, 2),
@@ -803,10 +815,12 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.27] Complete: "
+            f"✅ [DOC_REVIEW V5.28] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"blocked={result['stats']['sections_blocked']}, "
             f"hallucination={hallucination_report['status']}, "
+            f"quality_score={quality_metrics['quality_score']}/100, "
+            f"cost=${quality_metrics['cost_estimate_usd']}, "
             f"case_profile={result['stats']['case_profile_active']}, "
             f"konstatime={forensic_stats.get('flags_total', 0)} "
             f"(kritike={forensic_stats.get('flags_critical', 0)}, "

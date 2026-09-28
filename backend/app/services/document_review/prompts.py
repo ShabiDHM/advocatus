@@ -1,12 +1,16 @@
 # FILE: backend/app/services/document_review/prompts.py
-# PHOENIX PROTOCOL - SECTION PROMPTS V4.26
-# V4.26: PROFESSIONAL LANGUAGE (vazhdim) —
-#        - Titujt me diakritika: "ANALIZA E CILËSISË SË HARTIMIT",
-#          "PRECEDENTËT E GJYKATËS SUPREME".
-#        - Section 3 & 4 të DIAGNOZA: formulim profesional.
-#        - "Impakti:" → "Ndikimi:" në article_verification.
-#        - Hapat në action_steps: Title Case (pa ALL CAPS).
-# V4.25: PROFESSIONAL LANGUAGE — "FLAMUJT_FORENSIK" → "KONSTATIMET_E_ANALIZËS".
+# PHOENIX PROTOCOL - SECTION PROMPTS V4.27
+# V4.27: MAX_TOKENS INCREASE — Rritur max_tokens për 6 seksione që u
+#        cunguan në testimin e fundit (output më i gjatë se limit):
+#        - document_summary: 1800 → 3000 (ishte copëtuar në Seksionin 5)
+#        - drafting_quality: 2600 → 4000 (nota e fundit ishte prerë)
+#        - errors_corrections: 3200 → 4000 (veprimet korrigjuese)
+#        - action_steps: 3200 → 4000 (hapat 1-7 ditë + afatgjatë)
+#        - analiza_e_thelluar: 3800 → 4500 (shenjat e reja)
+#        - konstatimet_e_analizes: 2400 → 3200 (përmbledhje ekzekutive)
+#        Zero impakt negativ: max_tokens është kufi maksimal, jo target.
+# V4.26: PROFESSIONAL LANGUAGE (vazhdim).
+# V4.25: "FLAMUJT_FORENSIK" → "KONSTATIMET_E_ANALIZËS".
 # V4.24: LAW_NUMBER_RULE.
 
 from typing import Dict, Any, List, Optional, Set
@@ -28,7 +32,7 @@ DOCUMENT_REVIEW_PROMPTS = {
     # ═══════════════════════════════════════════════════════════════════
     "document_summary": {
         "title": "DIAGNOZA E SITUATËS",
-        "max_tokens": 1800,
+        "max_tokens": 3000,  # V4.27: 1800 → 3000
         "prompt": """Ti je "KËSHILLTAR I GJYKATËS SUPREME TË KOSOVËS" me 20+ vjet 
 përvojë. Zyra jote është një ZYRË KËSHILLUESE — jo gjyqësore.
 
@@ -73,7 +77,7 @@ RREGULLA:
     # ═══════════════════════════════════════════════════════════════════
     "article_verification": {
         "title": "VERIFIKIMI DHE AUDITIMI I NENEVE LIGJORE",
-        "max_tokens": 3500,
+        "max_tokens": 3500,  # V4.27: pa ndryshim (output ~4000 chars OK)
         "prompt": """Ti je "Verifikues i Cilësisë Ligjore" në zyrën këshilluese 
 të Gjykatës Supreme. Ti nuk liston — DIAGNOSTIKON.
 
@@ -120,7 +124,7 @@ Vetëm sugjerime me bazë të fortë.
     # ═══════════════════════════════════════════════════════════════════
     "supreme_court_precedents": {
         "title": "PRECEDENTËT E GJYKATËS SUPREME",
-        "max_tokens": 3500,
+        "max_tokens": 3500,  # V4.27: pa ndryshim
         "prompt": """Ti je "Analist i Precedentëve" në zyrën këshilluese të 
 Gjykatës Supreme të Kosovës.
 
@@ -155,7 +159,7 @@ FILLO me "Sipas dokumentit: ".
     # ═══════════════════════════════════════════════════════════════════
     "drafting_quality": {
         "title": "ANALIZA E CILËSISË SË HARTIMIT",
-        "max_tokens": 2600,
+        "max_tokens": 4000,  # V4.27: 2600 → 4000 (nota po pritej)
         "prompt": """Ti je "Revizor i Cilësisë së Akteve Gjyqësore".
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
@@ -195,7 +199,7 @@ VETËM bllokun "[!] MOSPËRPUTHJE TË IDENTIFIKUARA AUTOMATIKISHT".
     # ═══════════════════════════════════════════════════════════════════
     "errors_corrections": {
         "title": "MOSPËRPUTHJE DHE VEPRIME KORRIGJUESE",
-        "max_tokens": 3200,
+        "max_tokens": 4000,  # V4.27: 3200 → 4000
         "prompt": """Ti je "Zbulues i Shkeljeve Ligjore" në zyrën këshilluese 
 të Gjykatës Supreme.
 
@@ -240,7 +244,7 @@ RREGULLA:
     # ═══════════════════════════════════════════════════════════════════
     "action_steps": {
         "title": "PLANI I VEPRIMIT DHE REKOMANDIMET",
-        "max_tokens": 3200,
+        "max_tokens": 4000,  # V4.27: 3200 → 4000
         "prompt": """Ti je "Strateg i Lartë Procedural" në zyrën këshilluese 
 të Gjykatës Supreme.
 
@@ -279,7 +283,7 @@ STRUKTURA (4 seksione):
     # ═══════════════════════════════════════════════════════════════════
     "analiza_e_thelluar": {
         "title": "ANALIZA E THELLUAR",
-        "max_tokens": 3800,
+        "max_tokens": 4500,  # V4.27: 3800 → 4500
         "prompt": """Ti je "Analist i Thelluar i Akteve Gjyqësore".
 
 ⚠️ MOS shkruaj titullin kryesor. Fillo DIREKT me "### A. ...".
@@ -327,7 +331,7 @@ PËR SEKSIONIN E:
     # ═══════════════════════════════════════════════════════════════════
     "konstatimet_e_analizes": {
         "title": "KONSTATIMET E ANALIZËS",
-        "max_tokens": 2400,
+        "max_tokens": 3200,  # V4.27: 2400 → 3200
         "prompt": """Ti je "Analist i Lartë" që interpretons konstatimet e 
 analizës së dokumentacionit.
 

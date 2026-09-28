@@ -1,12 +1,12 @@
 # FILE: backend/app/services/document_review/verify/verifier.py
-# PHOENIX PROTOCOL - VERIFY / VERIFIER V2.3
-# V2.3: VERSION CONSISTENCY — V2.2 → V2.3 në të gjithë logger-at,
-#       komentet dhe execution_mode. Asnjë ndryshim logjike.
-# V2.2: CASE CONTEXT — Ndërton case_profile (konteksti i fashikullit) dhe e
-#       injekton në 3 seksione (2, 4, 5). Vlerat e case_profile shtohen në
-#       extra_allowed_* të hallucination_checker (anti-hallucination niveli 2).
-# V2.1: PERF SPLIT — weaknesses_risks ndahet në 2 sub-prompts paralele.
-# V2.0: MODULARIZIM — Logjika u nda në paketën `verify/`.
+# PHOENIX PROTOCOL - VERIFY / VERIFIER V2.4
+# V2.4: QUALITY METRICS — Integrim i modulit quality_metrics. Çdo verifikim
+#       raporton: quality_score, empty/truncated/blocked sections, cost_estimate.
+#       Zero varësi nga LLM. Log i strukturuar. Të njëjtat metrika si Analizo.
+# V2.3: VERSION CONSISTENCY — V2.2 → V2.3 në logger/komentet/execution_mode.
+# V2.2: CASE CONTEXT.
+# V2.1: PERF SPLIT.
+# V2.0: MODULARIZIM.
 
 import time
 import logging
@@ -21,6 +21,7 @@ from ..mongo_verifier import verify_all
 from ..streaming import synthesize_section_streaming
 from ..persistence import load_document, load_extraction
 from ..hallucination_checker import check_all_sections, _extract_dates_iso
+from ..quality_metrics import compute_quality_metrics, log_quality_metrics
 from ..precedent_search import (
     build_precedent_query,
     search_relevant_precedents,
@@ -120,7 +121,7 @@ class DraftVerifier:
         file_name = (document or {}).get("file_name", "draft")
 
         logger.info(
-            f"🔎 [VERIFY V2.3] Start: case={case_id}, doc={document_id}, "
+            f"🔎 [VERIFY V2.4] Start: case={case_id}, doc={document_id}, "
             f"file={file_name}, doc_type={doc_type} ({doc_type_label}), "
             f"len={len(doc_text)} chars, user={user_id or '?'}, "
             f"parallel x{MAX_CONCURRENT_VERIFY_SECTIONS}, "
@@ -152,7 +153,7 @@ class DraftVerifier:
                     doc_text, source_document=file_name
                 )
                 logger.info(
-                    f"🔬 [VERIFY V2.3] Fact profile: "
+                    f"🔬 [VERIFY V2.4] Fact profile: "
                     f"dates={fact_profile.get('stats', {}).get('total_dates', 0)}, "
                     f"parties={fact_profile.get('stats', {}).get('total_parties', 0)}, "
                     f"deadlines={fact_profile.get('stats', {}).get('legal_deadlines', 0)}"
@@ -163,7 +164,7 @@ class DraftVerifier:
         _lap("build_fact_profile", t0)
 
         # ═══════════════════════════════════════════════════════════════════
-        # V2.2: CASE PROFILE (konteksti i fashikullit)
+        # V2.2: CASE PROFILE
         # ═══════════════════════════════════════════════════════════════════
         t0 = time.time()
         case_profile: Dict[str, Any] = {}
@@ -173,18 +174,18 @@ class DraftVerifier:
             )
             if case_profile.get("has_context"):
                 logger.info(
-                    f"📚 [VERIFY V2.3] Case profile aktiv: "
+                    f"📚 [VERIFY V2.4] Case profile aktiv: "
                     f"docs={case_profile['stats']['documents_scanned']}, "
                     f"subjects={case_profile['stats']['unique_subjects']}, "
                     f"block_chars={len(case_profile.get('block', ''))}"
                 )
             else:
                 logger.info(
-                    f"ℹ️ [VERIFY V2.3] Case profile bosh — verifikimi "
+                    f"ℹ️ [VERIFY V2.4] Case profile bosh — verifikimi "
                     f"kalon në mode 'vetëm draft'."
                 )
         except Exception as e:
-            logger.warning(f"⚠️ [VERIFY V2.3] build_case_profile dështoi: {e}")
+            logger.warning(f"⚠️ [VERIFY V2.4] build_case_profile dështoi: {e}")
             case_profile = {}
         _lap("build_case_profile", t0)
 
@@ -213,7 +214,7 @@ class DraftVerifier:
         cited_summary = summarize_cited_precedents(verification_report)
         if cited_summary["unverified_count"] > 0:
             logger.warning(
-                f"⚠️ [VERIFY V2.3] CITED PRECEDENTS: "
+                f"⚠️ [VERIFY V2.4] CITED PRECEDENTS: "
                 f"{cited_summary['unverified_count']}/{cited_summary['total_cited']} "
                 f"të cituar NUK ekzistojnë në DB — "
                 f"{cited_summary['unverified'][:5]}"
@@ -221,7 +222,7 @@ class DraftVerifier:
             )
         else:
             logger.info(
-                f"✅ [VERIFY V2.3] CITED PRECEDENTS: "
+                f"✅ [VERIFY V2.4] CITED PRECEDENTS: "
                 f"{cited_summary['verified_count']}/{cited_summary['total_cited']} "
                 f"të verifikuar"
             )
@@ -269,7 +270,7 @@ class DraftVerifier:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [VERIFY PARALLEL V2.3] {len(VERIFY_SECTION_KEYS)} seksione, "
+            f"🚀 [VERIFY PARALLEL V2.4] {len(VERIFY_SECTION_KEYS)} seksione, "
             f"max_workers={MAX_CONCURRENT_VERIFY_SECTIONS}"
         )
 
@@ -592,19 +593,19 @@ class DraftVerifier:
                         precedent_dates.update(_extract_dates_iso(excerpt))
                     except Exception as _e:
                         logger.warning(
-                            f"⚠️ [VERIFY V2.3] Date extract failed for "
+                            f"⚠️ [VERIFY V2.4] Date extract failed for "
                             f"precedent {p.get('case_number')}: {_e}"
                         )
             if precedent_dates:
                 logger.info(
-                    f"📅 [VERIFY V2.3] Precedent excerpt dates (allowed): "
+                    f"📅 [VERIFY V2.4] Precedent excerpt dates (allowed): "
                     f"{sorted(precedent_dates)}"
                 )
 
             precedent_articles = extract_precedent_articles(precedents)
             if precedent_articles:
                 logger.info(
-                    f"📅 [VERIFY V2.3] Precedent excerpt articles (allowed): "
+                    f"📅 [VERIFY V2.4] Precedent excerpt articles (allowed): "
                     f"{sorted(precedent_articles)}"
                 )
 
@@ -614,14 +615,11 @@ class DraftVerifier:
                 new_cases = precedent_cases - all_allowed_cases
                 if new_cases:
                     logger.info(
-                        f"📅 [VERIFY V2.3] Precedent excerpt cases (allowed): "
+                        f"📅 [VERIFY V2.4] Precedent excerpt cases (allowed): "
                         f"{sorted(new_cases)}"
                     )
                 all_allowed_cases.update(precedent_cases)
 
-            # ═══════════════════════════════════════════════════════════════
-            # V2.2: CASE PROFILE — shto vlerat e fashikullit në allowed
-            # ═══════════════════════════════════════════════════════════════
             if case_profile and case_profile.get("has_context"):
                 cp_dates = case_profile.get("dates_set") or set()
                 cp_cases = case_profile.get("cases_set") or set()
@@ -633,17 +631,17 @@ class DraftVerifier:
 
                 if new_dates:
                     logger.info(
-                        f"📅 [VERIFY V2.3] Case profile dates added to allowed: "
+                        f"📅 [VERIFY V2.4] Case profile dates added to allowed: "
                         f"{len(new_dates)} vlera"
                     )
                 if new_cases:
                     logger.info(
-                        f"📅 [VERIFY V2.3] Case profile cases added to allowed: "
+                        f"📅 [VERIFY V2.4] Case profile cases added to allowed: "
                         f"{len(new_cases)} vlera"
                     )
                 if new_articles:
                     logger.info(
-                        f"📅 [VERIFY V2.3] Case profile articles added to allowed: "
+                        f"📅 [VERIFY V2.4] Case profile articles added to allowed: "
                         f"{len(new_articles)} vlera"
                     )
 
@@ -663,7 +661,7 @@ class DraftVerifier:
                     extra_allowed_articles=precedent_articles,
                 )
                 logger.info(
-                    f"🧪 [VERIFY V2.3] Hallucination: "
+                    f"🧪 [VERIFY V2.4] Hallucination: "
                     f"status={hallucination_report.get('status')}, "
                     f"issues={hallucination_report.get('total_issues', 0)} "
                     f"(high={hallucination_report.get('severity_totals', {}).get('high', 0)}, "
@@ -676,12 +674,12 @@ class DraftVerifier:
                 hallucination_report = {}
             _lap("hallucination_check", t0)
         elif not HALLUCINATION_GATE_ENABLED:
-            logger.info("ℹ️ [VERIFY V2.3] Hallucination gate çaktivizuar (env)")
+            logger.info("ℹ️ [VERIFY V2.4] Hallucination gate çaktivizuar (env)")
         elif not fact_profile:
-            logger.warning("⚠️ [VERIFY V2.3] Fact profile bosh — halluzinacioni nuk u kontrollua")
+            logger.warning("⚠️ [VERIFY V2.4] Fact profile bosh — halluzinacioni nuk u kontrollua")
 
         # ═══════════════════════════════════════════════════════════════════
-        # READINESS OVERRIDE (dy burime)
+        # READINESS OVERRIDE
         # ═══════════════════════════════════════════════════════════════════
         readiness = parse_readiness(sections)
         readiness_before_override = readiness
@@ -696,7 +694,7 @@ class DraftVerifier:
         critical_count = count_critical_recommendations(sections)
         if critical_count > 0:
             logger.info(
-                f"🔍 [VERIFY V2.3] U gjetën {critical_count} rekomandime "
+                f"🔍 [VERIFY V2.4] U gjetën {critical_count} rekomandime "
                 f"KRITIKE [#K] në Section 5 (concrete_recommendations)"
             )
         readiness = maybe_override_readiness_for_critical(
@@ -740,6 +738,18 @@ class DraftVerifier:
 
         h_sev = (hallucination_report or {}).get("severity_totals", {}) or {}
 
+        # ═══════════════════════════════════════════════════════════════════
+        # V2.4: QUALITY METRICS
+        # ═══════════════════════════════════════════════════════════════════
+        t0 = time.time()
+        quality_metrics = compute_quality_metrics(
+            sections=sections,
+            section_stats=section_stats,
+            hallucination_report=hallucination_report,
+        )
+        _lap("quality_metrics", t0)
+        log_quality_metrics(quality_metrics)
+
         result: Dict[str, Any] = {
             "case_id": case_id,
             "document_id": document_id,
@@ -759,7 +769,7 @@ class DraftVerifier:
                 "sections_total": len(VERIFY_SECTION_KEYS),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": "verify_hybrid_v2.3",
+                "execution_mode": "verify_hybrid_v2.4",
                 "precedents_found": len(precedents),
                 "precedent_threshold": PRECEDENT_SIMILARITY_THRESHOLD,
                 "precedent_top_k": PRECEDENT_TOP_K,
@@ -785,6 +795,7 @@ class DraftVerifier:
                 "cited_precedents_unverified_list": cited_summary["unverified"],
                 "case_profile_active": bool(case_profile.get("has_context")),
                 "case_profile_stats": case_profile.get("stats", {}),
+                "quality_metrics": quality_metrics,
             },
             "readiness": readiness,
             "score": score,
@@ -806,12 +817,14 @@ class DraftVerifier:
         result["persisted"] = persisted
 
         logger.info(
-            f"✅ [VERIFY V2.3] Complete: "
+            f"✅ [VERIFY V2.4] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"readiness={readiness}"
             + (f" (override from {readiness_before_override})" if readiness_overridden else "")
             + f", score={score} "
             f"(formal={formal_pct}%, legal={legal_pct}%, readiness={readiness_score}), "
+            f"quality={quality_metrics['quality_score']}/100, "
+            f"cost=${quality_metrics['cost_estimate_usd']}, "
             f"precedents={len(precedents)}, "
             f"articles={articles_verified}/{articles_total}, "
             f"cited_precedents={cited_summary['verified_count']}/{cited_summary['total_cited']}"
