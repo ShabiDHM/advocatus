@@ -1,5 +1,8 @@
 # FILE: backend/app/services/document_review/dynamic_config.py
-# PHOENIX PROTOCOL - DYNAMIC CONFIG LOADER V1.0 (HAPI B2)
+# PHOENIX PROTOCOL - DYNAMIC CONFIG LOADER V1.1 (HAPI B2)
+# V1.1: Shtuar get_known_laws() — lexon map-in name→number të ligjeve
+#       nga data/dynamic_config.json (key: "known_laws").
+#       Zero hardcoding në hallucination_checker — ligjet shtohen në JSON.
 # H2+H3+H4+H5: Lexon konfigurimin dinamik nga data/dynamic_config.json.
 # Zero hardcoding — shtimi/ndryshimi i ligjeve, konventave, akronimeve
 # bëhet pa ndryshim kodi, vetëm në JSON.
@@ -90,6 +93,31 @@ def get_known_abbrev_excludes(
     default: Dict[str, List[str]],
 ) -> Dict[str, List[str]]:
     data = _load_dynamic_config().get("known_abbrev_excludes")
+    if isinstance(data, dict) and data:
+        return data
+    return default
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.1: KNOWN LAWS (name → list of numbers)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_known_laws(
+    default: Dict[str, List[str]],
+) -> Dict[str, List[str]]:
+    """
+    V1.1: Lexon map-in name→numbers të ligjeve të njohura.
+
+    Key në JSON: "known_laws" (objekt).
+    Struktura: { "kodi penal": ["06/L-074"], "ligji per familjen": ["2004/32"], ... }
+
+    Fallback: default (minimal) nëse JSON mungon ose bosh.
+
+    Përdoret nga hallucination_checker për:
+      - _get_globally_allowed_laws() → allowed laws
+      - _check_law_name_number_consistency() → validim name↔number
+    """
+    data = _load_dynamic_config().get("known_laws")
     if isinstance(data, dict) and data:
         return data
     return default

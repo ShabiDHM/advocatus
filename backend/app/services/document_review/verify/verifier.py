@@ -1,9 +1,11 @@
 # FILE: backend/app/services/document_review/verify/verifier.py
-# PHOENIX PROTOCOL - VERIFY / VERIFIER V2.4
-# V2.4: QUALITY METRICS — Integrim i modulit quality_metrics. Çdo verifikim
-#       raporton: quality_score, empty/truncated/blocked sections, cost_estimate.
-#       Zero varësi nga LLM. Log i strukturuar. Të njëjtat metrika si Analizo.
-# V2.3: VERSION CONSISTENCY — V2.2 → V2.3 në logger/komentet/execution_mode.
+# PHOENIX PROTOCOL - VERIFY / VERIFIER V2.5
+# V2.5: DYNAMIC DB LAWS — Integrim i get_all_law_numbers_from_db().
+#       Në fillim të hallucination check, lexon të gjitha ligjet e njohura
+#       nga legal_knowledge_base dhe i kalon si extra_allowed_laws tek
+#       check_all_sections. Zero hardcoding.
+# V2.4: QUALITY METRICS.
+# V2.3: VERSION CONSISTENCY.
 # V2.2: CASE CONTEXT.
 # V2.1: PERF SPLIT.
 # V2.0: MODULARIZIM.
@@ -18,6 +20,7 @@ from ..citation_extractor import build_citation_profile
 from ..fact_extractor import build_fact_profile
 from ..case_profile import build_case_profile
 from ..mongo_verifier import verify_all
+from ..mongo_verifier.laws import get_all_law_numbers_from_db
 from ..streaming import synthesize_section_streaming
 from ..persistence import load_document, load_extraction
 from ..hallucination_checker import check_all_sections, _extract_dates_iso
@@ -121,7 +124,7 @@ class DraftVerifier:
         file_name = (document or {}).get("file_name", "draft")
 
         logger.info(
-            f"🔎 [VERIFY V2.4] Start: case={case_id}, doc={document_id}, "
+            f"🔎 [VERIFY V2.5] Start: case={case_id}, doc={document_id}, "
             f"file={file_name}, doc_type={doc_type} ({doc_type_label}), "
             f"len={len(doc_text)} chars, user={user_id or '?'}, "
             f"parallel x{MAX_CONCURRENT_VERIFY_SECTIONS}, "
@@ -153,7 +156,7 @@ class DraftVerifier:
                     doc_text, source_document=file_name
                 )
                 logger.info(
-                    f"🔬 [VERIFY V2.4] Fact profile: "
+                    f"🔬 [VERIFY V2.5] Fact profile: "
                     f"dates={fact_profile.get('stats', {}).get('total_dates', 0)}, "
                     f"parties={fact_profile.get('stats', {}).get('total_parties', 0)}, "
                     f"deadlines={fact_profile.get('stats', {}).get('legal_deadlines', 0)}"
@@ -174,18 +177,18 @@ class DraftVerifier:
             )
             if case_profile.get("has_context"):
                 logger.info(
-                    f"📚 [VERIFY V2.4] Case profile aktiv: "
+                    f"📚 [VERIFY V2.5] Case profile aktiv: "
                     f"docs={case_profile['stats']['documents_scanned']}, "
                     f"subjects={case_profile['stats']['unique_subjects']}, "
                     f"block_chars={len(case_profile.get('block', ''))}"
                 )
             else:
                 logger.info(
-                    f"ℹ️ [VERIFY V2.4] Case profile bosh — verifikimi "
+                    f"ℹ️ [VERIFY V2.5] Case profile bosh — verifikimi "
                     f"kalon në mode 'vetëm draft'."
                 )
         except Exception as e:
-            logger.warning(f"⚠️ [VERIFY V2.4] build_case_profile dështoi: {e}")
+            logger.warning(f"⚠️ [VERIFY V2.5] build_case_profile dështoi: {e}")
             case_profile = {}
         _lap("build_case_profile", t0)
 
@@ -214,7 +217,7 @@ class DraftVerifier:
         cited_summary = summarize_cited_precedents(verification_report)
         if cited_summary["unverified_count"] > 0:
             logger.warning(
-                f"⚠️ [VERIFY V2.4] CITED PRECEDENTS: "
+                f"⚠️ [VERIFY V2.5] CITED PRECEDENTS: "
                 f"{cited_summary['unverified_count']}/{cited_summary['total_cited']} "
                 f"të cituar NUK ekzistojnë në DB — "
                 f"{cited_summary['unverified'][:5]}"
@@ -222,7 +225,7 @@ class DraftVerifier:
             )
         else:
             logger.info(
-                f"✅ [VERIFY V2.4] CITED PRECEDENTS: "
+                f"✅ [VERIFY V2.5] CITED PRECEDENTS: "
                 f"{cited_summary['verified_count']}/{cited_summary['total_cited']} "
                 f"të verifikuar"
             )
@@ -270,7 +273,7 @@ class DraftVerifier:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [VERIFY PARALLEL V2.4] {len(VERIFY_SECTION_KEYS)} seksione, "
+            f"🚀 [VERIFY PARALLEL V2.5] {len(VERIFY_SECTION_KEYS)} seksione, "
             f"max_workers={MAX_CONCURRENT_VERIFY_SECTIONS}"
         )
 
@@ -593,19 +596,19 @@ class DraftVerifier:
                         precedent_dates.update(_extract_dates_iso(excerpt))
                     except Exception as _e:
                         logger.warning(
-                            f"⚠️ [VERIFY V2.4] Date extract failed for "
+                            f"⚠️ [VERIFY V2.5] Date extract failed for "
                             f"precedent {p.get('case_number')}: {_e}"
                         )
             if precedent_dates:
                 logger.info(
-                    f"📅 [VERIFY V2.4] Precedent excerpt dates (allowed): "
+                    f"📅 [VERIFY V2.5] Precedent excerpt dates (allowed): "
                     f"{sorted(precedent_dates)}"
                 )
 
             precedent_articles = extract_precedent_articles(precedents)
             if precedent_articles:
                 logger.info(
-                    f"📅 [VERIFY V2.4] Precedent excerpt articles (allowed): "
+                    f"📅 [VERIFY V2.5] Precedent excerpt articles (allowed): "
                     f"{sorted(precedent_articles)}"
                 )
 
@@ -615,7 +618,7 @@ class DraftVerifier:
                 new_cases = precedent_cases - all_allowed_cases
                 if new_cases:
                     logger.info(
-                        f"📅 [VERIFY V2.4] Precedent excerpt cases (allowed): "
+                        f"📅 [VERIFY V2.5] Precedent excerpt cases (allowed): "
                         f"{sorted(new_cases)}"
                     )
                 all_allowed_cases.update(precedent_cases)
@@ -631,23 +634,35 @@ class DraftVerifier:
 
                 if new_dates:
                     logger.info(
-                        f"📅 [VERIFY V2.4] Case profile dates added to allowed: "
+                        f"📅 [VERIFY V2.5] Case profile dates added to allowed: "
                         f"{len(new_dates)} vlera"
                     )
                 if new_cases:
                     logger.info(
-                        f"📅 [VERIFY V2.4] Case profile cases added to allowed: "
+                        f"📅 [VERIFY V2.5] Case profile cases added to allowed: "
                         f"{len(new_cases)} vlera"
                     )
                 if new_articles:
                     logger.info(
-                        f"📅 [VERIFY V2.4] Case profile articles added to allowed: "
+                        f"📅 [VERIFY V2.5] Case profile articles added to allowed: "
                         f"{len(new_articles)} vlera"
                     )
 
                 precedent_dates = set(precedent_dates) | cp_dates
                 all_allowed_cases = all_allowed_cases | cp_cases
                 precedent_articles = set(precedent_articles) | cp_articles
+
+            # V2.5: DYNAMIC DB LAWS
+            t_db = time.time()
+            try:
+                db_laws = get_all_law_numbers_from_db(self.db)
+            except Exception as e:
+                logger.warning(f"⚠️ [V2.5] get_all_law_numbers_from_db dështoi: {e}")
+                db_laws = set()
+            logger.info(
+                f"⏱️ [VERIFY TIMING] db_laws_fetch: {time.time() - t_db:.2f}s "
+                f"({len(db_laws)} ligje nga DB)"
+            )
 
             t0 = time.time()
             try:
@@ -659,9 +674,10 @@ class DraftVerifier:
                     extra_allowed_cases=all_allowed_cases,
                     extra_allowed_dates=precedent_dates,
                     extra_allowed_articles=precedent_articles,
+                    extra_allowed_laws=db_laws,   # V2.5
                 )
                 logger.info(
-                    f"🧪 [VERIFY V2.4] Hallucination: "
+                    f"🧪 [VERIFY V2.5] Hallucination: "
                     f"status={hallucination_report.get('status')}, "
                     f"issues={hallucination_report.get('total_issues', 0)} "
                     f"(high={hallucination_report.get('severity_totals', {}).get('high', 0)}, "
@@ -674,9 +690,9 @@ class DraftVerifier:
                 hallucination_report = {}
             _lap("hallucination_check", t0)
         elif not HALLUCINATION_GATE_ENABLED:
-            logger.info("ℹ️ [VERIFY V2.4] Hallucination gate çaktivizuar (env)")
+            logger.info("ℹ️ [VERIFY V2.5] Hallucination gate çaktivizuar (env)")
         elif not fact_profile:
-            logger.warning("⚠️ [VERIFY V2.4] Fact profile bosh — halluzinacioni nuk u kontrollua")
+            logger.warning("⚠️ [VERIFY V2.5] Fact profile bosh — halluzinacioni nuk u kontrollua")
 
         # ═══════════════════════════════════════════════════════════════════
         # READINESS OVERRIDE
@@ -694,7 +710,7 @@ class DraftVerifier:
         critical_count = count_critical_recommendations(sections)
         if critical_count > 0:
             logger.info(
-                f"🔍 [VERIFY V2.4] U gjetën {critical_count} rekomandime "
+                f"🔍 [VERIFY V2.5] U gjetën {critical_count} rekomandime "
                 f"KRITIKE [#K] në Section 5 (concrete_recommendations)"
             )
         readiness = maybe_override_readiness_for_critical(
@@ -739,7 +755,7 @@ class DraftVerifier:
         h_sev = (hallucination_report or {}).get("severity_totals", {}) or {}
 
         # ═══════════════════════════════════════════════════════════════════
-        # V2.4: QUALITY METRICS
+        # V2.5: QUALITY METRICS
         # ═══════════════════════════════════════════════════════════════════
         t0 = time.time()
         quality_metrics = compute_quality_metrics(
@@ -769,7 +785,7 @@ class DraftVerifier:
                 "sections_total": len(VERIFY_SECTION_KEYS),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": "verify_hybrid_v2.4",
+                "execution_mode": "verify_hybrid_v2.5",
                 "precedents_found": len(precedents),
                 "precedent_threshold": PRECEDENT_SIMILARITY_THRESHOLD,
                 "precedent_top_k": PRECEDENT_TOP_K,
@@ -795,6 +811,7 @@ class DraftVerifier:
                 "cited_precedents_unverified_list": cited_summary["unverified"],
                 "case_profile_active": bool(case_profile.get("has_context")),
                 "case_profile_stats": case_profile.get("stats", {}),
+                "db_laws_count": len(db_laws),   # V2.5
                 "quality_metrics": quality_metrics,
             },
             "readiness": readiness,
@@ -817,7 +834,7 @@ class DraftVerifier:
         result["persisted"] = persisted
 
         logger.info(
-            f"✅ [VERIFY V2.4] Complete: "
+            f"✅ [VERIFY V2.5] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"readiness={readiness}"
             + (f" (override from {readiness_before_override})" if readiness_overridden else "")
@@ -825,6 +842,7 @@ class DraftVerifier:
             f"(formal={formal_pct}%, legal={legal_pct}%, readiness={readiness_score}), "
             f"quality={quality_metrics['quality_score']}/100, "
             f"cost=${quality_metrics['cost_estimate_usd']}, "
+            f"db_laws={len(db_laws)}, "
             f"precedents={len(precedents)}, "
             f"articles={articles_verified}/{articles_total}, "
             f"cited_precedents={cited_summary['verified_count']}/{cited_summary['total_cited']}"

@@ -1,5 +1,8 @@
 # FILE: backend/app/services/document_review/verify/prompt_sections.py
-# PHOENIX PROTOCOL - VERIFY PROMPT SECTIONS V1.5
+# PHOENIX PROTOCOL - VERIFY PROMPT SECTIONS V1.6
+# V1.6: MAX_TOKENS INCREASE — legal_quality: 2200 → 3500. Në testimin e
+#       fundit output-i prodhoi 5157 chars (~2063 tokens), duke u cunguar
+#       me max_tokens=2200. Rritja në 3500 eliminon truncation-in.
 # V1.5: PROFESSIONAL LANGUAGE (vazhdim) —
 #       - "Impakti:" → "Ndikimi:" (legal_quality, Seksioni B).
 #       - "similarity" në udhëzimet për LLM → "ngjashmëri".
@@ -123,7 +126,7 @@ RREGULLA:
     # ═══════════════════════════════════════════════════════════════════════
     "legal_quality": {
         "title": "2. CILËSIA LIGJORE (NENET)",
-        "max_tokens": 2200,
+        "max_tokens": 3500,   # V1.6: 2200 → 3500 (u cungua në testim)
         "needs": ["draft", "checklist", "articles", "case_context"],
         "prompt": """Ti je "Verifikues i Cilësisë Ligjore" me specializim në legjislacionin e Kosovës.
 
@@ -387,7 +390,7 @@ RREGULLA:
     },
 
     # ═══════════════════════════════════════════════════════════════════════
-    # 5. REKOMANDIME KONKRETE (V1.4: + ABBREV_REPLACEMENT_RULE)
+    # 5. REKOMANDIME KONKRETE
     # ═══════════════════════════════════════════════════════════════════════
     "concrete_recommendations": {
         "title": "5. REKOMANDIME KONKRETE",

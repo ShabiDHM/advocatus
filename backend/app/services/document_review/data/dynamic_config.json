@@ -1,5 +1,5 @@
 {
-  "_comment": "Konfigurim dinamik për Juristi AI. Ndryshimet aplikohen pas restart (ose reload_dynamic_config()).",
+  "_comment": "Konfigurim dinamik për Juristi AI. Ndryshimet aplikohen pas restart (ose reload_dynamic_config()). Zero hardcoding në Python — shto/ndrysho ligje, konventa, akronime këtu.",
 
   "law_successors": {
     "03/L-182": {
@@ -48,5 +48,36 @@
     "LFK":   [],
     "LSHT":  [],
     "KRK":   []
+  },
+
+  "known_laws": {
+    "_comment": "Map name→numbers. Emrat normalizohen automatikisht (lowercase, pa diakritika, case-folded). Shto ligje të reja këtu pa prekur kodin. Përdoret nga hallucination_checker për: (1) globally allowed laws (anti-hallucination), (2) validim name↔number (meta-layer).",
+
+    "kodi penal": ["06/L-074"],
+    "kodi i procedures penale": ["08/L-032"],
+    "kodi i procedures penale te kosoves": ["08/L-032"],
+
+    "ligji per proceduren kontestimore": ["03/L-006"],
+    "ligji per marredheniet e detyrimeve": ["04/L-077"],
+
+    "ligji per familjen": ["2004/32"],
+    "ligji per mbrojtjen nga dhuna ne familje": ["03/L-182", "08/L-185"],
+    "ligji per mbrojtjen e femijes": ["06/L-084"],
+
+    "ligji per prokurorine speciale": ["08/L-168"],
+    "ligji i punes": ["03/L-212"],
+
+    "ligji per shoqerite tregtare": ["06/L-016"],
+    "ligji per gjykaten komerciale": ["08/L-015"],
+
+    "ligji per gjykata": ["06/L-054"],
+    "ligji per gjykaten": ["06/L-054"],
+    "ligji per gjykatat": ["06/L-054"],
+
+    "ligji per mbrojtjen e te dhenave personale": ["06/L-082"],
+
+    "kushtetuta e republikes se kosoves": [],
+    "konventa evropiane per te drejtat e njeriut": [],
+    "konventa e okb-se per te drejtat e femijes": []
   }
 }
