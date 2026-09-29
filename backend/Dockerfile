@@ -1,6 +1,11 @@
-# PHOENIX PROTOCOL - PRODUCTION CLOUD INFRASTRUCTURE V5.2
+# PHOENIX PROTOCOL - PRODUCTION CLOUD INFRASTRUCTURE V5.3
 # Optimized for: Render Free Tier (512MB RAM)
 # Target: Python 3.13 / FastAPI
+#
+# V5.3: SHTUAR `COPY ./data ./data`.
+#   - Në V5.2 mungonte — prandaj file-t JSON (law_acronyms.json,
+#     external_sources.json, repealed_laws.json) nuk gjendeshin në container.
+#   - Renditja: pas `COPY ./app ./app`.
 
 FROM python:3.13-slim
 
@@ -27,6 +32,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # 4. Copy Application Code
 COPY ./app ./app
 
-# 5. Start Command
+# 5. Copy Data Files (JSON: acronyms, external_sources, repealed_laws)
+COPY ./data ./data
+
+# 6. Start Command
 # Using 1 worker and no-reload for maximum RAM efficiency on Free Tier
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
