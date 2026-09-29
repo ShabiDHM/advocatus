@@ -1,11 +1,20 @@
 // FILE: src/components/law/LawArticleContent.tsx
-// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE CONTENT V30.0
+// PHOENIX PROTOCOL - LAW ARTICLE CONTENT V31.0
+//
+// V31.0: FIX repeals + highlight boundary + i18n + clipboard fallback.
+//   - T20: Shtuar warning shfuqizimi në krye të kartës
+//   - T21: "Preambula" dhe "Paragrafi" përmes t()
+//   - T22: Highlight regex me \b në TË DYJA anët
+//   - T23: Hequr startsWith (vetëm === match exact)
+//   - T24: Clipboard fallback për kontekst jo-secure
+//
+// V30.0: Versioni i vjetër.
 
 import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FileText, ExternalLink, Copy, Check } from 'lucide-react';
-import { ArticleData } from './lawArticleTypes';
-import { TFunction } from 'i18next';
+import { FileText, ExternalLink, Copy, Check, AlertTriangle } from 'lucide-react';
+import type { ArticleData } from './lawArticleTypes';
+import type { TFunction } from 'i18next';
 import { sanitizeSearchText } from '../../utils/legalSemanticEngine';
 
 interface LawArticleContentProps {
@@ -23,7 +32,6 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
 }) => {
   const [searchParams] = useSearchParams();
   const highlightQuery = searchParams.get('highlight') || '';
-
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const isPreamble =
@@ -31,9 +39,10 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
     rawArtNum.toLowerCase() === 'preambula' ||
     rawArtNum.toLowerCase() === 'hyrja';
 
-  const articleHeading = isPreamble ? 'Preambula' : `${t('lawArticle.article', 'Neni')} ${rawArtNum}`;
+  const articleHeading = isPreamble
+    ? t('lawArticle.preamble', 'Preambula')
+    : `${t('lawArticle.article', 'Neni')} ${rawArtNum}`;
 
-  // Fjalët kyçe për theksim (vetëm fjalët me gjatësi mbi 2 shkronja)
   const highlightWords = useMemo(() => {
     if (!highlightQuery.trim()) return [];
     return sanitizeSearchText(highlightQuery)
@@ -41,7 +50,6 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
       .filter((w) => w.length >= 3 && !['nga', 'per', 'dhe', 'ose', 'tek'].includes(w));
   }, [highlightQuery]);
 
-  // Ndarja e tekstit sipas paragrafëve
   const paragraphs = useMemo(() => {
     if (!article.text) return [];
     return article.text
@@ -50,22 +58,21 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
       .filter((p) => p.length > 0);
   }, [article.text]);
 
-  // Theksimi i fjalëve kyçe me ngjyrë të artë/të verdhë
   const renderHighlightedText = (text: string) => {
     if (highlightWords.length === 0) return text;
 
     const escapedTokens = highlightWords.map((token) =>
-      token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     );
-    const regex = new RegExp(`\\b(${escapedTokens.join('|')})`, 'gi');
+    // V31.0: word boundary në TË DYJA anët
+    const regex = new RegExp(`\\b(${escapedTokens.join('|')})\\b`, 'gi');
 
     const parts = text.split(regex);
 
     return parts.map((part, i) => {
       const isMatch = highlightWords.some(
-        (hw) => sanitizeSearchText(part) === hw || sanitizeSearchText(part).startsWith(hw)
+        (hw) => sanitizeSearchText(part) === hw,
       );
-
       if (isMatch) {
         return (
           <mark
@@ -80,10 +87,21 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
     });
   };
 
-  // Veprimi: Kopjo tekstin e paragrafit
   const handleCopyParagraph = async (text: string, index: number) => {
     try {
-      await navigator.clipboard.writeText(text);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback për kontekst jo-secure
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000);
     } catch (err) {
@@ -93,7 +111,15 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
 
   return (
     <div className="flex flex-col overflow-hidden shadow-sm border border-main rounded-2xl bg-canvas">
-      {/* Header i Ligjit */}
+      {article.is_repealed && (
+        <div className="px-4 sm:px-8 py-3 bg-warning-start/10 border-b-2 border-warning-start/40 flex items-center gap-2">
+          <AlertTriangle size={16} className="text-warning-start shrink-0" />
+          <span className="text-xs font-bold text-warning-start uppercase tracking-wider">
+            {t('lawArticle.repealedBanner', 'Ky nen i përket një ligji të shfuqizuar')}
+          </span>
+        </div>
+      )}
+
       <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-main bg-surface/50">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -101,10 +127,10 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
               type="button"
               onClick={onOpenPdf}
               className="h-8 sm:h-9 px-3 sm:px-3.5 flex items-center gap-1.5 sm:gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 rounded-xl text-[11px] sm:text-xs font-semibold transition-all hover-lift cursor-pointer"
-              title="Shiko dokumentin PDF të plotë"
+              title={t('lawArticle.openPdf', 'Shiko dokumentin PDF të plotë')}
             >
               <FileText size={13} />
-              <span>Dokumenti PDF</span>
+              <span>{t('lawArticle.pdfDocument', 'Dokumenti PDF')}</span>
               <ExternalLink size={11} className="opacity-80 shrink-0" />
             </button>
           </div>
@@ -115,36 +141,29 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
         </div>
       </div>
 
-      {/* Fleta e Dokumentit */}
       <div className="px-2 sm:px-6 md:px-8 py-4 sm:py-10 flex justify-center bg-canvas">
         <div className="w-full max-w-[85ch] bg-surface border border-main rounded-2xl shadow-md p-4 sm:p-10 md:p-12 relative">
-          
-          {/* Titulli i Nenit */}
           <div className="text-center pb-4 sm:pb-5 mb-5 sm:mb-7 border-b border-main">
             <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-text-primary uppercase tracking-wide font-serif">
               {articleHeading}
             </h2>
           </div>
 
-          {/* Lista e Paragrafëve */}
           <div className="space-y-6">
             {paragraphs.map((paragraph, index) => {
               const isCopied = copiedIndex === index;
-
               return (
                 <div
                   key={index}
                   className="group relative p-3 sm:p-4 rounded-xl hover:bg-canvas/60 border border-transparent hover:border-main transition-all duration-200"
                 >
-                  {/* Teksti i Paragrafit */}
                   <p className="text-[14px] sm:text-[16px] md:text-[17px] text-text-primary leading-[1.75] sm:leading-[1.85] font-normal text-justify font-serif tracking-normal selection:bg-primary-start/20">
                     {renderHighlightedText(paragraph)}
                   </p>
 
-                  {/* Shirit Veprimi me 1 Buton të Pastër */}
                   <div className="mt-3 pt-2 border-t border-main/40 flex items-center justify-between flex-wrap gap-2 text-xs">
                     <span className="text-[10px] font-mono font-bold text-text-muted uppercase">
-                      Paragrafi {index + 1}
+                      {t('lawArticle.paragraph', 'Paragrafi')} {index + 1}
                     </span>
 
                     <div className="opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
@@ -156,10 +175,14 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
                             ? 'bg-emerald-500 text-white border-emerald-500'
                             : 'bg-canvas hover:bg-surface border-main text-text-secondary hover:text-text-primary'
                         }`}
-                        title="Kopjo tekstin e këtij paragrafi"
+                        title={t('lawArticle.copyParagraphTitle', 'Kopjo tekstin e këtij paragrafi')}
                       >
                         {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                        <span>{isCopied ? 'U kopjua!' : 'Kopjo Paragrafin'}</span>
+                        <span>
+                          {isCopied
+                            ? t('lawArticle.copied', 'U kopjua!')
+                            : t('lawArticle.copyParagraph', 'Kopjo Paragrafin')}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -167,7 +190,6 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
               );
             })}
           </div>
-
         </div>
       </div>
     </div>

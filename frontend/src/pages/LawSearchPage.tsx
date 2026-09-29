@@ -1,34 +1,39 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - DYNAMIC LAW SEARCH ENGINE V125.0 (REMOVED ACADEMIC TAB)
-// V125.0: Hequr tab "AKADEMIA" — korpusi tani ka vetem KODET + AKTGJYKIMET.
-//         - Hiqur 'academic' nga activeTab
-//         - Hiqur academicTitles state
-//         - Hiqur GraduationCap import
-//         - Grid 3-kolona -> 2-kolona
-//         - Backend vazhdon te dergoj akademine, ne e shperfillim
-// V124.0: Slate/emerald/amber → semantic tokens (surface, success-start, warning-start, text-*).
-// V123.1: DYNAMIC LAW SEARCH ENGINE
+// PHOENIX PROTOCOL - DYNAMIC LAW SEARCH ENGINE V126.0.1
+//
+// V126.0.1: FIX TS2305/TS6196 — imports.
+//   - Hequr `RepealedStatuteItem` nga `lawArticleTypes` (nuk ekziston aty)
+//   - Marrë `RepealedStatuteItem` nga `lawLibraryTypes` (ku ekziston)
+//   - Hequr alias `RepealedStatuteItemFromLibrary` (më i thjeshtë)
+//
+// V126.0: FIX fake verification + repeals + types.
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  Search, X, Scale, ArrowLeft, ChevronDown, Check, 
-  ShieldCheck, Gavel, 
+import {
+  Search, X, Scale, ArrowLeft, ChevronDown, Check,
+  ShieldCheck, Gavel, AlertTriangle,
   BookOpen, ArrowRight, ExternalLink, Loader2, Bot, FileText,
-  Sparkles, BookMarked, CheckCircle2
+  Sparkles, BookMarked, CheckCircle2,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
 
+import type { RepealedInfo } from '../components/law/lawArticleTypes';
+import type { RepealedStatuteItem } from '../components/law/lawLibraryTypes';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
 function sanitizeText(text: string): string {
+  if (!text) return '';
   return text
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ë/g, 'e')
-    .replace(/ç/g, 'c')
     .trim();
 }
 
@@ -51,6 +56,10 @@ function formatShortLawBadge(lawTitle: string): string {
   return lawTitle.length > 20 ? `${lawTitle.substring(0, 18)}...` : lawTitle;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
 interface SupremeInterpretation {
   case_number: string;
   title: string;
@@ -68,10 +77,13 @@ interface MatchedStatuteItem {
   is_verified_in_db?: boolean;
   verification_status?: string;
   verification_source?: string;
-  page_number?: number;
+  page_number?: number | null;
   supreme_precedents_count?: number;
   verification_tooltip?: string;
   supreme_court_interpretations?: SupremeInterpretation[];
+  is_repealed?: boolean;
+  repealed_info?: RepealedInfo;
+  warning?: string;
 }
 
 interface AiDiagnosticData {
@@ -80,31 +92,50 @@ interface AiDiagnosticData {
   matched_statutes: MatchedStatuteItem[];
 }
 
+interface AiCaselawPrecedent {
+  title: string;
+  source: string;
+  page: number;
+  case_number?: string;
+  interpretation_commentary?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
 export default function LawSearchPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // V125.0: vetem 'statutes' | 'caselaw'
   const [activeTab, setActiveTab] = useState<'statutes' | 'caselaw'>('statutes');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [statuteTitles, setStatuteTitles] = useState<string[]>([]);
   const [caselawTitles, setCaselawTitles] = useState<string[]>([]);
+  const [repealedTitlesMap, setRepealedTitlesMap] = useState<Map<string, RepealedStatuteItem>>(new Map());
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string>('');
 
   const [isListExpanded, setIsListExpanded] = useState(true);
   const [selectedPdfFilename, setSelectedPdfFilename] = useState<string | null>(null);
-  const [initialPageNumber, setInitialPageNumber] = useState<number>(1);
+  const [initialPageNumber, setInitialPageNumber] = useState<number | undefined>(undefined);
   const [showPdfModal, setShowPdfModal] = useState(false);
 
   const [hoveredArticleKey, setHoveredArticleKey] = useState<string | null>(null);
 
   const [isAnalyzingWithAi, setIsAnalyzingWithAi] = useState(false);
+  const [aiError, setAiError] = useState<string>('');
   const [aiDiagnostic, setAiDiagnostic] = useState<AiDiagnosticData | null>(null);
-  const [aiCaselawPrecedents, setAiCaselawPrecedents] = useState<Array<{ title: string; source: string; page: number; case_number?: string; interpretation_commentary?: string }>>([]);
+  const [aiCaselawPrecedents, setAiCaselawPrecedents] = useState<AiCaselawPrecedent[]>([]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // OPEN PRECEDENT
+  // ═══════════════════════════════════════════════════════════════════════
 
   const openPrecedentDirectly = useCallback(async (queryOrTitle: string, availableCaselaw: string[]) => {
     const cleanQuery = queryOrTitle.trim().replace(/^["']|["']$/g, '');
@@ -114,7 +145,7 @@ export default function LawSearchPage() {
 
     let targetFilename = cleanQuery;
     const lowerQ = cleanQuery.toLowerCase();
-    const matchedFromList = availableCaselaw.find(t => t.toLowerCase().includes(lowerQ));
+    const matchedFromList = availableCaselaw.find((t) => t.toLowerCase().includes(lowerQ));
     if (matchedFromList) {
       targetFilename = matchedFromList;
     }
@@ -122,88 +153,143 @@ export default function LawSearchPage() {
     setSelectedPdfFilename(targetFilename);
 
     try {
-      const res = await apiService.axiosInstance.get('/laws/case-page', { params: { law_title: cleanQuery } });
-      if (res.data && res.data.page) {
-        setInitialPageNumber(res.data.page);
-        if (res.data.law_title && res.data.law_title.toLowerCase().endsWith('.pdf')) {
-          setSelectedPdfFilename(res.data.law_title);
+      const res = await apiService.axiosInstance.get('/laws/case-page', {
+        params: { law_title: cleanQuery },
+      });
+      const data = res.data || {};
+      if (data.found === true && typeof data.page === 'number' && data.page > 0) {
+        setInitialPageNumber(data.page);
+        if (data.law_title && String(data.law_title).toLowerCase().endsWith('.pdf')) {
+          setSelectedPdfFilename(data.law_title);
         }
       } else {
-        setInitialPageNumber(1);
+        setInitialPageNumber(undefined);
       }
     } catch {
-      setInitialPageNumber(1);
+      setInitialPageNumber(undefined);
     }
 
     setShowPdfModal(true);
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // LOAD TITLES
+  // ═══════════════════════════════════════════════════════════════════════
+
   useEffect(() => {
     const queryFromUrl = searchParams.get('q');
     setIsLoadingData(true);
+    setLoadError('');
 
     apiService.getLawTitles()
       .then((res: any) => {
-        if (res) {
-          const loadedStatutes = (res.statutes && Array.isArray(res.statutes)) ? res.statutes : [];
-          // V125.0: academic_manuals injorohet
-          const loadedCaselaw = (res.case_law && Array.isArray(res.case_law)) ? res.case_law : [];
+        if (!res) return;
 
-          setStatuteTitles(loadedStatutes);
-          setCaselawTitles(loadedCaselaw);
+        const loadedStatutes = Array.isArray(res.statutes) ? res.statutes : [];
+        const loadedCaselaw = Array.isArray(res.case_law) ? res.case_law : [];
+        const repealedList: RepealedStatuteItem[] = Array.isArray(res.repealed_statutes)
+          ? res.repealed_statutes
+          : [];
 
-          if (queryFromUrl) {
-            openPrecedentDirectly(queryFromUrl, loadedCaselaw);
-          }
+        setStatuteTitles(loadedStatutes);
+        setCaselawTitles(loadedCaselaw);
+
+        const map = new Map<string, RepealedStatuteItem>();
+        for (const item of repealedList) {
+          if (item?.law_title) map.set(item.law_title, item);
+        }
+        setRepealedTitlesMap(map);
+
+        if (queryFromUrl) {
+          openPrecedentDirectly(queryFromUrl, loadedCaselaw);
         }
       })
       .catch((err) => {
-        console.error("[LawSearchPage] Error loading database titles:", err);
+        console.error('[LawSearchPage] Error loading titles:', err);
+        setLoadError(
+          err?.response?.data?.detail ||
+          err?.message ||
+          t('lawSearch.loadError', 'Dështoi ngarkimi i listës së ligjeve.'),
+        );
       })
       .finally(() => {
         setIsLoadingData(false);
       });
-  }, [searchParams, openPrecedentDirectly]);
+  }, [searchParams, openPrecedentDirectly, t]);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // AI SEARCH
+  // ═══════════════════════════════════════════════════════════════════════
 
   const handleOpenExactArticle = (lawTitle: string, articleNumber: string) => {
     const cleanArt = articleNumber.replace(/\D+/g, '') || articleNumber;
     const cleanHighlight = searchQuery.replace(/["']/g, '').trim();
-    navigate(`/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(cleanArt)}&highlight=${encodeURIComponent(cleanHighlight)}`);
+    navigate(
+      `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}` +
+      `&articleNumber=${encodeURIComponent(cleanArt)}` +
+      `&highlight=${encodeURIComponent(cleanHighlight)}`,
+    );
   };
 
   const handleFindArticlesWithAi = async () => {
     const cleanQuery = searchQuery.trim().replace(/^["']|["']$/g, '');
     if (!cleanQuery || isAnalyzingWithAi) return;
+
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+
     setIsAnalyzingWithAi(true);
+    setAiError('');
     setAiDiagnostic(null);
     setAiCaselawPrecedents([]);
 
     try {
-      const res = await apiService.axiosInstance.post('/laws/ai-semantic-search', {
-        query: cleanQuery
-      });
+      const res = await apiService.axiosInstance.post(
+        '/laws/ai-semantic-search',
+        { query: cleanQuery },
+        { signal: controller.signal },
+      );
+
+      if (controller.signal.aborted) return;
 
       if (res.data && res.data.ai_diagnostic) {
         setAiDiagnostic(res.data.ai_diagnostic);
-        if (res.data.caselaw_precedents && Array.isArray(res.data.caselaw_precedents)) {
+        if (Array.isArray(res.data.caselaw_precedents)) {
           setAiCaselawPrecedents(res.data.caselaw_precedents);
         }
       }
-    } catch (err) {
-      console.error("[AI Find Articles Error]:", err);
+    } catch (err: any) {
+      if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
+      console.error('[LawSearchPage] AI find error:', err);
+      const msg =
+        err?.response?.data?.detail ||
+        err?.message ||
+        t('lawSearch.aiError', 'Kërkimi me AI dështoi. Provoni përsëri.');
+      setAiError(typeof msg === 'string' ? msg : 'Kërkimi me AI dështoi.');
     } finally {
-      setIsAnalyzingWithAi(false);
+      if (!controller.signal.aborted) setIsAnalyzingWithAi(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      aiAbortRef.current?.abort();
+    };
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // FILTER
+  // ═══════════════════════════════════════════════════════════════════════
 
   const filterListByQuery = useCallback((list: string[]) => {
     if (!searchQuery.trim()) return list;
     const cleanQ = sanitizeText(searchQuery).replace(/["']/g, '');
-    const tokens = cleanQ.split(/\s+/).filter(t => t.length >= 2);
+    const tokens = cleanQ.split(/\s+/).filter((t) => t.length >= 2);
 
     return list.filter((title) => {
       const sanitizedTitle = sanitizeText(title);
-      return tokens.some(tok => sanitizedTitle.includes(tok));
+      return tokens.some((tok) => sanitizedTitle.includes(tok));
     });
   }, [searchQuery]);
 
@@ -215,22 +301,26 @@ export default function LawSearchPage() {
     return filteredStatutes;
   }, [activeTab, filteredStatutes, filteredCaselaw]);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // SELECT LAW
+  // ═══════════════════════════════════════════════════════════════════════
+
   const handleSelectLaw = async (lawTitle: string) => {
-    // V125.0: akademia u hoq
     if (activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf')) {
       setSelectedPdfFilename(lawTitle);
-
       try {
-        const res = await apiService.axiosInstance.get('/laws/case-page', { params: { law_title: lawTitle } });
-        if (res.data && res.data.page) {
-          setInitialPageNumber(res.data.page);
+        const res = await apiService.axiosInstance.get('/laws/case-page', {
+          params: { law_title: lawTitle },
+        });
+        const data = res.data || {};
+        if (data.found === true && typeof data.page === 'number' && data.page > 0) {
+          setInitialPageNumber(data.page);
         } else {
-          setInitialPageNumber(1);
+          setInitialPageNumber(undefined);
         }
       } catch {
-        setInitialPageNumber(1);
+        setInitialPageNumber(undefined);
       }
-
       setShowPdfModal(true);
     } else {
       const cleanHighlight = searchQuery.replace(/["']/g, '').trim();
@@ -241,14 +331,10 @@ export default function LawSearchPage() {
 
   const pdfUrl = useMemo(() => {
     if (!selectedPdfFilename) return null;
-
-    const nameWithPdf = selectedPdfFilename.toLowerCase().endsWith('.pdf') 
-      ? selectedPdfFilename 
+    const nameWithPdf = selectedPdfFilename.toLowerCase().endsWith('.pdf')
+      ? selectedPdfFilename
       : `${selectedPdfFilename}.pdf`;
-
     const encoded = encodeURIComponent(nameWithPdf);
-
-    // V125.0: vetem caselaw dhe statutes
     if (activeTab === 'caselaw') {
       return `${API_V1_URL}/laws/caselaw/pdf/${encoded}`;
     }
@@ -262,38 +348,53 @@ export default function LawSearchPage() {
       : `${selectedPdfFilename}.pdf`;
   }, [selectedPdfFilename]);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════
+
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
-        
-        {/* Navigimi & Titulli */}
+
         <div className="flex flex-col gap-4 mb-6">
           <button
             onClick={() => navigate(-1)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface/40 border border-main text-text-secondary hover:text-text-primary transition-colors hover-lift shadow-sm w-fit cursor-pointer"
           >
             <ArrowLeft size={16} />
-            <span className="text-xs font-black uppercase tracking-widest">{t('general.back', 'Kthehu')}</span>
+            <span className="text-xs font-black uppercase tracking-widest">
+              {t('general.back', 'Kthehu')}
+            </span>
           </button>
 
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-2 text-primary-start mb-1">
                 <ShieldCheck size={18} />
-                <span className="text-[10px] font-black uppercase tracking-widest">KORPUSI LIGJOR I KOSOVËS</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  KORPUSI LIGJOR I KOSOVËS
+                </span>
               </div>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-text-primary tracking-tight">
-                Qendra e Kërkimit Ligjor & AI
+                {t('lawSearch.title', 'Qendra e Kërkimit Ligjor & AI')}
               </h1>
             </div>
-            
+
             <div className="px-4 py-2 bg-primary-start/10 border border-primary-start/20 rounded-xl text-primary-start font-mono text-xs font-bold">
-              {isLoadingData ? 'Duke u ngarkuar...' : `${statuteTitles.length + caselawTitles.length} Dokumente Zyrtare`}
+              {isLoadingData
+                ? t('general.loading', 'Duke u ngarkuar...')
+                : `${statuteTitles.length + caselawTitles.length} ${t('lawSearch.documents', 'Dokumente')}`}
             </div>
           </div>
         </div>
 
-        {/* SHIRITI I KËRKIMIT UNIVERSAL */}
+        {loadError && (
+          <div className="mb-4 bg-danger-start/10 border border-danger-start/30 rounded-2xl p-4 flex items-center gap-3 text-danger-start">
+            <AlertTriangle size={18} />
+            <span className="text-sm font-bold">{loadError}</span>
+          </div>
+        )}
+
         <div className="glass-panel p-4 sm:p-6 mb-6 shadow-md border border-main bg-surface rounded-3xl flex flex-col gap-3">
           <div className="relative w-full">
             <div className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center pointer-events-none">
@@ -310,7 +411,7 @@ export default function LawSearchPage() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleFindArticlesWithAi();
               }}
-              placeholder="Shkruaj çfarëdo rasti apo pyetje (p.sh. 'marrja e deklaratës së fëmijës', 'Neni 182 LPK')..."
+              placeholder={t('lawSearch.placeholder', 'Shkruaj çfarëdo rasti apo pyetje...')}
               className="w-full pl-11 sm:pl-12 pr-32 sm:pr-40 py-3.5 sm:py-4 bg-canvas border border-main rounded-2xl text-xs sm:text-sm md:text-base font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
             />
 
@@ -322,9 +423,10 @@ export default function LawSearchPage() {
                     setSearchQuery('');
                     setAiDiagnostic(null);
                     setAiCaselawPrecedents([]);
+                    setAiError('');
                   }}
                   className="p-1.5 sm:p-2 text-text-muted hover:text-danger-start transition-colors cursor-pointer"
-                  title="Pastro"
+                  title={t('general.clear', 'Pastro')}
                 >
                   <X size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
@@ -335,20 +437,22 @@ export default function LawSearchPage() {
                 onClick={handleFindArticlesWithAi}
                 disabled={isAnalyzingWithAi || searchQuery.trim().length < 2}
                 className="px-3 sm:px-4 py-2 sm:py-2.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all hover-lift cursor-pointer disabled:opacity-50 shrink-0"
-                title="Gjej Nenet me Inteligjencë Artificiale"
+                title={t('lawSearch.aiSearchTitle', 'Gjej Nenet me Inteligjencë Artificiale')}
               >
-                {isAnalyzingWithAi ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <Bot size={15} />
-                )}
-                <span className="hidden sm:inline">Kërko me AI</span>
+                {isAnalyzingWithAi ? <Loader2 size={15} className="animate-spin" /> : <Bot size={15} />}
+                <span className="hidden sm:inline">{t('lawSearch.aiSearch', 'Kërko me AI')}</span>
                 <span className="sm:hidden">AI</span>
               </button>
             </div>
           </div>
 
-          {/* KARTELA E KËRKIMIT TË KRYQËZUAR */}
+          {aiError && (
+            <div className="bg-danger-start/10 border border-danger-start/30 rounded-xl p-3 flex items-center gap-2 text-danger-start text-xs font-bold">
+              <AlertTriangle size={15} />
+              <span>{aiError}</span>
+            </div>
+          )}
+
           <AnimatePresence>
             {aiDiagnostic && (
               <motion.div
@@ -363,8 +467,12 @@ export default function LawSearchPage() {
                       <Sparkles size={20} />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black uppercase text-primary-start tracking-wider">KUALIFIKIMI I INSTITUTIT JURIDIK ME AI</span>
-                      <h3 className="font-black text-sm sm:text-lg text-text-primary">{aiDiagnostic.legal_institute}</h3>
+                      <span className="text-[10px] font-black uppercase text-primary-start tracking-wider">
+                        {t('lawSearch.aiLegalQualification', 'KUALIFIKIMI I INSTITUTIT JURIDIK ME AI')}
+                      </span>
+                      <h3 className="font-black text-sm sm:text-lg text-text-primary">
+                        {aiDiagnostic.legal_institute}
+                      </h3>
                     </div>
                   </div>
 
@@ -380,15 +488,15 @@ export default function LawSearchPage() {
                 </div>
 
                 <div className="bg-surface/80 border border-main rounded-2xl p-4 text-xs sm:text-sm text-text-primary leading-relaxed">
-                  🏛️ <strong>Përmbledhja Doktrinore:</strong> {aiDiagnostic.plain_explanation}
+                  🏛️ <strong>{t('lawSearch.doctrineSummary', 'Përmbledhja Doktrinore')}:</strong>{' '}
+                  {aiDiagnostic.plain_explanation}
                 </div>
 
-                {/* LISTA E NENEVE */}
                 {aiDiagnostic.matched_statutes && aiDiagnostic.matched_statutes.length > 0 && (
                   <div className="flex flex-col gap-3">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
                       <Scale size={14} className="text-primary-start" />
-                      <span>Dispozitat Ligjore të Gjetura në Baza:</span>
+                      <span>{t('lawSearch.legalProvisions', 'Dispozitat Ligjore të Gjetura në Bazë')}:</span>
                     </span>
 
                     <div className="flex flex-col gap-3.5">
@@ -399,31 +507,63 @@ export default function LawSearchPage() {
                         const supremeCount = item.supreme_precedents_count ?? supremeInterpretations.length;
                         const statuteTooltipKey = `statute_${i}`;
                         const isStatuteHovered = hoveredArticleKey === statuteTooltipKey;
-                        const docSource = item.verification_source || item.source || 'Arkiva Zyrtare e Kosovës';
-                        const docPage = item.page_number || 1;
+                        const docSource = item.verification_source || item.source || '';
+                        const hasPage = typeof item.page_number === 'number' && item.page_number > 0;
+                        const docPage = hasPage ? item.page_number : null;
+                        const isVerified = item.is_verified_in_db === true;
+                        const isRepealed = item.is_repealed === true;
 
                         return (
                           <div
                             key={i}
-                            className="p-4 sm:p-5 rounded-2xl bg-surface border border-main/80 shadow-xs flex flex-col gap-3.5"
+                            className={`p-4 sm:p-5 rounded-2xl bg-surface border shadow-xs flex flex-col gap-3.5 ${
+                              isRepealed ? 'border-warning-start/50' : 'border-main/80'
+                            }`}
                           >
+                            {isRepealed && (
+                              <div className="flex items-start gap-2 bg-warning-start/10 border border-warning-start/30 rounded-xl p-3 text-xs">
+                                <AlertTriangle size={14} className="text-warning-start shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-warning-start mb-0.5">
+                                    {t('lawSearch.repealedWarning', '⚠️ Ky ligj është shfuqizuar')}
+                                  </p>
+                                  {item.warning && (
+                                    <p className="text-text-secondary leading-relaxed">{item.warning}</p>
+                                  )}
+                                  {item.repealed_info?.repealed_by && (
+                                    <p className="text-text-muted mt-1 text-[11px]">
+                                      {t('lawSearch.replacedBy', 'Zëvendësuar me')}: <strong>{item.repealed_info.repealed_by}</strong>
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
                             <div className="flex items-center justify-between flex-wrap gap-2">
-                              <div 
+                              <div
                                 className="relative inline-flex items-center gap-2 cursor-help"
                                 onMouseEnter={() => setHoveredArticleKey(statuteTooltipKey)}
                                 onMouseLeave={() => setHoveredArticleKey(null)}
                               >
                                 <span className="px-3 py-1 rounded-lg bg-primary-start/15 hover:bg-primary-start/25 text-primary-start font-black text-xs sm:text-sm transition-colors shadow-2xs">
-                                  {shortBadge} • Neni {item.article_number}
+                                  {shortBadge} • {t('lawArticle.article', 'Neni')} {item.article_number}
                                 </span>
                                 <span className="text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start transition-colors">
                                   {item.law_title}
                                 </span>
 
-                                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-success-start/10 text-success-start border border-success-start/20 text-[10px] font-bold">
-                                  <CheckCircle2 size={11} />
-                                  <span>Verifikuar në Bazë</span>
-                                </span>
+                                {isVerified && (
+                                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-success-start/10 text-success-start border border-success-start/20 text-[10px] font-bold">
+                                    <CheckCircle2 size={11} />
+                                    <span>{t('lawSearch.verifiedInDb', 'Verifikuar në Bazë')}</span>
+                                  </span>
+                                )}
+                                {!isVerified && (
+                                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-warning-start/10 text-warning-start border border-warning-start/20 text-[10px] font-bold">
+                                    <AlertTriangle size={11} />
+                                    <span>{t('lawSearch.unverified', 'I paverifikuar')}</span>
+                                  </span>
+                                )}
 
                                 <AnimatePresence>
                                   {isStatuteHovered && (
@@ -432,15 +572,19 @@ export default function LawSearchPage() {
                                       animate={{ opacity: 1, y: 0, scale: 1 }}
                                       exit={{ opacity: 0, y: 10, scale: 0.96 }}
                                       transition={{ duration: 0.15 }}
-                                      className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[460px] p-4 sm:p-5 bg-card text-text-primary border-2 border-success-start/50 rounded-2xl shadow-2xl z-[999999] pointer-events-none"
+                                      className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[460px] p-4 sm:p-5 bg-card text-text-primary border-2 border-main rounded-2xl shadow-2xl z-[999999] pointer-events-none"
                                     >
                                       <div className="flex items-center justify-between pb-2 mb-3 border-b border-main">
-                                        <div className="flex items-center gap-2 text-success-start font-black text-xs uppercase tracking-wider">
-                                          <ShieldCheck size={16} />
-                                          <span>Verifikim Faktik në Server</span>
+                                        <div className="flex items-center gap-2 text-text-primary font-black text-xs uppercase tracking-wider">
+                                          <ShieldCheck size={16} className={isVerified ? 'text-success-start' : 'text-warning-start'} />
+                                          <span>{t('lawSearch.sourceVerification', 'Verifikim Burimi')}</span>
                                         </div>
-                                        <span className="px-2 py-0.5 rounded-md bg-success-start/15 text-success-start font-mono text-[10px] font-bold">
-                                          STATUSI: ZYRTAR
+                                        <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
+                                          isVerified
+                                            ? 'bg-success-start/15 text-success-start'
+                                            : 'bg-warning-start/15 text-warning-start'
+                                        }`}>
+                                          {isVerified ? 'VERIFIED' : 'UNVERIFIED'}
                                         </span>
                                       </div>
 
@@ -450,23 +594,33 @@ export default function LawSearchPage() {
 
                                       <div className="space-y-2 text-xs text-text-secondary font-sans bg-surface/80 p-3 rounded-xl border border-main">
                                         <div className="flex items-center justify-between">
-                                          <span className="text-text-muted font-medium">Dispozita:</span>
-                                          <strong className="text-primary-start text-xs sm:text-sm">Neni {item.article_number}</strong>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-text-muted font-medium">Burimi në Server:</span>
-                                          <strong className="truncate max-w-[240px] text-right font-mono text-[11px]" title={docSource}>
-                                            {docSource}
+                                          <span className="text-text-muted font-medium">{t('lawSearch.provision', 'Dispozita')}:</span>
+                                          <strong className="text-primary-start text-xs sm:text-sm">
+                                            {t('lawArticle.article', 'Neni')} {item.article_number}
                                           </strong>
                                         </div>
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-text-muted font-medium">Vendi në Dokument:</span>
-                                          <strong className="text-success-start">Faqja {docPage} e Aktit Zyrtar</strong>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-text-muted font-medium">Precedentë të Lidhura:</span>
-                                          <strong className="text-warning-start">{supremeCount} Vendim(e)</strong>
-                                        </div>
+                                        {docSource && (
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-text-muted font-medium">{t('lawSearch.sourceInServer', 'Burimi në Server')}:</span>
+                                            <strong className="truncate max-w-[240px] text-right font-mono text-[11px]" title={docSource}>
+                                              {docSource}
+                                            </strong>
+                                          </div>
+                                        )}
+                                        {docPage !== null && (
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-text-muted font-medium">{t('lawSearch.pageInDoc', 'Vendi në Dokument')}:</span>
+                                            <strong className="text-primary-start">
+                                              {t('lawArticle.page', 'Faqja')} {docPage}
+                                            </strong>
+                                          </div>
+                                        )}
+                                        {supremeCount > 0 && (
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-text-muted font-medium">{t('lawSearch.linkedPrecedents', 'Precedentë të Lidhura')}:</span>
+                                            <strong className="text-warning-start">{supremeCount} {t('lawSearch.decisions', 'Vendim(e)')}</strong>
+                                          </div>
+                                        )}
                                       </div>
 
                                       {item.verification_tooltip && (
@@ -474,8 +628,6 @@ export default function LawSearchPage() {
                                           {item.verification_tooltip}
                                         </p>
                                       )}
-
-                                      <div className="absolute top-full left-8 -mt-[1px] border-[8px] border-transparent border-t-card" />
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
@@ -486,7 +638,7 @@ export default function LawSearchPage() {
                                 onClick={() => handleOpenExactArticle(item.law_title, item.article_number)}
                                 className="h-8.5 px-3.5 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all hover-lift shadow-xs"
                               >
-                                <span>Lexo Nenin e Plotë</span>
+                                <span>{t('lawSearch.readFullArticle', 'Lexo Nenin e Plotë')}</span>
                                 <ArrowRight size={13} />
                               </button>
                             </div>
@@ -494,7 +646,7 @@ export default function LawSearchPage() {
                             <div className="p-4 rounded-xl bg-canvas/60 border border-main text-xs sm:text-sm text-text-primary leading-relaxed font-sans">
                               <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-text-muted mb-2 font-bold">
                                 <BookMarked size={13} className="text-primary-start" />
-                                <span>Përmbajtja e Dispozitës Ligjore në Server:</span>
+                                <span>{t('lawSearch.provisionContent', 'Përmbajtja e Dispozitës Ligjore')}:</span>
                               </div>
                               <p className="whitespace-pre-wrap">{fullText}</p>
                             </div>
@@ -505,12 +657,11 @@ export default function LawSearchPage() {
                   </div>
                 )}
 
-                {/* PRECEDENTËT */}
                 {aiCaselawPrecedents.length > 0 && (
                   <div className="flex flex-col gap-2.5 pt-3 border-t border-main/50">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
                       <Gavel size={14} className="text-primary-start" />
-                      <span>Precedentë dhe Aktgjykime të Lidhura të Gjykatës Supreme:</span>
+                      <span>{t('lawSearch.caselawPrecedents', 'Precedentë të Gjykatës Supreme')}:</span>
                     </span>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -528,7 +679,9 @@ export default function LawSearchPage() {
                             <button
                               onClick={() => {
                                 setSelectedPdfFilename(c.source || c.title);
-                                setInitialPageNumber(c.page || 1);
+                                setInitialPageNumber(
+                                  typeof c.page === 'number' && c.page > 0 ? c.page : undefined,
+                                );
                                 setShowPdfModal(true);
                               }}
                               className="w-full p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-xl text-xs font-medium text-text-primary flex flex-col gap-1.5 transition-all cursor-pointer hover-lift text-left shadow-2xs"
@@ -560,24 +713,27 @@ export default function LawSearchPage() {
                                   <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-main">
                                     <div className="flex items-center gap-1.5 text-warning-start font-black text-xs uppercase">
                                       <Gavel size={15} />
-                                      <span>Gjykata Supreme e Kosovës</span>
+                                      <span>{t('lawSearch.supremeCourt', 'Gjykata Supreme e Kosovës')}</span>
                                     </div>
-                                    <span className="px-2 py-0.5 rounded-md bg-warning-start/15 text-warning-start font-mono text-[10px] font-bold">
-                                      AKTARKIVË
-                                    </span>
                                   </div>
 
                                   <div className="text-xs sm:text-sm font-bold text-text-primary mb-2">
                                     {c.title}
                                   </div>
 
-                                  <div className="space-y-1 text-xs text-text-secondary font-sans bg-surface/80 p-2.5 rounded-xl border border-main">
-                                    <div>Referenca: <strong>Faqja {c.page} e Aktgjykimit Origjinal</strong></div>
-                                    <div>Burimi në Server: <strong>{c.source || 'Arkiva Supreme'}</strong></div>
-                                    <div>Instanca: <strong>Kolegji i Gjykatës Supreme</strong></div>
-                                  </div>
-
-                                  <div className="absolute top-full left-6 -mt-[1px] border-[8px] border-transparent border-t-card" />
+                                  {typeof c.page === 'number' && c.page > 0 && (
+                                    <div className="space-y-1 text-xs text-text-secondary font-sans bg-surface/80 p-2.5 rounded-xl border border-main">
+                                      <div>
+                                        {t('lawSearch.reference', 'Referenca')}:{' '}
+                                        <strong>{t('lawArticle.page', 'Faqja')} {c.page}</strong>
+                                      </div>
+                                      {c.source && (
+                                        <div>
+                                          {t('lawSearch.source', 'Burimi')}: <strong>{c.source}</strong>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -592,32 +748,30 @@ export default function LawSearchPage() {
           </AnimatePresence>
         </div>
 
-        {/* V125.0: 2 TABS (KODET + AKTGJYKIMET) — AKADEMIA u hoq */}
         <div className="grid grid-cols-2 w-full gap-2 mb-6 bg-surface p-1.5 sm:p-2 rounded-2xl border border-main shadow-sm">
           <button
             type="button"
-            onClick={() => { setActiveTab('statutes'); }}
+            onClick={() => setActiveTab('statutes')}
             className={`w-full py-3 sm:py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'statutes' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
             <Scale size={16} className="shrink-0 hidden xs:inline" />
-            <span className="truncate">Kodet ({filteredStatutes.length})</span>
+            <span className="truncate">{t('lawSearch.codesTab', 'Kodet')} ({filteredStatutes.length})</span>
           </button>
 
           <button
             type="button"
-            onClick={() => { setActiveTab('caselaw'); }}
+            onClick={() => setActiveTab('caselaw')}
             className={`w-full py-3 sm:py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'caselaw' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
             <Gavel size={16} className="shrink-0 hidden xs:inline" />
-            <span className="truncate">Aktgjykimet ({filteredCaselaw.length})</span>
+            <span className="truncate">{t('lawSearch.caselawTab', 'Aktgjykimet')} ({filteredCaselaw.length})</span>
           </button>
         </div>
 
-        {/* LISTA E MATERIALEVE */}
         <div className="glass-panel p-5 sm:p-8 mb-12 shadow-sm border border-main bg-surface rounded-3xl" ref={dropdownRef}>
           <div className="flex items-center justify-between mb-4 sm:mb-5 pb-3 border-b border-main">
             <button
@@ -627,26 +781,30 @@ export default function LawSearchPage() {
             >
               <BookOpen size={18} className="text-primary-start" />
               <span>
-                {activeTab === 'statutes' ? 'Kodet Zyrtare të Kosovës' : 'Precedentët & Aktgjykimet e Gjykatës Supreme'}
+                {activeTab === 'statutes'
+                  ? t('lawSearch.officialCodes', 'Kodet Zyrtare të Kosovës')
+                  : t('lawSearch.supremePrecedents', 'Precedentët & Aktgjykimet e Gjykatës Supreme')}
               </span>
-              <ChevronDown size={18} className={`transition-transform duration-200 ${isListExpanded ? 'rotate-180 text-primary-start' : ''}`} />
+              <ChevronDown
+                size={18}
+                className={`transition-transform duration-200 ${isListExpanded ? 'rotate-180 text-primary-start' : ''}`}
+              />
             </button>
 
-            <div className="flex items-center gap-3">
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setAiDiagnostic(null);
-                    setAiCaselawPrecedents([]);
-                  }}
-                  className="text-xs font-bold text-primary-start hover:underline cursor-pointer"
-                >
-                  Pastro kërkimin
-                </button>
-              )}
-            </div>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setAiDiagnostic(null);
+                  setAiCaselawPrecedents([]);
+                  setAiError('');
+                }}
+                className="text-xs font-bold text-primary-start hover:underline cursor-pointer"
+              >
+                {t('lawSearch.clearSearch', 'Pastro kërkimin')}
+              </button>
+            )}
           </div>
 
           <AnimatePresence>
@@ -661,10 +819,10 @@ export default function LawSearchPage() {
                   <div className="py-16 text-center flex flex-col items-center justify-center">
                     <Search size={28} className="text-text-muted mb-2" />
                     <p className="text-xs sm:text-sm font-bold text-text-primary">
-                      Nuk u gjet asnjë material në këtë kategori për "{searchQuery}"
+                      {t('lawSearch.noResults', 'Nuk u gjet asnjë material për kërkimin')} "{searchQuery}"
                     </p>
                     <p className="text-xs text-text-muted mt-1">
-                      Shtypni butonin "Kërko me AI" për të kryer kërkim semantik brenda të gjithë përmbajtjes.
+                      {t('lawSearch.aiHint', 'Shtypni "Kërko me AI" për kërkim semantik.')}
                     </p>
                   </div>
                 ) : (
@@ -672,20 +830,30 @@ export default function LawSearchPage() {
                     {activeList.map((lawTitle, idx) => {
                       const displayTitle = normalizeForDisplay(lawTitle);
                       const isPdf = activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf');
+                      const repealedInfo = repealedTitlesMap.get(lawTitle);
 
                       return (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => handleSelectLaw(lawTitle)}
-                          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-canvas hover:bg-primary-start text-text-primary hover:text-white border border-main hover:border-primary-start flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs hover-lift"
+                          className={`w-full text-left p-3.5 sm:p-4 rounded-2xl bg-canvas hover:bg-primary-start text-text-primary hover:text-white border flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs hover-lift ${
+                            repealedInfo
+                              ? 'border-warning-start/40 hover:border-primary-start'
+                              : 'border-main hover:border-primary-start'
+                          }`}
                         >
                           <div className="flex items-center gap-3.5 min-w-0 pr-3">
-                            <div className="p-2.5 rounded-xl bg-surface group-hover:bg-white/20 border border-main group-hover:border-white/20 shrink-0 transition-colors">
+                            <div className="p-2.5 rounded-xl bg-surface group-hover:bg-white/20 border border-main group-hover:border-white/20 shrink-0 transition-colors relative">
                               {activeTab === 'caselaw' ? (
                                 <Gavel size={18} className="text-primary-start group-hover:text-white" />
                               ) : (
                                 <Scale size={18} className="text-primary-start group-hover:text-white" />
+                              )}
+                              {repealedInfo && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-warning-start flex items-center justify-center">
+                                  <AlertTriangle size={10} className="text-white" />
+                                </div>
                               )}
                             </div>
                             <div className="min-w-0">
@@ -693,15 +861,22 @@ export default function LawSearchPage() {
                                 {displayTitle}
                               </span>
                               <span className="text-[10px] text-text-muted group-hover:text-white/80 font-mono flex items-center gap-1.5 mt-0.5">
-                                {isPdf ? (
+                                {repealedInfo ? (
+                                  <>
+                                    <AlertTriangle size={11} className="text-warning-start group-hover:text-white" />
+                                    <span>
+                                      {t('lawSearch.repealedSince', 'Shfuqizuar më')} {repealedInfo.repealed_date || '—'}
+                                    </span>
+                                  </>
+                                ) : isPdf ? (
                                   <>
                                     <ExternalLink size={11} />
-                                    <span>Dokument PDF • Hapje e menjëhershme</span>
+                                    <span>{t('lawSearch.pdfDoc', 'Dokument PDF')}</span>
                                   </>
                                 ) : (
                                   <>
                                     <Check size={11} className="text-success-start group-hover:text-white" />
-                                    <span>Kodi Zyrtar • Shiko të gjitha nenet</span>
+                                    <span>{t('lawSearch.officialCode', 'Kodi Zyrtar')}</span>
                                   </>
                                 )}
                               </span>
@@ -718,7 +893,6 @@ export default function LawSearchPage() {
             )}
           </AnimatePresence>
         </div>
-
       </div>
 
       {showPdfModal && pdfUrl && (

@@ -1,44 +1,28 @@
 # FILE: backend/app/services/document_review/mongo_verifier/articles.py
-# PHOENIX PROTOCOL - MONGO VERIFIER / ARTICLES V1.0 (V2.12 modular)
-# Ekstraktuar nga mongo_verifier.py V2.11 (pa ndryshim logjike).
+# PHOENIX PROTOCOL - MONGO VERIFIER / ARTICLES V1.1
+#
+# V1.1: BURIMET EKSTERNE nga JSON (jo hardcoded).
+#   - Hequr `_check_if_international_treaty` (ishte hardcoded për KEDNJ + OKB)
+#   - Shtuar përdorim i `find_external_source` nga `external_registry.py`
+#   - Shtuar fusha `is_external`, `external_source_id`, `external_category`
+#     në rezultatin e verifikimit për t'u dalluar nga "unverified" në frontend
+#   - Shtuar Konventa e Hagës (nëpërmjet JSON, jo kod)
+#   - `verify_articles` tani raporton `external_matches` veçmas
+#
+# V1.0 (V2.12 modular): Ekstraktuar nga mongo_verifier.py V2.11.
 
 import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..helpers import normalize_albanian
-from .config import (
-    LEGAL_KB_COLLECTION,
-    INTERNATIONAL_TREATIES,
-)
+from .config import LEGAL_KB_COLLECTION
+from .external_registry import find_external_source
 from .title_matching import _title_matches_citation, _reason_priority
 from .successor_laws import _get_successor_law, _try_successor_law
 from .text_utils import _looks_like_toc, _serialize_doc
 
 logger = logging.getLogger(__name__)
-
-
-def _check_if_international_treaty(law_hint: str) -> Optional[Dict[str, str]]:
-    if not law_hint:
-        return None
-    h = normalize_albanian(law_hint)
-
-    if (
-        "kednj" in h
-        or "konventa evropiane" in h
-        or "konventa e evropiane" in h
-    ):
-        return INTERNATIONAL_TREATIES["KEDNJ"]
-
-    if (
-        ("okb" in h and ("femij" in h or "fëmij" in h))
-        or "konventa e okb" in h
-        or "konventa per te drejtat e femijes" in h
-        or "konventa për të drejtat e fëmijës" in h
-    ):
-        return INTERNATIONAL_TREATIES["OKB_FEMIJES"]
-
-    return None
 
 
 def _check_exists_in_other_laws(db, article_number: str) -> List[Dict[str, Any]]:
@@ -83,25 +67,33 @@ def _verify_single_article(
         "paragraph": paragraph,
         "law_hint": law_hint,
         "exists": False,
+        "is_external": False,
         "matched_doc": None,
         "match_reason": "",
         "candidates_checked": 0,
         "toc_filtered": 0,
     }
 
-    treaty = _check_if_international_treaty(law_hint)
-    if treaty:
+    # ═══════════════════════════════════════════════════════════════════════
+    # V1.1: Burimet eksterne nga JSON registry
+    # ═══════════════════════════════════════════════════════════════════════
+    external = find_external_source(law_hint)
+    if external:
         result["exists"] = True
+        result["is_external"] = True
         result["match_reason"] = "international_treaty_constitutional"
         result["matched_doc"] = {
-            "law_title": treaty["canonical_name"],
+            "law_title": external["canonical_name"],
             "article_number": article_number,
-            "source": treaty["constitutional_basis"],
-            "text_excerpt": treaty["note"],
+            "source": external["constitutional_basis"],
+            "text_excerpt": external["note"],
             "text_truncated": False,
-            "text_full_length": len(treaty["note"]),
+            "text_full_length": len(external["note"]),
             "page": None,
         }
+        result["external_source_id"] = external["id"]
+        result["external_category"] = external["category"]
+        result["external_short_name"] = external.get("short_name", "")
         return result
 
     if db is None:
@@ -142,12 +134,12 @@ def _verify_single_article(
             candidates = non_toc
             if toc_count > 0:
                 logger.info(
-                    f"🧹 [TOC Filter V1.7] Hoqën {toc_count} kandidatë TOC për Neni {article_number}, "
-                    f"mbetën {len(non_toc)} real"
+                    f"🧹 [TOC Filter] Hoqën {toc_count} kandidatë TOC për "
+                    f"Neni {article_number}, mbetën {len(non_toc)} real"
                 )
         elif toc_count > 0:
             logger.warning(
-                f"⚠️ [TOC Filter V1.7] Të gjithë kandidatët për Neni {article_number} "
+                f"⚠️ [TOC Filter] Të gjithë kandidatët për Neni {article_number} "
                 f"janë TOC ({toc_count}) — përdorim fallback"
             )
 
@@ -180,7 +172,7 @@ def _verify_single_article(
             return result
 
         logger.info(
-            f"🔎 [MULTI-LAW V2.12] Neni {article_number} me hint='{law_hint}' "
+            f"🔎 [MULTI-LAW] Neni {article_number} me hint='{law_hint}' "
             f"nuk u gjet direkt — provo strategji alternative..."
         )
 
@@ -228,12 +220,16 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     )
     alias_matches = sum(
         1 for r in results
-        if "abbrev_alias" in r.get("match_reason", "") or "abbrev_match_alias" in r.get("match_reason", "")
+        if "abbrev_alias" in r.get("match_reason", "")
+        or "abbrev_match_alias" in r.get("match_reason", "")
     )
-    treaty_matches = sum(
+    # V1.1: External (KEDNJ, OKB, Hagë) — ndajmë nga unverified
+    external_matches = sum(
         1 for r in results
-        if r.get("match_reason") == "international_treaty_constitutional"
+        if r.get("is_external") is True
     )
+    # Vetëm ata që nuk u gjetën në DB dhe NUK janë traktate
+    external_count = external_matches
     alternative_found = sum(
         1 for r in results
         if r.get("match_reason") == "law_hint_no_match_but_exists_elsewhere"
@@ -243,12 +239,21 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if r.get("match_reason", "").startswith("compound_abbrev_")
     )
 
+    # Not-found = nuk ekziston në DB, nuk është traktat
+    not_found = sum(
+        1 for r in results
+        if not r["exists"]
+        and not r.get("is_external")
+        and r.get("match_reason") != "law_hint_no_match_but_exists_elsewhere"
+    )
+
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.12] Articles: {len(results)} total, "
-        f"{verified} verified (including {successor_matches} in successor laws, "
-        f"{alias_matches} via alias, {compound_matches} via compound abbrev, "
-        f"{treaty_matches} international treaties), "
+        f"📚 [MONGO_VERIFIER V1.1] Articles: {len(results)} total, "
+        f"{verified} verified "
+        f"({external_count} external treaties, "
+        f"{successor_matches} in successor laws, "
+        f"{alias_matches} via alias, {compound_matches} via compound abbrev), "
         f"{alternative_found} exist elsewhere (wrong hint), "
-        f"{len(results) - verified - alternative_found} not found"
+        f"{not_found} not found"
     )
     return results

@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-09-29",
+  "description": "Regjistri i ligjeve të shfuqizuara në Kosovë. Përdoret për të shënuar ligjet e vjetra dhe për të paralajmëruar përdoruesit të përdorin ligjin zëvendësues.",
+  "repealed": [
+    {
+      "id": "03-L-182",
+      "title_patterns": [
+        "LIGJI NR. 03 L 182",
+        "LIGJI NR. 03/L-182",
+        "LIGJI Nr. 03 L-182",
+        "03 L 182",
+        "03/L-182",
+        "03-l-182",
+        "LIGJI NR. 03 L 182 PER MBROJTJE NGA DHUNA NE FAMILJE",
+        "LIGJI NR. 03/L-182 PËR MBROJTJE NGA DHUNA NË FAMILJE"
+      ],
+      "repealed_by": "LIGJI NR. 08 L 185 PËR PARANDALIMIN DHE MBROJTJEN NGA DHUNA NË FAMILJE, DHUNA NDAJ GRAVE DHE DHUNA NË BAZA GJINORE",
+      "repealed_by_patterns": [
+        "LIGJI NR. 08 L 185",
+        "LIGJI NR. 08/L-185",
+        "08 L 185",
+        "08/L-185"
+      ],
+      "repealed_date": "2023-10-12",
+      "source": "Gazeta Zyrtare e Republikës së Kosovës Nr. 22/2023",
+      "reason": "Zëvendësuar me ligj të ri më të plotë që adreson edhe dhunën ndaj grave dhe dhunën në baza gjinore."
+    }
+  ]
+}

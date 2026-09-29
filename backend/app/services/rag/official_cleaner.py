@@ -1,17 +1,17 @@
 # FILE: backend/app/services/rag/official_cleaner.py
-# PHOENIX PROTOCOL - OFFICIAL TEXT CLEANER V1.0
+# PHOENIX PROTOCOL - OFFICIAL TEXT CLEANER V1.1
+#
+# V1.1: DISCLAIMER I SAKTË PËR BURIME EKSTERNE.
+#   - `_format_direct_answer` tani lexon `v.is_external` nga mongo_verifier V1.1.
+#   - Nëse cikli përmban vetëm burime eksterne (KEDNJ/OKB/Hagë):
+#       * Source meta → "🌐 Baza kushtetuese: ..." (jo "📎 Burimi zyrtar")
+#       * Disclaimer → "traktate ndërkombëtare sipas Nenit 22"
+#   - Nëse cikli përmban vetëm ligje kosovare:
+#       * Mbetet "📎 Burimi zyrtar" + "baza zyrtare ligjore e Kosovës"
+#   - Nëse cikli është i përzier:
+#       * Disclaimer i përgjithshëm (të dyja burimet)
+#
 # V1.0: EKSTRAKTUAR nga albanian_rag_service.py V282.25 (metodat self._*).
-#       Konvertuar në funksione të pavarura (pa self).
-#       - _unwrap_lines
-#       - _extract_gazette_info
-#       - _extract_law_number_from_source
-#       - _is_document_header_line
-#       - _is_law_header_candidate
-#       - _is_header_continuation
-#       - _remove_repeated_headers
-#       - _clean_official_text
-#       - _format_direct_answer
-#       Zero varësi nga AlbanianRAGService.
 
 import re
 from collections import Counter
@@ -169,6 +169,52 @@ def _clean_official_text(raw: str) -> str:
     return text.strip()
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.1: DISCLAIMER BUILDERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _build_final_disclaimer(has_kosovar: bool, has_external: bool) -> str:
+    """V1.1: Kthen disclaimer-in e saktë sipas llojit të burimeve."""
+    if has_external and not has_kosovar:
+        # Vetëm traktate ndërkombëtare
+        return (
+            "*ℹ️ Ky burim është traktat ndërkombëtar që zbatohet drejtpërdrejt në "
+            "Kosovë sipas Nenit 22 të Kushtetutës së Republikës së Kosovës — "
+            "pa përpunim nga AI.*\n\n"
+            "*💬 Për interpretim, aplikim në fashikull, ose analizë të thelluar, "
+            "vazhdoni me pyetjen tuaj.*"
+        )
+
+    if has_external and has_kosovar:
+        # Të dyja llojet
+        return (
+            "*ℹ️ Teksti i mësipërm përfshin dispozita nga baza zyrtare ligjore e "
+            "Republikës së Kosovës dhe traktate ndërkombëtare që zbatohen "
+            "drejtpërdrejt sipas Nenit 22 të Kushtetutës — pa përpunim nga AI.*\n\n"
+            "*💬 Për interpretim, aplikim në fashikull, ose analizë të thelluar, "
+            "vazhdoni me pyetjen tuaj.*"
+        )
+
+    # Vetëm ligje kosovare
+    return (
+        "*ℹ️ Teksti i mësipërm është marrë drejtpërdrejt nga baza zyrtare ligjore "
+        "e Republikës së Kosovës — pa përpunim nga AI.*\n\n"
+        "*💬 Për interpretim, aplikim në fashikull, ose analizë të thelluar, "
+        "vazhdoni me pyetjen tuaj.*"
+    )
+
+
+def _build_source_label(is_external: bool) -> str:
+    """V1.1: Etiketa e burimit sipas llojit."""
+    if is_external:
+        return "🌐 **Baza kushtetuese:**"
+    return "📎 **Burimi zyrtar:**"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════
+
 def _format_direct_answer(
     verified_articles: List[Tuple[Dict[str, Any], Dict[str, Any]]],
     pre_verify_disclaimer: str,
@@ -178,7 +224,18 @@ def _format_direct_answer(
     if pre_verify_disclaimer:
         parts.append(pre_verify_disclaimer.strip())
 
+    # V1.1: Përcakto llojet e burimeve në listë
+    has_external = False
+    has_kosovar = False
+    for _art, v in verified_articles:
+        if v.get("is_external") is True:
+            has_external = True
+        else:
+            has_kosovar = True
+
     for art, v in verified_articles:
+        is_external = v.get("is_external") is True
+
         doc = v.get("matched_doc") or {}
         law_title_raw = doc.get("law_title") or art.get("law_hint", "Ligj i panjohur")
         source_file = doc.get("source", "") or ""
@@ -186,37 +243,49 @@ def _format_direct_answer(
         article_number = art.get("number", "")
         raw_body = doc.get("text_excerpt", "") or ""
 
-        gazette_info = _extract_gazette_info(raw_body)
-        law_number = _extract_law_number_from_source(source_file)
-        clean_body = _clean_official_text(raw_body)
-
         parts.append(f"## ⚖️ Neni {article_number}")
         parts.append(f"#### 📘 {law_title_raw}")
 
-        if clean_body:
-            parts.append("---")
-            parts.append(clean_body)
+        if is_external:
+            # ═══ V1.1: Neni ekstern — shfaq tekstin + bazën kushtetuese ═══
+            if raw_body:
+                parts.append("---")
+                parts.append(raw_body.strip())
 
-        source_meta: List[str] = []
-        if law_number:
-            source_meta.append(f"**{law_number}**")
-        if gazette_info:
-            source_meta.append(gazette_info)
-        if page is not None:
-            source_meta.append(f"Faqe **{page}**")
-        if source_file:
-            source_meta.append(f"`{source_file}`")
+            source_meta: List[str] = []
+            if source_file:
+                # source_file = constitutional_basis p.sh. "Neni 22 i Kushtetutës..."
+                source_meta.append(f"**{source_file}**")
 
-        if source_meta:
-            parts.append("---")
-            parts.append(f"📎 **Burimi zyrtar:** " + " · ".join(source_meta))
+            if source_meta:
+                parts.append("---")
+                parts.append(_build_source_label(True) + " " + " · ".join(source_meta))
+        else:
+            # ═══ Ligj kosovar — sjellja origjinale ═══
+            gazette_info = _extract_gazette_info(raw_body)
+            law_number = _extract_law_number_from_source(source_file)
+            clean_body = _clean_official_text(raw_body)
 
+            if clean_body:
+                parts.append("---")
+                parts.append(clean_body)
+
+            source_meta: List[str] = []
+            if law_number:
+                source_meta.append(f"**{law_number}**")
+            if gazette_info:
+                source_meta.append(gazette_info)
+            if page is not None:
+                source_meta.append(f"Faqe **{page}**")
+            if source_file:
+                source_meta.append(f"`{source_file}`")
+
+            if source_meta:
+                parts.append("---")
+                parts.append(_build_source_label(False) + " " + " · ".join(source_meta))
+
+    # V1.1: Disclaimer sipas llojit
     parts.append("---")
-    parts.append(
-        "*ℹ️ Teksti i mësipërm është marrë drejtpërdrejt nga baza zyrtare ligjore "
-        "e Republikës së Kosovës — pa përpunim nga AI.*\n\n"
-        "*💬 Për interpretim, aplikim në fashikull, ose analizë të thelluar, "
-        "vazhdoni me pyetjen tuaj.*"
-    )
+    parts.append(_build_final_disclaimer(has_kosovar, has_external))
 
     return "\n\n".join(parts)

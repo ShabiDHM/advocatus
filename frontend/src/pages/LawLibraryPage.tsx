@@ -1,14 +1,24 @@
 // FILE: src/pages/LawLibraryPage.tsx
-// PHOENIX PROTOCOL - LAW LIBRARY V7.1 (DECOUPLED & MODULARIZED ATOMIC ARCHITECTURE)
+// PHOENIX PROTOCOL - LAW LIBRARY V8.0
+//
+// V8.0: FIX hardcoding + endpoint jo-ekzistues + repeals.
+//   - L1: HEQUR /laws/list (nuk ekziston) → kalohet në /laws/titles
+//   - L2: HEQUR DEFAULT_LAWS hardcoded
+//   - L3: Search pa `law_title` param (backend nuk e pranon)
+//   - L4: Guard për q bosh (paraprakisht 400)
+//   - L10: Shtuar repealed_statutes state (shfaqet warning)
+//   - Tipizim i plotë (LawResult, TitlesResponse)
+//
+// V7.1: Versioni i vjetër.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, AlertCircle, BookOpen, ArrowLeft } from 'lucide-react';
+import { Search, AlertCircle, BookOpen, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { LawResult, DEFAULT_LAWS } from '../components/law/lawLibraryTypes';
+import type { LawResult, RepealedStatuteItem } from '../components/law/lawLibraryTypes';
 import { LawLibrarySearchCard } from '../components/law/LawLibrarySearchCard';
 import { LawLibraryResultCard } from '../components/law/LawLibraryResultCard';
 
@@ -18,41 +28,57 @@ export default function LawLibraryPage() {
 
   const [query, setQuery] = useState('');
   const [selectedLaw, setSelectedLaw] = useState('');
-  const [availableLaws, setAvailableLaws] = useState<string[]>(DEFAULT_LAWS);
+  const [availableLaws, setAvailableLaws] = useState<string[]>([]);
+  const [repealedMap, setRepealedMap] = useState<Map<string, RepealedStatuteItem>>(new Map());
 
   const [results, setResults] = useState<LawResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // V8.0: Ngarko listën e ligjeve nga /laws/titles (jo /laws/list)
   useEffect(() => {
-    const fetchLawsList = async () => {
+    if (!isAuthenticated) return;
+
+    const controller = new AbortController();
+
+    (async () => {
       try {
-        const response = await apiService.axiosInstance.get('/laws/list');
-        let fetched: string[] = [];
+        const response = await apiService.axiosInstance.get(
+          '/laws/titles',
+          { signal: controller.signal },
+        );
+        const data = response.data || {};
 
-        if (Array.isArray(response.data)) {
-          fetched = response.data;
-        } else if (response.data && Array.isArray(response.data.laws)) {
-          fetched = response.data.laws;
-        } else if (response.data && Array.isArray(response.data.data)) {
-          fetched = response.data.data;
-        }
+        const statutes: string[] = Array.isArray(data.statutes) ? data.statutes : [];
+        const repealed: RepealedStatuteItem[] = Array.isArray(data.repealed_statutes)
+          ? data.repealed_statutes
+          : [];
 
-        if (fetched.length > 0) {
-          setAvailableLaws(fetched);
+        setAvailableLaws(statutes);
+
+        const map = new Map<string, RepealedStatuteItem>();
+        for (const item of repealed) {
+          if (item?.law_title) map.set(item.law_title, item);
         }
-      } catch {
-        console.warn('[LawLibrary] Using default Kosovo laws list fallback');
+        setRepealedMap(map);
+      } catch (err: any) {
+        if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
+        console.warn('[LawLibrary] Failed to load law titles:', err);
+        setAvailableLaws([]);
       }
-    };
+    })();
 
-    if (isAuthenticated) {
-      fetchLawsList();
-    }
+    return () => controller.abort();
   }, [isAuthenticated]);
 
+  const repealedTitlesSet = useMemo(() => new Set(repealedMap.keys()), [repealedMap]);
+
   const handleSearch = async () => {
-    if (!query.trim() && !selectedLaw) return;
+    // V8.0: Guard për q bosh (backend 400)
+    if (!query.trim()) {
+      setError('Shkruani një fjalë kyçe për të kërkuar.');
+      return;
+    }
     if (!isAuthenticated) {
       setError('Duhet të jeni i identifikuar për të përdorur këtë veçori.');
       return;
@@ -62,17 +88,31 @@ export default function LawLibraryPage() {
     setError('');
 
     try {
-      const params: any = {};
-      if (query.trim()) params.q = query.trim();
-      if (selectedLaw) params.law_title = selectedLaw;
+      // V8.0: vetëm `q` + `limit` (backend nuk pranon law_title)
+      const response = await apiService.axiosInstance.get<LawResult[]>(
+        '/laws/search',
+        { params: { q: query.trim(), limit: 50 } },
+      );
 
-      const response = await apiService.axiosInstance.get<LawResult[]>('/laws/search', { params });
-      setResults(response.data);
+      let data = Array.isArray(response.data) ? response.data : [];
+
+      // Filtrim client-side sipas selectedLaw (backend nuk e bën)
+      if (selectedLaw) {
+        data = data.filter((r) => r.law_title === selectedLaw);
+      }
+
+      setResults(data);
     } catch (err: any) {
       if (err.response?.status === 401) {
         setError('Sesioni juaj ka skaduar ose nuk jeni i identifikuar. Ju lutem hyni përsëri.');
+      } else if (err.response?.status === 400) {
+        setError(err.response?.data?.detail || 'Kërkesa nuk është e saktë.');
       } else {
-        setError(err.response?.data?.detail || 'Kërkimi dështoi. Provoni përsëri.');
+        setError(
+          err.response?.data?.detail ||
+          err.message ||
+          'Kërkimi dështoi. Provoni përsëri.',
+        );
       }
     } finally {
       setLoading(false);
@@ -130,10 +170,26 @@ export default function LawLibraryPage() {
           </div>
         )}
 
+        {/* Warning për ligje të shfuqizuara (V8.0) */}
+        {repealedMap.size > 0 && (
+          <div className="mb-6 p-4 bg-warning-start/5 border border-warning-start/30 rounded-2xl flex items-start gap-3 shadow-sm">
+            <AlertTriangle size={18} className="text-warning-start shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-warning-start uppercase tracking-wider mb-1">
+                Njoftim: Ligje të shfuqizuara në bibliotekë
+              </p>
+              <p className="text-text-secondary text-xs leading-relaxed">
+                {repealedMap.size} ligj(e) në bibliotekë janë shfuqizuar. Do të shfaqen me shenjë ⚠️ në listën e filtrimit.
+              </p>
+            </div>
+          </div>
+        )}
+
         <LawLibrarySearchCard
           selectedLaw={selectedLaw}
           onSelectedLawChange={setSelectedLaw}
           availableLaws={availableLaws}
+          repealedTitles={repealedTitlesSet}
           query={query}
           onQueryChange={setQuery}
           onSearch={handleSearch}
@@ -160,12 +216,18 @@ export default function LawLibraryPage() {
             <LawLibraryResultCard key={r.chunk_id || index} result={r} index={index} />
           ))}
 
-          {results.length === 0 && (query || selectedLaw) && !loading && !error && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-16 text-center">
+          {results.length === 0 && query && !loading && !error && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
               <Search size={48} className="text-text-muted/60 mb-4" strokeWidth={1.5} />
-              <p className="text-text-primary font-black text-base uppercase tracking-wider">Nuk u gjetën të dhëna</p>
+              <p className="text-text-primary font-black text-base uppercase tracking-wider">
+                Nuk u gjetën të dhëna
+              </p>
               <p className="text-text-muted text-xs mt-1 font-medium max-w-md">
-                Nuk ka asnjë rezultat për kërkimin tuaj. Provoni fjalë kyçe të tjera ose hiqni filtrin e ligjit.
+                Nuk ka asnjë rezultat për kërkimin tuaj. Provoni fjalë kyçe të tjera.
               </p>
             </motion.div>
           )}

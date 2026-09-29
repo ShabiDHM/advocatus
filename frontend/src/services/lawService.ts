@@ -1,70 +1,155 @@
 // FILE: src/services/lawService.ts
-// PHOENIX PROTOCOL - DEDICATED LAW SERVICE MODULE (100% ISOLATED)
+// PHOENIX PROTOCOL - LAW SERVICE MODULE V2.0.1
+//
+// V2.0.1: FIX TS6133 warning për `articleText`.
+//   - `articleText` → `_articleText` + JSDoc @deprecated
+//   - Backend V3.0 lexon tekstin nga DB (nuk ka nevojë për prompt injection risk)
+//   - Parametri do hiqet në klaster 2/6 (bashkë me LawArticlePage refactor)
+//
+// V2.0: Aligned me backend V208.2 (tipizim i plotë, AbortController).
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
+import type {
+  ArticleData,
+  SourceInfo,
+  RepealedInfo,
+} from '../components/law/lawArticleTypes';
+import type {
+  LawResult,
+  TitlesResponse,
+  LawOverviewData,
+} from '../components/law/lawLibraryTypes';
 
-export interface SourceInfo {
-  confidence: {
-    level: 'HIGH' | 'MEDIUM' | 'LOW' | 'LOWEST' | 'UNKNOWN' | 'NONE';
-    label: string;
-    icon: string;
-    color: string;
-    description: string;
-    score: number;
-  };
-  matched_law: string;
-  matched_article: string;
-  source_file: string;
-  was_mapped: boolean;
-  mapped_from: string | null;
-  multiple_matches: boolean;
-  matching_laws: string[];
-  strategy_used: string;
-  verification_hint: string;
-  match_count: number;
-}
+// Re-export types for convenience
+export type {
+  ArticleData,
+  SourceInfo,
+  RepealedInfo,
+  LawResult,
+  TitlesResponse,
+  LawOverviewData,
+};
 
-export interface LawArticle {
-  law_title: string;
-  article_number?: string;
-  source: string;
-  text: string;
-  chunk_id?: string;
-  source_info?: SourceInfo;
-  page?: number;
-  page_number?: number;
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
 
 export class LawService {
+  // ═══════════════════════════════════════════════════════════════════════
+  // READ
+  // ═══════════════════════════════════════════════════════════════════════
+
   /**
-   * Ngarkon nenin e plotë nga baza e të dhënave.
+   * Ngarkon nenin e plotë nga DB.
    */
-  public async getLawArticle(lawTitle: string, articleNumber: string): Promise<LawArticle> {
-    const response = await apiClient.get<LawArticle>('/laws/article', {
+  public async getLawArticle(
+    lawTitle: string,
+    articleNumber: string,
+    signal?: AbortSignal,
+  ): Promise<ArticleData> {
+    const response = await apiClient.get<ArticleData>('/laws/article', {
       params: { law_title: lawTitle, article_number: articleNumber },
+      signal,
     });
     return response.data;
   }
 
   /**
-   * Kontrollon menjëherë nëse ekziston analizë e ruajtur në MongoDB (Multi-Device Cache).
+   * Ngarkon listën e neneve për një ligj (overview).
+   * V208.2: përfshin is_repealed/warning.
    */
-  public async getCachedLawAnalysis(lawTitle: string, articleNumber: string): Promise<string | null> {
+  public async getLawArticlesByTitle(
+    lawTitle: string,
+    signal?: AbortSignal,
+  ): Promise<LawOverviewData> {
+    const response = await apiClient.get<LawOverviewData>('/laws/by-title', {
+      params: { law_title: lawTitle },
+      signal,
+    });
+    return response.data;
+  }
+
+  /**
+   * Liston statute + caselaw + repealed_statutes.
+   */
+  public async getLawTitles(signal?: AbortSignal): Promise<TitlesResponse> {
+    const response = await apiClient.get<TitlesResponse>('/laws/titles', { signal });
+    return response.data;
+  }
+
+  /**
+   * Kërkim global në bazën ligjore (vector search).
+   * V2.0: hequr `jurisdiction` (backend nuk e pranon).
+   */
+  public async searchLaws(
+    query: string,
+    limit: number = 50,
+    signal?: AbortSignal,
+  ): Promise<LawResult[]> {
+    const response = await apiClient.get<LawResult[]>('/laws/search', {
+      params: { q: query, limit },
+      signal,
+    });
+    return response.data;
+  }
+
+  /**
+   * Ngarkon pjesën e ligjit me Chunk ID.
+   */
+  public async getLawByChunkId(
+    chunkId: string,
+    signal?: AbortSignal,
+  ): Promise<ArticleData> {
+    const response = await apiClient.get<ArticleData>(`/laws/${chunkId}`, { signal });
+    return response.data;
+  }
+
+  /**
+   * Faqja fillestare e një precedenti (për PDF viewer).
+   */
+  public async getCaseStartingPage(
+    lawTitle: string,
+    signal?: AbortSignal,
+  ): Promise<{ page: number | null; page_number: number | null; law_title: string; found: boolean }> {
+    const response = await apiClient.get('/laws/case-page', {
+      params: { law_title: lawTitle },
+      signal,
+    });
+    return response.data;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CACHE — MongoDB multi-device
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Kthen analizën e ruajtur në MongoDB ose null.
+   */
+  public async getCachedLawAnalysis(
+    lawTitle: string,
+    articleNumber: string,
+    signal?: AbortSignal,
+  ): Promise<string | null> {
     try {
-      const response = await apiClient.get<{ cached: boolean; content: string | null }>('/laws/explain/cached', {
-        params: { law_title: lawTitle, article_number: articleNumber },
-      });
-      if (response.data && response.data.cached && response.data.content) {
+      const response = await apiClient.get<{ cached: boolean; content: string | null }>(
+        '/laws/explain/cached',
+        {
+          params: { law_title: lawTitle, article_number: articleNumber },
+          signal,
+        },
+      );
+      if (response.data?.cached && response.data.content) {
         return response.data.content;
       }
       return null;
     } catch {
+      // Silent — cache miss nuk është gabim
       return null;
     }
   }
 
   /**
-   * Fshin analizën e ruajtur në MongoDB (Purge Cache).
+   * Fshin analizën e ruajtur në MongoDB.
    */
   public async clearLawCache(lawTitle: string, articleNumber: string): Promise<void> {
     await apiClient.delete('/laws/explain/cache', {
@@ -72,56 +157,26 @@ export class LawService {
     });
   }
 
-  /**
-   * Ngarkon listën e neneve për një ligj të caktuar.
-   */
-  public async getLawArticlesByTitle(lawTitle: string): Promise<any> {
-    const response = await apiClient.get('/laws/by-title', { params: { law_title: lawTitle } });
-    return response.data;
-  }
+  // ═══════════════════════════════════════════════════════════════════════
+  // STREAMING
+  // ═══════════════════════════════════════════════════════════════════════
 
   /**
-   * Ngarkon të gjithë titujt e ligjeve, manualeve dhe praktikës gjyqësore.
-   */
-  public async getLawTitles(): Promise<any> {
-    const response = await apiClient.get('/laws/titles');
-    return response.data;
-  }
-
-  /**
-   * Kërkim global në bazën ligjore.
-   */
-  public async searchLaws(query: string, jurisdiction?: string, limit: number = 50): Promise<any> {
-    const response = await apiClient.get('/laws/search', { params: { q: query, jurisdiction, limit } });
-    return response.data;
-  }
-
-  /**
-   * Ngarkon pjesën e ligjit me Chunk ID.
-   */
-  public async getLawByChunkId(chunkId: string): Promise<LawArticle> {
-    const response = await apiClient.get<LawArticle>(`/laws/${chunkId}`);
-    return response.data;
-  }
-
-  /**
-   * Gjeneron analizën e thellë ligjore me DeepSeek (Streaming në kohë reale).
+   * Gjeneron analizën e thellë ligjore (streaming).
+   *
+   * @param lawTitle - Titulli i ligjit
+   * @param articleNumber - Numri i nenit
+   * @param _articleText - DEPRECATED. Backend V3.0 lexon tekstin nga DB.
+   *                       Mbahet për backward compat; do hiqet në klaster 2/6.
+   * @param signal - AbortController signal (opsional)
    */
   public async *explainLawStream(
     lawTitle: string,
     articleNumber: string,
-    articleText: string
+    _articleText: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<string, void, unknown> {
-    let token = tokenManager.get();
-    if (!token) {
-      try {
-        const { data } = await apiClient.post<{ access_token: string }>('/auth/refresh');
-        tokenManager.set(data.access_token);
-        token = data.access_token;
-      } catch {}
-    }
-
-    const prompt = `Ligji: "${lawTitle}"\nNeni: ${articleNumber}\n\nPërmbajtja e Nenit:\n${articleText}`;
+    const token = await this._ensureToken();
     const url = `${API_V1_URL}/laws/explain`;
 
     const response = await fetch(url, {
@@ -130,52 +185,36 @@ export class LawService {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ prompt, law_title: lawTitle, article_number: articleNumber }),
+      body: JSON.stringify({
+        prompt: `Analizo nenin ${articleNumber} sipas tekstit të dhënë.`,
+        law_title: lawTitle,
+        article_number: articleNumber,
+      }),
+      signal,
     });
 
     if (!response.ok) {
-      let errorMsg = 'Sqarimi i ligjit dështoi.';
-      try {
-        const errJson = await response.json();
-        if (errJson?.detail) errorMsg = errJson.detail;
-      } catch {}
-      throw new Error(errorMsg);
+      const errMsg = await this._extractErrorMessage(response, 'Sqarimi i ligjit dështoi.');
+      throw new Error(errMsg);
     }
 
-    if (!response.body) return;
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        yield decoder.decode(value, { stream: true });
-      }
-    } finally {
-      reader.releaseLock();
-    }
+    yield* this._readStream(response, signal);
   }
 
   /**
-   * Bisedë interaktive me Auditorin Ligjor (DeepSeek Streaming).
+   * Bisedë interaktive me Auditorin Ligjor (streaming).
+   * V2.0: pranon signal për cancel.
    */
   public async *askLawAuditor(
     articleId: string,
     query: string,
-    lawTitle?: string,
-    articleNumber?: string
+    lawTitle: string,
+    articleNumber: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<string, void, unknown> {
-    let token = tokenManager.get();
-    if (!token) {
-      try {
-        const { data } = await apiClient.post<{ access_token: string }>('/auth/refresh');
-        tokenManager.set(data.access_token);
-        token = data.access_token;
-      } catch {}
-    }
-
+    const token = await this._ensureToken();
     const url = `${API_V1_URL}/laws/audit-chat`;
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -183,14 +222,72 @@ export class LawService {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        article_id: articleId,
+        article_id: articleId || '',
         law_title: lawTitle || '',
         article_number: articleNumber || '',
         query,
       }),
+      signal,
     });
 
-    if (!response.ok) throw new Error(`Biseda dështoi: ${response.status}`);
+    if (!response.ok) {
+      const errMsg = await this._extractErrorMessage(
+        response,
+        `Biseda dështoi: ${response.status}`,
+      );
+      throw new Error(errMsg);
+    }
+
+    yield* this._readStream(response, signal);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // HELPERS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Merret token-in aktual ose provon refresh.
+   * V2.0: nëse refresh dështon → kthen null (jo throw).
+   */
+  private async _ensureToken(): Promise<string | null> {
+    let token = tokenManager.get();
+    if (token) return token;
+
+    try {
+      const { data } = await apiClient.post<{ access_token: string }>('/auth/refresh');
+      if (data?.access_token) {
+        tokenManager.set(data.access_token);
+        return data.access_token;
+      }
+    } catch (e) {
+      console.warn('[lawService] Token refresh failed:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Nxjerr mesazhin e gabimit nga response (JSON detail ose fallback).
+   */
+  private async _extractErrorMessage(response: Response, fallback: string): Promise<string> {
+    try {
+      const errJson = await response.json();
+      if (errJson?.detail && typeof errJson.detail === 'string') {
+        return errJson.detail;
+      }
+    } catch {
+      // Nuk është JSON — vazhdo me fallback
+    }
+    return fallback;
+  }
+
+  /**
+   * Lexon një ReadableStream si AsyncGenerator.
+   * V2.0: ndan kodin e përbashkët mes explainLawStream/askLawAuditor.
+   */
+  private async *_readStream(
+    response: Response,
+    signal?: AbortSignal,
+  ): AsyncGenerator<string, void, unknown> {
     if (!response.body) return;
 
     const reader = response.body.getReader();
@@ -198,14 +295,26 @@ export class LawService {
 
     try {
       while (true) {
+        if (signal?.aborted) {
+          await reader.cancel();
+          break;
+        }
         const { done, value } = await reader.read();
         if (done) break;
         yield decoder.decode(value, { stream: true });
       }
     } finally {
-      reader.releaseLock();
+      try {
+        reader.releaseLock();
+      } catch {
+        // Ignore — mund të ketë stream të mbyllur
+      }
     }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT SINGLETON
+// ═══════════════════════════════════════════════════════════════════════════
 
 export const lawService = new LawService();

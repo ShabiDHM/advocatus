@@ -1,30 +1,42 @@
 // FILE: src/pages/LawViewerPage.tsx
-// PHOENIX PROTOCOL - LAW VIEWER V8.0 (UNIFIED CANVAS PDF ENGINE VIA FILEVIEWERMODAL)
+// PHOENIX PROTOCOL - LAW VIEWER V9.0
+//
+// V9.0: FIX fake verification + repeals + dead code.
+//   - V1: Shtuar RepealedWarning (is_repealed + warning)
+//   - V2: HEQUR isAcademicDoc dead code (akademia u hoq në V22.0)
+//   - V3: PDF URL → /caselaw/pdf ose /pdf sipas source
+//   - V5: LawData tipizuar me is_repealed/warning/page (nga ArticleData)
+//   - V6: Shtuar AbortController
+//   - V7: Hequr `t` nga deps për të shmangur refetch në ndryshim gjuhe
+//   - V10: Normalizim \r\n në paragraphs
+//   - V14: Error handling me 401/404/500
+//
+// V8.0: Versioni i vjetër.
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { apiService, API_V1_URL } from '../services/api';
+import { API_V1_URL } from '../services/api';
+import { lawService } from '../services/lawService';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Calendar, Scale, AlertCircle, BookOpen, GraduationCap, FileText, ExternalLink } from 'lucide-react';
+import {
+  ArrowLeft, Calendar, Scale, AlertCircle, BookOpen, FileText, ExternalLink,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
-
-interface LawData {
-  law_title: string;
-  article_number?: string;
-  source: string;
-  text: string;
-}
+import { RepealedWarning } from '../components/law/RepealedWarning';
+import type { ArticleData } from '../components/law/lawArticleTypes';
 
 export default function LawViewerPage() {
   const { chunkId } = useParams<{ chunkId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  
-  const [law, setLaw] = useState<LawData | null>(null);
+
+  const [law, setLaw] = useState<ArticleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showPdfModal, setShowPdfModal] = useState(false);
+
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!chunkId) {
@@ -32,35 +44,75 @@ export default function LawViewerPage() {
       setLoading(false);
       return;
     }
-    apiService
-      .getLawByChunkId(chunkId)
-      .then(setLaw)
-      .catch((err) => {
-        console.error('Law fetch error:', err);
-        setError(err.message || t('lawViewer.fetchError', 'Dështoi ngarkimi i ligjit.'));
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    setError('');
+
+    lawService
+      .getLawByChunkId(chunkId, controller.signal)
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        setLaw(res);
       })
-      .finally(() => setLoading(false));
+      .catch((err: any) => {
+        if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
+        console.error('[LawViewerPage] Fetch error:', err);
+        if (controller.signal.aborted) return;
+
+        const status = err?.response?.status;
+        let msg = err?.message || t('lawViewer.fetchError', 'Dështoi ngarkimi i ligjit.');
+        if (status === 401) {
+          msg = t('lawViewer.unauthorized', 'Sesioni ka skaduar. Hyni përsëri.');
+        } else if (status === 404) {
+          msg = t('lawViewer.notFound', 'Dokumenti nuk u gjet.');
+        } else if (status === 500) {
+          msg = t('lawViewer.serverError', 'Gabim në server. Provoni përsëri.');
+        } else if (err?.response?.data?.detail) {
+          msg = err.response.data.detail;
+        }
+        setError(msg);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [chunkId, t]);
 
-  const isAcademicDoc = useMemo(() => {
-    if (!law) return false;
-    const raw = (law.law_title || law.source).toUpperCase();
-    return (
-      raw.includes('AKADEMIA') ||
-      raw.includes('CASE_LAW') ||
-      raw.includes('DORACAK') ||
-      raw.includes('UDHEZUES') ||
-      raw.includes('LËNDËSH')
-    );
-  }, [law]);
+  // V9: PDF URL sipas llojit
+  const pdfUrl = useMemo(() => {
+    if (!law?.source) return null;
+    const encoded = encodeURIComponent(law.source);
+    // Nëse ka prefix case_law në source ose law_title përmban "Gjykata Supreme" → caselaw
+    const isCaselaw =
+      /case_law|supreme|praktik/i.test(law.source) ||
+      /Gjykata\s+Supreme/i.test(law.law_title);
+    return isCaselaw
+      ? `${API_V1_URL}/laws/caselaw/pdf/${encoded}`
+      : `${API_V1_URL}/laws/pdf/${encoded}`;
+  }, [law?.source, law?.law_title]);
 
-  const pdfUrl = law?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(law.source)}` : null;
+  // V9: paragraph normalization (\r\n + \r)
+  const paragraphs = useMemo(() => {
+    if (!law?.text) return [];
+    return law.text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .split('\n')
+      .filter((p) => p.trim() !== '');
+  }, [law?.text]);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen pt-20 bg-canvas">
         <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-sm"></div>
-        <p className="text-text-primary font-black uppercase tracking-widest text-sm">{t('general.loading', 'Duke ngarkuar...')}</p>
+        <p className="text-text-primary font-black uppercase tracking-widest text-sm">
+          {t('general.loading', 'Duke ngarkuar...')}
+        </p>
       </div>
     );
   }
@@ -70,8 +122,12 @@ export default function LawViewerPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
         <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-3xl flex flex-col items-center text-center shadow-sm">
           <AlertCircle className="text-danger-start w-16 h-16 mb-4" />
-          <h2 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">{t('general.error', 'Gabim')}</h2>
-          <p className="text-text-secondary text-sm mb-6">{error || 'Ligji nuk u gjet.'}</p>
+          <h2 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">
+            {t('general.error', 'Gabim')}
+          </h2>
+          <p className="text-text-secondary text-sm mb-6">
+            {error || 'Ligji nuk u gjet.'}
+          </p>
           <button
             onClick={() => navigate('/laws/search')}
             className="btn-primary flex items-center gap-2 hover-lift shadow-sm cursor-pointer"
@@ -83,8 +139,6 @@ export default function LawViewerPage() {
       </div>
     );
   }
-
-  const paragraphs = law.text.split('\n').filter((p) => p.trim() !== '');
 
   return (
     <motion.div
@@ -109,9 +163,9 @@ export default function LawViewerPage() {
             <div className="relative z-10 flex flex-col gap-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
-                  {isAcademicDoc ? <GraduationCap size={14} /> : <BookOpen size={14} />}
+                  <BookOpen size={14} />
                   <span className="text-[10px] font-black uppercase tracking-wider">
-                    {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË' : 'LIGJI DHE RREGULLORJA ZYRTARE'}
+                    {t('lawViewer.officialLabel', 'LIGJI DHE RREGULLORJA ZYRTARE')}
                   </span>
                 </div>
 
@@ -122,7 +176,7 @@ export default function LawViewerPage() {
                     className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer"
                   >
                     <FileText size={14} />
-                    <span>Shiko PDF të Plotë</span>
+                    <span>{t('lawViewer.viewFullPdf', 'Shiko PDF të Plotë')}</span>
                     <ExternalLink size={12} />
                   </button>
                 )}
@@ -152,10 +206,20 @@ export default function LawViewerPage() {
             </div>
           </div>
 
+          {/* V9: Repealed warning */}
+          {law.is_repealed && (
+            <div className="px-6 sm:px-10 pt-5">
+              <RepealedWarning info={law.repealed_info} warning={law.warning} />
+            </div>
+          )}
+
           <div className="bg-canvas/50 px-6 sm:px-12 py-10">
             <div className="max-w-[85ch] mx-auto">
               {paragraphs.map((para, idx) => (
-                <p key={idx} className="mb-5 text-sm sm:text-base text-text-primary leading-relaxed font-medium text-justify">
+                <p
+                  key={idx}
+                  className="mb-5 text-sm sm:text-base text-text-primary leading-relaxed font-medium text-justify"
+                >
                   {para}
                 </p>
               ))}

@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-09-29",
+  "description": "Burimet ndërkombëtare të njohura nga Kushtetuta e Kosovës (Neni 22). Nuk verifikohen nga legal_knowledge_base sepse janë traktate ndërkombëtare, jo ligje kosovare. Përdoret nga mongo_verifier për të klasifikuar citimet e KEDNJ/OKB/Hagë si 'external' (jo 'unverified').",
+  "external_sources": {
+    "KEDNJ": {
+      "canonical_name": "Konventa Evropiane për të Drejtat e Njeriut",
+      "short_name": "KEDNJ",
+      "category": "international_treaty",
+      "constitutional_basis": "Neni 22 i Kushtetutës së Republikës së Kosovës",
+      "note": "Konventa Evropiane për të Drejtat e Njeriut dhe Protokollet e saj zbatohen drejtpërdrejt në Kosovë sipas Nenit 22 të Kushtetutës dhe kanë prioritet mbi ligjet vendore.",
+      "pattern_keywords": [
+        "KEDNJ",
+        "KEDNJ-së",
+        "KEDNJ-se",
+        "KONVENTA EVROPIANE",
+        "KONVENTA E EVROPIANE",
+        "KONVENTA EVROPIANE PER TE DREJTAT E NJERIUT",
+        "KONVENTA EVROPIANE PËR TË DREJTAT E NJERIUT",
+        "DREJTAT E NJERIUT",
+        "EUROPEAN CONVENTION",
+        "ECHR"
+      ]
+    },
+    "OKB_FEMIJES": {
+      "canonical_name": "Konventa e OKB-së për të Drejtat e Fëmijës",
+      "short_name": "Konventa e OKB-së për Fëmijët",
+      "category": "international_treaty",
+      "constitutional_basis": "Neni 22 i Kushtetutës së Republikës së Kosovës",
+      "note": "Konventa e Kombeve të Bashkuara për të Drejtat e Fëmijës (1989) zbatohet drejtpërdrejt në Kosovë sipas Nenit 22 të Kushtetutës dhe është e detyrueshme për të gjitha organet shtetërore.",
+      "pattern_keywords": [
+        "KONVENTA E OKB",
+        "KONVENTA E OKB-se",
+        "KONVENTA E OKB-së",
+        "KONVENTA E KOMBEVE",
+        "OKB PER TE DREJTAT E FEMIJES",
+        "OKB PËR TË DREJTAT E FËMIJËS",
+        "DREJTAT E FEMIJES",
+        "DREJTAT E FËMIJËS",
+        "KDF",
+        "CRC",
+        "CONVENTION ON THE RIGHTS OF THE CHILD"
+      ]
+    },
+    "HAGA_FEMIJET": {
+      "canonical_name": "Konventa e Hagës për Aspektet Civile të Abduksionit Ndërkombëtar të Fëmijëve",
+      "short_name": "Konventa e Hagës",
+      "category": "international_treaty",
+      "constitutional_basis": "Neni 22 i Kushtetutës së Republikës së Kosovës",
+      "note": "Konventa e Hagës për Aspektet Civile të Abduksionit Ndërkombëtar të Fëmijëve (1980) zbatohet drejtpërdrejt në Kosovë sipas Nenit 22 të Kushtetutës.",
+      "pattern_keywords": [
+        "KONVENTA E HAGES",
+        "KONVENTA E HAGËS",
+        "KONVENTA E HAGUES",
+        "KONVENTA E HAGUËS",
+        "HAGUE CONVENTION",
+        "HAGË"
+      ]
+    }
+  }
+}

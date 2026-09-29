@@ -1,16 +1,20 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - AUDITOR MODAL V2.2 (INPUT CLASS FIX)
-// V2.2: Rikthyer `bg-input` — tani funksionon pas fix-it në tailwind.config.js
-//       (ndryshuar 'input-bg' → 'input').
-// V2.1: FIX përkohshëm me bg-canvas (u zëvendësua).
-// V2.0: Zero ngjyra hardcoded. Të gjitha referencat nga semantike classes.
+// PHOENIX PROTOCOL - AUDITOR PANEL V3.0.2
+//
+// V3.0.2: FIX TS2540 — `RefObject.current` është readonly në React 19.
+//         Cast-i te MutableRefObject para assign.
+//
+// V3.0.1: FIX TS2322 — callback ref në vend të refObject direkt.
+// V3.0: FIX T10-T19 (auditim i plotë).
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BrainCircuit, X, AlertCircle, Sparkles, Send, Loader2, Trash2, RotateCcw, Play } from 'lucide-react';
+import {
+  BrainCircuit, X, AlertCircle, Sparkles, Send, Loader2, Trash2, RotateCcw, Play,
+} from 'lucide-react';
 import { ChatMessage, SUGGESTED_QUESTIONS } from './lawArticleTypes';
-import { TFunction } from 'i18next';
+import type { TFunction } from 'i18next';
 
 interface LawArticleAuditorPanelProps {
   isOpen: boolean;
@@ -18,7 +22,6 @@ interface LawArticleAuditorPanelProps {
   isSummarizing: boolean;
   summaryError: string;
   cleanSummary: string;
-  chatVisible: boolean;
   messages: ChatMessage[];
   showSuggestions: boolean;
   isAuditing: boolean;
@@ -33,7 +36,7 @@ interface LawArticleAuditorPanelProps {
   summarySectionRef?: React.Ref<HTMLDivElement>;
   chatPanelRef?: React.Ref<HTMLDivElement>;
   chatContainerRef?: React.Ref<HTMLDivElement>;
-  inputRef?: React.Ref<HTMLTextAreaElement>;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   t: TFunction;
 }
 
@@ -62,21 +65,61 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
   const localTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollableBodyRef = useRef<HTMLDivElement | null>(null);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // V3.0.2: Callback ref — cast parent RefObject te MutableRefObject për assign
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const setTextareaRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      localTextareaRef.current = node;
+      if (inputRef && 'current' in inputRef) {
+        // React 19 tipon current si readonly; cast-i është i sigurt sepse
+        // parent ref e ka krijuar me useRef() që është mutable në runtime.
+        (inputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = node;
+      }
+    },
+    [inputRef],
+  );
+
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
-  // ⚡ AUTO-SCROLL GJATË STREAMING-UT
+  // ═══════════════════════════════════════════════════════════════════════
+  // AUTO-SCROLL
+  // ═══════════════════════════════════════════════════════════════════════
+
   useEffect(() => {
-    if (isSummarizing && scrollableBodyRef.current) {
-      scrollableBodyRef.current.scrollTop = scrollableBodyRef.current.scrollHeight;
+    if (!scrollableBodyRef.current) return;
+    const el = scrollableBodyRef.current;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+    if (nearBottom && (isSummarizing || isAuditing)) {
+      el.scrollTop = el.scrollHeight;
     }
-  }, [summaryContent, isSummarizing]);
+  }, [summaryContent, messages, isSummarizing, isAuditing]);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ESCAPE KEY
+  // ═══════════════════════════════════════════════════════════════════════
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseAuditor();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onCloseAuditor]);
 
   if (!isOpen || !mounted) return null;
 
-  // Auto-Zgjerimi i Tastierës sipas Tekstit
+  // ═══════════════════════════════════════════════════════════════════════
+  // HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════
+
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onInputQueryChange(e.target.value);
     e.target.style.height = 'auto';
@@ -102,24 +145,20 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
     }
   };
 
-  // Renderim i pastër në gjuhën shqipe
+  // ═══════════════════════════════════════════════════════════════════════
+  // TYPOGRAPHY RENDERER
+  // ═══════════════════════════════════════════════════════════════════════
+
   const renderCleanTypography = (text: string) => {
     if (!text) return null;
     const lines = text.split('\n');
+    const headingPattern = /^(?:📌|⚖️|⚠️|🔗|🏛️|📖|#+\s)/;
 
     return lines.map((line, i) => {
-      let trimmed = line.trim();
+      const trimmed = line.trim();
       if (!trimmed) return <div key={i} className="h-3" />;
 
-      trimmed = trimmed.replace(/ratio\s*legis/gi, 'Fryma e Ligjit');
-
-      if (
-        trimmed.startsWith('📌') ||
-        trimmed.startsWith('⚖️') ||
-        trimmed.startsWith('⚠️') ||
-        trimmed.startsWith('🔗') ||
-        trimmed.startsWith('###')
-      ) {
+      if (headingPattern.test(trimmed)) {
         const cleanTitle = trimmed.replace(/^###\s*/, '').replace(/\*\*/g, '');
         return (
           <h4
@@ -131,7 +170,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
         );
       }
 
-      if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
+      if (/^[-•*]\s/.test(trimmed)) {
         const itemText = trimmed.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '');
         return (
           <li
@@ -155,11 +194,18 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
     });
   };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // MODAL
+  // ═══════════════════════════════════════════════════════════════════════
+
   const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 overflow-hidden">
-        
-        {/* 1. Backdrop */}
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auditor-panel-title"
+      >
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -168,7 +214,6 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           className="fixed inset-0 bg-black/85 backdrop-blur-md"
         />
 
-        {/* 2. Trupi i Zgjeruar i Modalit */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -176,61 +221,62 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           transition={{ duration: 0.2 }}
           className="relative z-10 w-full max-w-5xl xl:max-w-6xl bg-card border border-main rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden text-text-primary"
         >
-          
-          {/* Header me Titull dhe Kontrolle */}
           <div className="px-6 sm:px-8 py-4 sm:py-5 border-b border-main flex items-center justify-between bg-surface shrink-0">
             <div className="flex items-center gap-3.5">
               <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center text-primary-start shrink-0">
                 <BrainCircuit size={22} />
               </div>
               <div>
-                <h3 className="text-xs sm:text-base font-black uppercase tracking-wider text-text-primary">
-                  Auditimi Inteligjent i Nenit
+                <h3
+                  id="auditor-panel-title"
+                  className="text-xs sm:text-base font-black uppercase tracking-wider text-text-primary"
+                >
+                  {t('lawArticle.auditorTitle', 'Auditimi Inteligjent i Nenit')}
                 </h3>
-                <p className="text-[11px] sm:text-xs text-text-muted">Analizë dhe këshillim ligjor i verifikuar</p>
+                <p className="text-[11px] sm:text-xs text-text-muted">
+                  {t('lawArticle.auditorSubtitle', 'Analizë dhe këshillim ligjor i verifikuar')}
+                </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-2.5">
-              {/* Butoni Rianalizo */}
               {onReanalyze && summaryContent && !isSummarizing && (
                 <button
                   type="button"
                   onClick={onReanalyze}
                   className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-card text-text-muted hover:text-primary-start hover:bg-primary-start/10 border border-main transition-all cursor-pointer shadow-xs"
-                  title="Rianalizo nenin nga e para"
+                  title={t('lawArticle.reanalyze', 'Rianalizo nenin nga e para')}
                 >
                   <RotateCcw size={16} />
                 </button>
               )}
 
-              {/* Butoni Shlyej */}
               {onClearCache && summaryContent && (
                 <button
                   type="button"
                   onClick={onClearCache}
                   className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-card text-text-muted hover:text-danger-start hover:bg-danger-start/10 border border-main transition-all cursor-pointer shadow-xs"
-                  title="Shlyej analizën nga memoria"
+                  title={t('lawArticle.clearCache', 'Shlyej analizën nga memoria')}
                 >
                   <Trash2 size={16} />
                 </button>
               )}
 
-              {/* Butoni Mbyll */}
               <button
                 type="button"
                 onClick={onCloseAuditor}
                 className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-card hover:bg-hover border border-main text-text-muted hover:text-text-primary transition-all cursor-pointer shadow-xs"
+                aria-label={t('general.close', 'Mbyll')}
               >
                 <X size={17} />
               </button>
             </div>
           </div>
 
-          {/* Përmbajtja me Scroll */}
-          <div ref={scrollableBodyRef} className="px-6 sm:px-10 py-6 sm:py-8 overflow-y-auto custom-scrollbar flex-1 space-y-6 sm:space-y-8">
-            
-            {/* 1. SEKSIONI I ANALIZËS LIGJORE */}
+          <div
+            ref={scrollableBodyRef}
+            className="px-6 sm:px-10 py-6 sm:py-8 overflow-y-auto custom-scrollbar flex-1 space-y-6 sm:space-y-8"
+          >
             <div>
               {summaryError && (
                 <div className="bg-danger-start/10 border border-danger-start/20 rounded-xl p-4 text-danger-start text-xs sm:text-sm font-semibold flex items-center gap-2 mb-4">
@@ -238,19 +284,18 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
-              {/* GJENDJA FILLARE (KUR NUK KA ANALIZË TË RUAJTUR) */}
               {!summaryContent && !isSummarizing && (
                 <div className="py-12 px-6 border border-dashed border-main rounded-3xl flex flex-col items-center justify-center text-center bg-surface/40">
                   <div className="h-14 w-14 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center text-primary-start mb-4">
                     <Sparkles size={28} />
                   </div>
                   <h4 className="text-base sm:text-lg font-bold text-text-primary mb-1.5">
-                    Analizë dhe Interpretim me AI
+                    {t('lawArticle.startAnalysisTitle', 'Analizë dhe Interpretim me AI')}
                   </h4>
                   <p className="text-xs sm:text-sm text-text-muted max-w-lg mb-6 leading-relaxed">
-                    Kliko butonin e mëposhtëm për të gjeneruar analizën e thellë ligjore të këtij neni, ose bëj një pyetje direkte në fushën e chat-it.
+                    {t('lawArticle.startAnalysisHint', 'Kliko butonin e mëposhtëm për të gjeneruar analizën e thellë ligjore të këtij neni, ose bëj një pyetje direkte në fushën e chat-it.')}
                   </p>
-                  
+
                   {onStartAnalysis && (
                     <button
                       type="button"
@@ -258,18 +303,17 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                       className="h-11 px-6 flex items-center gap-2.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-all shadow-lg hover-lift cursor-pointer"
                     >
                       <Play size={15} fill="currentColor" />
-                      <span>Fillo Analizën e Nenit</span>
+                      <span>{t('lawArticle.startAnalysis', 'Fillo Analizën e Nenit')}</span>
                     </button>
                   )}
                 </div>
               )}
 
-              {/* GJATË GJENERIMIT: "Sokrati duke analizuar..." */}
               {isSummarizing && !summaryContent && (
                 <div className="space-y-4 py-6">
                   <div className="flex items-center gap-2.5 text-primary-start text-xs sm:text-sm font-bold mb-4">
                     <Loader2 size={17} className="animate-spin" />
-                    <span>Sokrati duke analizuar...</span>
+                    <span>{t('lawArticle.analyzingText', 'Sokrati duke analizuar...')}</span>
                   </div>
                   <div className="h-4 bg-surface rounded-lg w-full animate-pulse" />
                   <div className="h-4 bg-surface rounded-lg w-5/6 animate-pulse" />
@@ -277,7 +321,6 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
-              {/* TEKSTI I ANALIZËS SË PËRFUNDUAR */}
               {summaryContent && (
                 <div className="space-y-2.5 max-w-[110ch]">
                   {renderCleanTypography(cleanSummary)}
@@ -295,12 +338,14 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
               )}
             </div>
 
-            {/* 2. SEKSIONI I BISEDËS */}
             {summaryContent && (
               <div className="pt-6 border-t border-main">
                 <div ref={chatContainerRef} className="space-y-3.5 mb-2">
                   {messages.map((msg) => (
-                    <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                    >
                       <div
                         className={`w-full max-w-[85%] p-4 rounded-2xl text-xs sm:text-sm shadow-xs ${
                           msg.role === 'user'
@@ -318,16 +363,20 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                           <p className="font-medium whitespace-pre-wrap">{msg.content}</p>
                         )}
                         <p className="text-[10px] mt-1.5 text-text-muted">
-                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {msg.timestamp.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </p>
                       </div>
                     </div>
                   ))}
 
-                  {/* Sugjerimet */}
-                  {showSuggestions && messages.length === 0 && (
+                  {showSuggestions && messages.length === 0 && SUGGESTED_QUESTIONS.length > 0 && (
                     <div className="flex flex-col gap-2 mt-3">
-                      <p className="text-xs text-text-muted font-bold uppercase tracking-wider">Pyetje të sugjeruara:</p>
+                      <p className="text-xs text-text-muted font-bold uppercase tracking-wider">
+                        {t('lawArticle.suggestedQuestions', 'Pyetje të sugjeruara')}:
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         {SUGGESTED_QUESTIONS.map((question: string, idx: number) => (
                           <button
@@ -346,9 +395,18 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                   {isAuditing && (
                     <div className="flex justify-start">
                       <div className="bg-surface border border-main p-3 rounded-2xl flex gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <span
+                          className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce"
+                          style={{ animationDelay: '0ms' }}
+                        />
+                        <span
+                          className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce"
+                          style={{ animationDelay: '150ms' }}
+                        />
+                        <span
+                          className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce"
+                          style={{ animationDelay: '300ms' }}
+                        />
                       </div>
                     </div>
                   )}
@@ -361,25 +419,16 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               </div>
             )}
-
           </div>
 
-          {/* 3. Tastiera Dinamike e Zgjeruar */}
           <div className="p-4 sm:p-5 bg-surface border-t border-main shrink-0">
             <div className="flex gap-2.5 items-end max-w-5xl mx-auto w-full">
               <textarea
-                ref={(el) => {
-                  localTextareaRef.current = el;
-                  if (typeof inputRef === 'function') {
-                    (inputRef as (node: HTMLTextAreaElement | null) => void)(el);
-                  } else if (inputRef && typeof inputRef === 'object' && 'current' in inputRef) {
-                    (inputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
-                  }
-                }}
+                ref={setTextareaRef}
                 value={inputQuery}
                 onChange={handleTextareaChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Bëj një pyetje konkrete për këtë nen..."
+                placeholder={t('lawArticle.queryPlaceholder', 'Bëj një pyetje konkrete për këtë nen...')}
                 rows={1}
                 style={{ height: '44px', minHeight: '44px', maxHeight: '130px' }}
                 className="flex-1 px-4 py-2.5 bg-input border border-main rounded-xl text-xs sm:text-sm resize-none overflow-y-auto custom-scrollbar text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
@@ -390,12 +439,16 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 onClick={handleSendClick}
                 disabled={!inputQuery.trim() || isAuditing}
                 className="h-[44px] w-[44px] flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-start/90 transition-all shadow-md cursor-pointer shrink-0"
+                aria-label={t('lawArticle.sendMessage', 'Dërgo mesazhin')}
               >
-                {isAuditing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                {isAuditing ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Send size={16} />
+                )}
               </button>
             </div>
           </div>
-
         </motion.div>
       </div>
     </AnimatePresence>
