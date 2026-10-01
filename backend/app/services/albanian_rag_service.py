@@ -1,19 +1,19 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBI MI DOKTRINAR RAG V282.37
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.38
+# V282.38: PII PRE-REDACTION (GDPR) —
+#          - Emrat e personave të njohur (client, kundërshtar, gjyqtar) tani
+#            redaktohen në blocks (contradictions, suspects, cited_precedents,
+#            comparison, timeline, verified_context) PARA se të dërgohen LLM.
+#          - System_prompt final (case_header + blocks) gjithashtu redaktohet.
+#          - Zero kosto LLM: string replace i thjeshtë (jo NER call).
+#          - Nuk prek case_numbers, statutes, articles → Rule 19 ruhet.
 # V282.37: ASYNC + PARALLEL PRE-VERIFY —
 #          - `_verify_single_article` (sync) thirrej direkt në loop async →
-#            bllokonte event loop për çdo nen (SSE heartbeats, chat-e tjera,
-#            detyra background ngrinin). Tani: asyncio.to_thread + asyncio.gather.
-#          - Verifikimi i neneve tani PARALEL (më parë sekuencial). Për 5 nene
-#            ~5x më i shpejtë.
-#          - Wrap në try/except → në defekt upstream, `{}` trajtohet si missing
-#            (nuk hedh exception, nuk ndal chat-in).
+#            bllokonte event loop për çdo nen. Tani: asyncio.to_thread + gather.
+#          - Verifikimi i neneve tani PARALEL. Për 5 nene ~5x më i shpejtë.
+#          - Wrap në try/except → në defekt upstream, {} trajtohet si missing.
 # V282.36: KEYERROR GUARD —
-#          - `verified_articles` / `ambiguous_articles` / `missing_articles`
-#            përdornin `v["exists"]` direkt. Nëse `_verify_single_article`
-#            kthen dict pa 'exists' (version mismatch, defekt upstream,
-#            exception e brendshme), chat hedh KeyError para se të arrijë
-#            LLM. Tani përdoret helper `_is_verified(v)` me `.get()`.
+#          - `_is_verified(v)` me `.get()` për të shmangur KeyError.
 # V282.35: ASYNC RAG INTEGRATION (DRAFTING + STATUTORY).
 # V282.34: ROBUSTNESS (backspace, precedent regex, async DB, dead code).
 # V282.33: SMART GLOBAL N_RESULTS.
@@ -269,10 +269,73 @@ def _is_verified(v: Dict[str, Any]) -> bool:
     """
     V282.36: Kthen True nëse verifikimi rezultoi me ekzistencë.
     Përdor .get() në vend të v["exists"] — parandalon KeyError kur
-    _verify_single_article kthen dict pa 'exists' (version mismatch, defekt
-    upstream, exception e brendshme).
+    _verify_single_article kthen dict pa 'exists'.
     """
     return bool(v.get("exists"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V282.38: PII PRE-REDACTION PËR PERSONAT E NJOHUR
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _extract_known_persons(
+    case_doc: Optional[Dict[str, Any]],
+    case_meta: Dict[str, str],
+) -> List[str]:
+    """
+    V282.38: Nxjerr emrat e personave të njohur nga metadata e lëndës.
+    Këta janë kandidatë për redaktim PARA se system_prompt të dërgohet LLM.
+
+    Nuk përfshin emra nga dokumentet (ata kërkojnë NER të plotë).
+    """
+    persons: List[str] = []
+    seen: set = set()
+
+    def _add(name: Optional[str]) -> None:
+        if not name:
+            return
+        n = str(name).strip()
+        if len(n) < 4 or n.lower() in seen:
+            return
+        seen.add(n.lower())
+        persons.append(n)
+
+    if case_doc:
+        _add(case_doc.get("client_name"))
+        client_obj = case_doc.get("client")
+        if isinstance(client_obj, dict):
+            _add(client_obj.get("name"))
+
+        opp = case_doc.get("opposing_party")
+        if isinstance(opp, dict):
+            _add(opp.get("name"))
+            _add(opp.get("lawyer"))
+        elif isinstance(opp, str):
+            _add(opp)
+
+        ci = case_doc.get("court_info") or {}
+        if isinstance(ci, dict):
+            _add(ci.get("judge"))
+
+    _add(case_meta.get("judge"))
+    _add(case_meta.get("opposing_party"))
+
+    return persons
+
+
+def _redact_known_persons(text: str, persons: List[str]) -> str:
+    """
+    V282.38: Zëvendëson emrat e njohur me [PERSON].
+    String replace i thjeshtë — i shpejtë, zero kosto LLM.
+    Nuk prek case_numbers, statutes, articles → Rule 19 ruhet.
+    """
+    if not text or not persons:
+        return text
+    result = text
+    for p in persons:
+        if p and len(p) > 3:
+            result = result.replace(p, "[PERSON]")
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -284,7 +347,7 @@ class AlbanianRAGService:
         self.db = db
         self.response_generator = ResponseGenerator()
         logger.info(
-            f"✅ [RAG] Juristi AI Natural Client Service V282.37 Initialized "
+            f"✅ [RAG] Juristi AI Natural Client Service V282.38 Initialized "
             f"(chat model: {FAST_SEARCH_MODEL}, "
             f"judicial-docs whitelist: ON, dual-law rule: ON, query-depth: ON, "
             f"pre-verify: ASYNC+PARALLEL, fast-path: DIRECT, dynamic-cleaner: ON, "
@@ -299,7 +362,7 @@ class AlbanianRAGService:
             f"smart-global-nresults: ON, "
             f"partial-coverage-fix: ON, dynamic-chunks: ON, "
             f"modularized: ON, async-db: ON, async-rag-pillars: ON, "
-            f"verify-guard: ON, chat-history: DELEGATED)."
+            f"verify-guard: ON, pii-pre-redact: ON, chat-history: DELEGATED)."
         )
 
     def _optimize_query(self, query: str) -> str:
@@ -379,7 +442,7 @@ class AlbanianRAGService:
                     case_meta = _extract_case_metadata(case_doc)
                     if case_meta:
                         logger.info(
-                            f"📋 [Case Context V282.37] Metadata e zbuluar: "
+                            f"📋 [Case Context V282.38] Metadata e zbuluar: "
                             f"{sorted(case_meta.keys())}"
                         )
             except Exception as ex:
@@ -398,7 +461,7 @@ class AlbanianRAGService:
 
         has_specific_precedent = _detect_specific_precedent_query(query)
         if has_specific_precedent:
-            logger.info("🎯 [V282.37] Precedent specifik u zbulua në query — global n_results reduktohet")
+            logger.info("🎯 [V282.38] Precedent specifik u zbulua në query — global n_results reduktohet")
 
         legal_query = extract_legal_query(query)
         _lap("extract_legal_query")
@@ -426,7 +489,7 @@ class AlbanianRAGService:
                     return (art, v or {})
                 except Exception as e:
                     logger.warning(
-                        f"[PreVerify V282.37] Verifikimi dështoi për "
+                        f"[PreVerify V282.38] Verifikimi dështoi për "
                         f"Neni {art.get('number')}: {e}"
                     )
                     return (art, {})
@@ -524,7 +587,7 @@ class AlbanianRAGService:
                         )
 
             logger.info(
-                f"🔎 [PreVerify V282.37] articles total={len(verification_results)} "
+                f"🔎 [PreVerify V282.38] articles total={len(verification_results)} "
                 f"verified={len(verified_articles)} ambiguous={len(ambiguous_articles)} "
                 f"missing={len(missing_articles)} has_general={legal_query['has_general_query']}"
             )
@@ -540,13 +603,13 @@ class AlbanianRAGService:
         if not user_wants_global:
             if should_fetch_global:
                 logger.info(
-                    f"⏭️ [V282.37] Skip global — pyetje faktuale pa kërkesë eksplicite "
+                    f"⏭️ [V282.38] Skip global — pyetje faktuale pa kërkesë eksplicite "
                     f"për precedentë."
                 )
             should_fetch_global = False
         else:
             logger.info(
-                f"🌐 [V282.37] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
+                f"🌐 [V282.38] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
             )
 
         logger.info(
@@ -585,7 +648,7 @@ class AlbanianRAGService:
 
         if is_factual_legal_query:
             logger.info(
-                f"⚡ [FastPath V282.37 DIRECT] Skip LLM — return verified text directly "
+                f"⚡ [FastPath V282.38 DIRECT] Skip LLM — return verified text directly "
                 f"({len(verified_articles)} verified articles)"
             )
 
@@ -602,7 +665,7 @@ class AlbanianRAGService:
                 if cached_docs is not None:
                     db_documents = cached_docs
                     logger.info(
-                        f"⚡ [Cache HIT V282.37] case_docs: {len(db_documents)} docs "
+                        f"⚡ [Cache HIT V282.38] case_docs: {len(db_documents)} docs "
                         f"(saved ~2.5s)"
                     )
                     _lap("load_docs")
@@ -632,7 +695,7 @@ class AlbanianRAGService:
 
                     if db_documents:
                         await _set_cached_case_docs(str(case_id), db_documents, ttl=CACHE_TTL_CASE_DOCS)
-                        logger.info(f"💾 [Cache MISS V282.37] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
+                        logger.info(f"💾 [Cache MISS V282.38] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
             except Exception as ex:
                 logger.info(f"Could not read client documents (fallback empty): {ex}")
 
@@ -690,7 +753,7 @@ class AlbanianRAGService:
             )
         else:
             logger.info(
-                f"⏭️ [V282.37] Skip contradiction scan — "
+                f"⏭️ [V282.38] Skip contradiction scan — "
                 f"{len(db_documents)} docs > limit {MAX_DOCS_FOR_CONTRADICTION_SCAN}"
             )
 
@@ -714,18 +777,18 @@ class AlbanianRAGService:
             context_documents, was_filtered = _detect_relevant_documents(query, db_documents, max_match=3)
             if was_filtered:
                 logger.info(
-                    f"🎯 [V282.37] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
+                    f"🎯 [V282.38] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
                     f"dokumente të zgjedhura për kontekst LLM: "
                     f"{[d.get('file_name', '?') for d in context_documents]}"
                 )
             else:
                 logger.info(
-                    f"📚 [V282.37] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
+                    f"📚 [V282.38] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
                     f"{len(db_documents)} dokumentet"
                 )
         elif _skip_doc_filter and db_documents:
             logger.info(
-                f"📚 [V282.37] SKIP query-aware filter (intent={user_intent}, "
+                f"📚 [V282.38] SKIP query-aware filter (intent={user_intent}, "
                 f"comparison={_wants_comparison}) — "
                 f"konteksti përfshin të gjitha {len(db_documents)} dokumentet"
             )
@@ -741,7 +804,7 @@ class AlbanianRAGService:
                 comparison_block = build_comparison_table(context_documents)
                 if comparison_block:
                     logger.info(
-                        f"📊 [V282.37] Tabelë krahasuese aktivizuar "
+                        f"📊 [V282.38] Tabelë krahasuese aktivizuar "
                         f"({len(comparison_block)} chars)"
                     )
         except Exception as e:
@@ -758,7 +821,7 @@ class AlbanianRAGService:
                 timeline_block = build_timeline(events)
                 if timeline_block:
                     logger.info(
-                        f"📅 [V282.37] Timeline aktivizuar "
+                        f"📅 [V282.38] Timeline aktivizuar "
                         f"({len(events)} ngjarje, auto={'po' if user_intent in ('COMPREHENSIVE_ANALYSIS','STATUTORY_VERIFICATION') else 'jo'})"
                     )
         except Exception as e:
@@ -823,7 +886,7 @@ class AlbanianRAGService:
             cached = await _get_cached_chunks(case_docs_cache_key)
             if cached is not None:
                 logger.info(
-                    f"⚡ [Cache HIT V282.37] vector_case: {len(cached)} chunks"
+                    f"⚡ [Cache HIT V282.38] vector_case: {len(cached)} chunks"
                 )
                 return cached
             try:
@@ -838,7 +901,7 @@ class AlbanianRAGService:
                 if result:
                     await _set_cached_chunks(case_docs_cache_key, result, ttl=CACHE_TTL_CASE_CHUNKS)
                     logger.info(
-                        f"💾 [Cache MISS V282.37] vector_case cached "
+                        f"💾 [Cache MISS V282.38] vector_case cached "
                         f"(n_results={vector_n_results}, intent={user_intent})"
                     )
                 return result or []
@@ -865,7 +928,7 @@ class AlbanianRAGService:
                 _fetch_global_vec(),
             )
             logger.info(
-                f"⚡ [V282.37 Parallel] vector_case + vector_global: "
+                f"⚡ [V282.38 Parallel] vector_case + vector_global: "
                 f"{time.time() - _t_vec:.2f}s | "
                 f"case={len(case_docs)} chunks, "
                 f"global={len(global_docs)} chunks "
@@ -876,6 +939,23 @@ class AlbanianRAGService:
             global_docs = []
 
         _lap("vector_case+global")
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # V282.38: PII PRE-REDACTION — personat e njohur (fast, string replace)
+        # ═══════════════════════════════════════════════════════════════════════
+        known_persons = _extract_known_persons(case_doc, case_meta)
+        if known_persons:
+            logger.info(
+                f"🔒 [PII PreRedact V282.38] {len(known_persons)} persona të njohur "
+                f"do redaktohen në blocks"
+            )
+            contradictions_block = _redact_known_persons(contradictions_block, known_persons)
+            suspects_block = _redact_known_persons(suspects_block, known_persons)
+            cited_precedents_block = _redact_known_persons(cited_precedents_block, known_persons)
+            comparison_block = _redact_known_persons(comparison_block, known_persons)
+            timeline_block = _redact_known_persons(timeline_block, known_persons)
+            verified_context = _redact_known_persons(verified_context, known_persons)
+            pre_verify_disclaimer = _redact_known_persons(pre_verify_disclaimer, known_persons)
 
         # ─── Branches ───
         if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
@@ -895,6 +975,8 @@ class AlbanianRAGService:
                 current_date_str=current_date_str,
                 case_meta=case_meta,
             )
+            # V282.38: Redakto header (client + opposing + judge)
+            case_header = _redact_known_persons(case_header, known_persons)
 
             system_prompt = f"""
             Ti je "Juristi AI - Asistenti Ligjor dhe Këshilltari Kryesor në Kosovë".
@@ -940,7 +1022,7 @@ class AlbanianRAGService:
                     f"{time.time() - t_rag:.2f}s ({len(rag_ctx)} chars)"
                 )
             except Exception as _re:
-                logger.warning(f"⚠️ [V282.37] get_rag_context_async dështoi (statutory): {_re}")
+                logger.warning(f"⚠️ [V282.38] get_rag_context_async dështoi (statutory): {_re}")
                 rag_ctx = ""
 
             base_prompt = StatutoryVerificationService.build_prompt(
@@ -965,7 +1047,7 @@ class AlbanianRAGService:
 
         elif user_intent == "DRAFTING":
             if not _needs_global_vec:
-                logger.info(f"⏭️ [V282.37] Skip global_docs në DRAFTING")
+                logger.info(f"⏭️ [V282.38] Skip global_docs në DRAFTING")
 
             manifest_str, context_str, _ = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
@@ -985,7 +1067,7 @@ class AlbanianRAGService:
                     f"{time.time() - t_rag:.2f}s ({len(rag_ctx)} chars)"
                 )
             except Exception as _re:
-                logger.warning(f"⚠️ [V282.37] get_rag_context_async dështoi (drafting): {_re}")
+                logger.warning(f"⚠️ [V282.38] get_rag_context_async dështoi (drafting): {_re}")
                 rag_ctx = ""
 
             base_prompt = LegalDraftingService.build_prompt(
@@ -1012,7 +1094,7 @@ class AlbanianRAGService:
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
             if not _needs_global_vec:
-                logger.info(f"⏭️ [V282.37] Skip global_docs (chat i thjeshtë)")
+                logger.info(f"⏭️ [V282.38] Skip global_docs (chat i thjeshtë)")
 
             manifest_str, context_str, _ = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
@@ -1027,6 +1109,8 @@ class AlbanianRAGService:
                 current_date_str=current_date_str,
                 case_meta=case_meta,
             )
+            # V282.38: Redakto header (client + opposing + judge)
+            case_header = _redact_known_persons(case_header, known_persons)
 
             system_prompt = f"""
             Ti je "Juristi AI - Asistenti Ligjor dhe Këshilltari Kryesor në Kosovë".
@@ -1051,6 +1135,13 @@ class AlbanianRAGService:
             """
 
         # ═══════════════════════════════════════════════════════════════════════
+        # V282.38: REDAKTIM FINAL — mbulon STATUTORY + DRAFTING (që nuk përdorin
+        # case_header direkt)
+        # ═══════════════════════════════════════════════════════════════════════
+        if known_persons:
+            system_prompt = _redact_known_persons(system_prompt, known_persons)
+
+        # ═══════════════════════════════════════════════════════════════════════
         # V282.30: DYNAMIC RULE 19 REMINDER
         # ═══════════════════════════════════════════════════════════════════════
         if cited_precedents_block:
@@ -1059,16 +1150,16 @@ class AlbanianRAGService:
 
             if has_verified and has_unverified:
                 system_prompt += _RULE_19_REMINDER_MIXED
-                logger.info("[Rule19 V282.37] Reminder: MIXED (verified + unverified)")
+                logger.info("[Rule19 V282.38] Reminder: MIXED (verified + unverified)")
             elif has_verified:
                 system_prompt += _RULE_19_REMINDER_VERIFIED
-                logger.info("[Rule19 V282.37] Reminder: VERIFIED only")
+                logger.info("[Rule19 V282.38] Reminder: VERIFIED only")
             elif has_unverified:
                 system_prompt += _RULE_19_REMINDER_UNVERIFIED
-                logger.info("[Rule19 V282.37] Reminder: UNVERIFIED only")
+                logger.info("[Rule19 V282.38] Reminder: UNVERIFIED only")
             else:
                 logger.warning(
-                    "[Rule19 V282.37] cited_precedents_block ekziston por nuk "
+                    "[Rule19 V282.38] cited_precedents_block ekziston por nuk "
                     "përmban asnjë marker të njohur."
                 )
 
@@ -1101,7 +1192,7 @@ class AlbanianRAGService:
 
         if llm_failed:
             logger.warning(
-                f"⚠️ [V282.37] LLM dështoi. "
+                f"⚠️ [V282.38] LLM dështoi. "
                 f"Output: {full_generated_response[:100]}..."
             )
             _lap("total")

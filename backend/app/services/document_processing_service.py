@@ -1,5 +1,11 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V38.4 (CASE-AWARE SSE + BATCH INGESTION)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V38.5 (CASE-AWARE SSE + BATCH INGESTION)
+# V38.5: REDIS LOCK + FITZ TRY/FINALLY —
+#        - `_get_redis()` kishte race condition: dy korutina njëkohësisht shihnin
+#          `_redis_client is None` dhe krijonin 2 klientë. Tani mbrohet me
+#          `asyncio.Lock()` (lazy-init).
+#        - `fitz.open()` tani në try/finally — nëse `len(pdf_doc)` hedh exception
+#          (rare, PDF i korruptuar), dokumenti mbyllet gjithsesi.
 # V38.4: ROBUSTNESS CLEANUP —
 #        - CASE_ID GUARD: `str(document.get("case_id"))` prodhonte stringun
 #          "None" kur case_id mungonte → Redis broadcast në kanalin e
@@ -7,29 +13,17 @@
 #          case_id="None" (ndot RAG global). Tani përdoret string bosh,
 #          broadcast case-scoped skip-ohet. (Mirror i OWNER_ID GUARD V38.3.)
 #        - DEAD IMPORTS: hequr `List`, `Tuple` (të papërdorur).
-#        - DEAD PARAM: hequr `redis_client` nga signature — ishte i
-#          papërdorur (V38.3 kaloi në global `_get_redis()`). Callers që
-#          ende e kalojnë si keyword absorbohen nga `**kwargs`
-#          (backward-compat).
+#        - DEAD PARAM: hequr `redis_client` nga signature.
 # V38.3: FIX ALL —
-#        - STORAGE DEDUP: hequr fusha redundante `text` nga $set (mbajtur
-#          `content` + `extracted_text` — të dyja janë në zinxhirin e fallback
-#          në extraction_pipeline / persistence / document_review). Kursen
-#          ~33% storage per dokument në Mongo Atlas.
-#        - OWNER_ID GUARD: nëse mungon, user_id="" dhe Redis broadcast
-#          personal skip-ohet (pa "user:None:updates" junk).
-#        - GLOBAL REDIS: client lazy-init global (jo per thirrje). Ishte 6
-#          connections per dokument për shkak të 5 faseve + final broadcast.
-#        - TASK ERRORS: exception-e në asyncio.gather tani logohen
-#          individualisht (edhe pse tasks kanë try/except brenda).
-#        - CHUNK OVERLAP: koment i qartë për fallback chunking (step vs slice).
-#        - TOTAL_PAGES: metadata e chunks tani përfshin total_pages në të
-#          dyja rrugët (EnhancedDocumentProcessor + fallback).
-# V38.2: CASE-AWARE SSE — _update_db_and_broadcast publikon në:
-#          - user:{uploader_id}:updates (personal)
-#          - case:{case_id}:updates (case-scoped)
+#        - STORAGE DEDUP: hequr fusha redundante `text` nga $set.
+#        - OWNER_ID GUARD.
+#        - GLOBAL REDIS: client lazy-init global.
+#        - TASK ERRORS: exception-e në asyncio.gather logohen individualisht.
+#        - CHUNK OVERLAP: koment i qartë.
+#        - TOTAL_PAGES: metadata e chunks përfshin total_pages.
+# V38.2: CASE-AWARE SSE.
 # V38.1: Summary timeout 40s -> 120s.
-# V38.0: task_embeddings kontrollon rezultatin e ingestion (dict, jo bool).
+# V38.0: task_embeddings kontrollon rezultatin e ingestion.
 
 import os
 import tempfile
@@ -57,48 +51,65 @@ logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V38.3: GLOBAL REDIS CLIENT (lazy-init)
+# V38.5: LOCK për të shmangur race condition në init
 # ═══════════════════════════════════════════════════════════════════════════
 
 _redis_client: Optional[aioredis.Redis] = None
+_redis_lock: Optional[asyncio.Lock] = None
+
+
+def _get_redis_lock() -> asyncio.Lock:
+    """V38.5: Lazy-init i lock-ut (module-level asyncio.Lock bind në loop)."""
+    global _redis_lock
+    if _redis_lock is None:
+        _redis_lock = asyncio.Lock()
+    return _redis_lock
 
 
 async def _get_redis() -> Optional[aioredis.Redis]:
     """
-    V38.3: Kthen Redis client global (lazy-init). Kthen None nëse dështon.
+    V38.3/V38.5: Kthen Redis client global (lazy-init, thread-safe brenda loop).
 
-    Përpara: çdo broadcast krijonte një client të ri (~6 per dokument) →
-    shumë connections ndaj Redis Cloud. Tani vetëm 1 për shërbimin.
+    Përpara (V38.3): pa lock → dy korutina njëkohësisht krijonin 2 klientë
+    gjatë await ping() → connection leak. Tani double-check + lock.
     """
     global _redis_client
+
+    # Fast path — jashtë lock
     if _redis_client is not None:
         return _redis_client
 
-    try:
-        redis_url = getattr(settings, "REDIS_URL", None) or os.getenv("REDIS_URL", "")
-        if not redis_url:
-            logger.warning("[Redis] REDIS_URL nuk është konfiguruar — broadcast skip")
-            return None
+    async with _get_redis_lock():
+        # Double-check brenda lock
+        if _redis_client is not None:
+            return _redis_client
 
-        _redis_client = aioredis.from_url(
-            redis_url,
-            decode_responses=True,
-            socket_timeout=1.0,
-            socket_connect_timeout=1.0,
-            max_connections=20,
-        )
-        await _redis_client.ping()
-        logger.info("✅ [Redis] Global client initialized (orchestrator)")
-        return _redis_client
-    except Exception as e:
-        logger.warning(f"⚠️ [Redis] Init failed — broadcast skip: {e}")
-        _redis_client = None
-        return None
+        try:
+            redis_url = getattr(settings, "REDIS_URL", None) or os.getenv("REDIS_URL", "")
+            if not redis_url:
+                logger.warning("[Redis] REDIS_URL nuk është konfiguruar — broadcast skip")
+                return None
+
+            _redis_client = aioredis.from_url(
+                redis_url,
+                decode_responses=True,
+                socket_timeout=1.0,
+                socket_connect_timeout=1.0,
+                max_connections=20,
+            )
+            await _redis_client.ping()
+            logger.info("✅ [Redis] Global client initialized (orchestrator)")
+            return _redis_client
+        except Exception as e:
+            logger.warning(f"⚠️ [Redis] Init failed — broadcast skip: {e}")
+            _redis_client = None
+            return None
 
 
 def _safe_remove_temp_file(file_path: str):
     if not file_path or not os.path.exists(file_path):
         return
-    gc.collect()
+    gc.collect()  # 1 herë para retries
     for _ in range(3):
         try:
             os.remove(file_path)
@@ -126,8 +137,6 @@ async def _update_db_and_broadcast(
     V38.3: Përditëson DB + publikon në Redis në:
       - user:{user_id}:updates (uploader) — skip nëse user_id bosh
       - case:{case_id_str}:updates (të gjithë anëtarët e case-it)
-
-    Përdor Redis client global (jo per call).
     """
     # 1. DB update
     try:
@@ -160,11 +169,9 @@ async def _update_db_and_broadcast(
         }
         payload_json = json.dumps(payload)
 
-        # Kanal 1: personal (vetëm nëse user_id valid)
         if user_id:
             await client.publish(f"user:{user_id}:updates", payload_json)
 
-        # Kanal 2: case-scoped
         if case_id_str:
             await client.publish(f"case:{case_id_str}:updates", payload_json)
     except Exception as sse_err:
@@ -189,7 +196,7 @@ async def orchestrate_document_processing_mongo(
     collection: str = "documents",
     **kwargs
 ):
-    logger.info(f"⚡ [Orchestrator V38.4] Processing booted for doc: {document_id_str} in collection '{collection}'")
+    logger.info(f"⚡ [Orchestrator V38.5] Processing booted for doc: {document_id_str} in collection '{collection}'")
 
     if db is None:
         from app.core.db import get_db_instance
@@ -206,23 +213,21 @@ async def orchestrate_document_processing_mongo(
         logger.error(f"Document {document_id_str} not found in {collection} collection.")
         return
 
-    # V38.3: OWNER_ID GUARD — mos gjenero "None" string
     owner_id_raw = document.get("owner_id")
     user_id = str(owner_id_raw) if owner_id_raw else ""
     if not user_id:
         logger.warning(
-            f"⚠️ [Orchestrator V38.4] Document {document_id_str} has no "
+            f"⚠️ [Orchestrator V38.5] Document {document_id_str} has no "
             f"owner_id — Redis personal broadcast will be skipped."
         )
 
     doc_name = document.get("file_name", "Unknown Document")
 
-    # V38.4: CASE_ID GUARD — `str(None)` krijonte "None" string
     case_id_raw = document.get("case_id")
     case_id_str = str(case_id_raw) if case_id_raw else ""
     if not case_id_str:
         logger.info(
-            f"ℹ️ [Orchestrator V38.4] Document {document_id_str} has no "
+            f"ℹ️ [Orchestrator V38.5] Document {document_id_str} has no "
             f"case_id — case-scoped broadcast skipped, chunks will carry "
             f"case_id=''."
         )
@@ -253,11 +258,14 @@ async def orchestrate_document_processing_mongo(
         if hasattr(file_stream, 'close'):
             file_stream.close()
 
+        # V38.5: try/finally për fitz — siguron mbylljen edhe në exception
         if suffix.lower() == ".pdf":
             try:
                 pdf_doc = fitz.open(temp_original_file_path)
-                real_page_count = max(len(pdf_doc), 1)
-                pdf_doc.close()
+                try:
+                    real_page_count = max(len(pdf_doc), 1)
+                finally:
+                    pdf_doc.close()
             except Exception as page_err:
                 logger.warning(f"Could not calculate PDF page count for {doc_name}: {page_err}")
                 real_page_count = 1
@@ -288,7 +296,7 @@ async def orchestrate_document_processing_mongo(
                 elif real_page_count <= 1 and len(raw_text) > 2200:
                     real_page_count = max(1, round(len(raw_text) / 2200))
 
-                logger.info(f"✅ [Orchestrator V38.4] U nxorën {len(raw_text)} karaktere nga {real_page_count} faqe reale.")
+                logger.info(f"✅ [Orchestrator V38.5] U nxorën {len(raw_text)} karaktere nga {real_page_count} faqe reale.")
         except Exception as extract_err:
             logger.warning(f"OCR warning for {doc_name} (using fallback): {extract_err}")
 
@@ -309,7 +317,7 @@ async def orchestrate_document_processing_mongo(
                     )
                 else:
                     logger.warning(
-                        "⚠️ [Summary V38.4] sterilize_legal_text / process_large_document_async "
+                        "⚠️ [Summary V38.5] sterilize_legal_text / process_large_document_async "
                         "nuk ekzistojnë — përdor fallback (800 chars)."
                     )
                     return raw_text[:800]
@@ -336,13 +344,11 @@ async def orchestrate_document_processing_mongo(
                         meta = dict(c.metadata)
                         meta["page"] = current_detected_p
                         meta["source"] = doc_name
-                        meta["total_pages"] = real_page_count   # V38.3: konsistencë
+                        meta["total_pages"] = real_page_count
                         metadatas_to_store.append(meta)
                 else:
                     # V38.3: FALLBACK CHUNKING — step != slice → overlap i qëllimshëm
-                    # step=1200 (sa kalon në tekst), slice=1500 (sa merr) →
-                    # overlap = 1500 - 1200 = 300 chars midis chunks të njëpasnjëshëm.
-                    # Kjo ruan kontekstin për RAG në kufijtë e chunks.
+                    # step=1200, slice=1500 → overlap = 300 chars midis chunks.
                     chunk_step = 1200
                     chunk_size = 1500
                     chunks_to_store = [raw_text[i:i+chunk_size] for i in range(0, len(raw_text), chunk_step)]
@@ -357,7 +363,7 @@ async def orchestrate_document_processing_mongo(
                         })
 
                 logger.info(
-                    f"📦 [Orchestrator V38.4] Duke filluar ingestion për "
+                    f"📦 [Orchestrator V38.5] Duke filluar ingestion për "
                     f"{len(chunks_to_store)} chunks (doc={document_id_str})"
                 )
 
@@ -375,7 +381,7 @@ async def orchestrate_document_processing_mongo(
 
                 if not isinstance(result, dict):
                     logger.warning(
-                        f"⚠️ [Orchestrator V38.4] Ingestion ktheu {type(result).__name__} "
+                        f"⚠️ [Orchestrator V38.5] Ingestion ktheu {type(result).__name__} "
                         f"(pritet dict). Trajtoj si {'sukses' if result else 'dështim'}."
                     )
                     result = {
@@ -394,19 +400,19 @@ async def orchestrate_document_processing_mongo(
 
                 if success:
                     logger.info(
-                        f"✅ [Orchestrator V38.4] Ingestion i plotë: "
+                        f"✅ [Orchestrator V38.5] Ingestion i plotë: "
                         f"{ingested}/{total} chunks, duration={duration}s"
                     )
                 else:
                     logger.error(
-                        f"⚠️ [Orchestrator V38.4] Ingestion i pjesshëm ose dështuar: "
+                        f"⚠️ [Orchestrator V38.5] Ingestion i pjesshëm ose dështuar: "
                         f"{ingested}/{total} chunks, errors={errors[:3]}"
                     )
 
                 return result
 
             except Exception as e:
-                logger.error(f"❌ [Orchestrator V38.4] Embedding task exception: {e}")
+                logger.error(f"❌ [Orchestrator V38.5] Embedding task exception: {e}")
                 return {
                     "success": False,
                     "total_chunks": 0,
@@ -445,13 +451,12 @@ async def orchestrate_document_processing_mongo(
                 timeout=180.0
             )
 
-            # V38.3: Log errors në mënyrë eksplicite (edhe pse tasks kanë try/except)
             task_names = ["summary", "embeddings", "storage", "preview"]
             for i, r in enumerate(results):
                 if isinstance(r, Exception):
                     name = task_names[i] if i < len(task_names) else f"task_{i}"
                     logger.error(
-                        f"❌ [Orchestrator V38.4] Task '{name}' raised exception: {r}"
+                        f"❌ [Orchestrator V38.5] Task '{name}' raised exception: {r}"
                     )
 
             if len(results) > 0 and isinstance(results[0], str):
@@ -487,12 +492,10 @@ async def orchestrate_document_processing_mongo(
                 final_status = DocumentStatus.READY
             status_message = "Gati (me paralajmërime — disa pjesë nuk u indeksuan)"
             logger.error(
-                f"⚠️ [Orchestrator V38.4] Dokument {document_id_str} u shënua "
+                f"⚠️ [Orchestrator V38.5] Dokument {document_id_str} u shënua "
                 f"{final_status} sepse ingestion nuk ishte i plotë."
             )
 
-        # V38.3: STORAGE DEDUP — hequr `text` (redundant). Mbajtur `content`
-        # dhe `extracted_text` (të dyja janë në zinxhirin e fallback).
         try:
             await asyncio.to_thread(
                 db[collection].update_one,
@@ -515,14 +518,14 @@ async def orchestrate_document_processing_mongo(
                 }
             )
             logger.info(
-                f"✅ [Orchestrator V38.4] Document {document_id_str} "
+                f"✅ [Orchestrator V38.5] Document {document_id_str} "
                 f"({real_page_count} real pages) is {final_status} in {collection}. "
                 f"Ingestion: {ingestion_stats['ingested']}/{ingestion_stats['total_chunks']} chunks"
             )
         except Exception as db_err:
             logger.error(f"Failed to update MongoDB document status: {db_err}")
 
-        # V38.3: Final broadcast — global Redis client
+        # Final broadcast
         client = await _get_redis()
         if client:
             try:

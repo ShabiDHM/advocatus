@@ -1,0 +1,29 @@
+﻿==============================================================================
+RUN ALL TESTS - 26 files
+Started: 07:34:00
+==============================================================================
+
+>> test_abbreviations_refactor.py ... PASS
+
+>> test_acronyms.py ... PASS
+
+>> test_batch_3fix.py ... PASS
+
+>> test_chat_post_processor.py ... PASS
+
+>> test_confidence.py ... PASS
+
+>> test_doc_review_whitelist_regex.py ... PASS
+
+>> test_document_guard.py ... PASS
+
+>> test_external_sources.py ... PASS
+
+>> test_extract_context.py ... PASS
+
+>> test_forensic.py ... FAIL (exit=1)
+
+>> test_forensic_deleted.py ... PASS
+
+>> test_forensic_service.py ... PASS
+
