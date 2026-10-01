@@ -27,3 +27,7 @@ Started: 07:34:00
 
 >> test_forensic_service.py ... PASS
 
+>> test_hallucination_checker.py ... PASS
+
+>> test_hallucination_filter_regex.py ... PASS
+
