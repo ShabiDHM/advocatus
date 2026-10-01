@@ -1,6 +1,7 @@
 # FILE: backend/scripts/test_forensic.py
 # Test për forensic_extractor + forensic_engine (pa varësi PDF).
 # Zero ekstra PDF — fokus në logjikën e ekstraktimit + detektorëve.
+# V2: rule_id-të u përditësuan me etiketat shqipe (përputhen me config V1.3).
 
 import os
 import sys
@@ -21,6 +22,14 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V2: rule_id-të shqipe (V1.3) — konstantet për test
+# ═══════════════════════════════════════════════════════════════════════════
+RULE_DUPLICATE_DOC_NUMBER = "Numër dokumenti i përsëritur"
+RULE_EXPIRED_CONVICTION = "Dënim i skaduar i përdorur"
+RULE_DUPLICATE_SESSION_DATES = "Data seancash të përsëritura"
+RULE_PSYCHIATRIC_INSUFFICIENT = "Bazë psikiatrike e pamjaftueshme"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -61,7 +70,7 @@ assert "decision" in d.doc_type_hints
 assert any(c.unit == "muaj" and c.value == 6.0 for c in d.numeric_claims)
 assert any(c.unit == "metra" and c.value == 100.0 for c in d.numeric_claims)
 
-print("✓ TEST 1 KALOI")
+print("TEST 1 KALOI")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -81,18 +90,17 @@ assert cfg.get("version"), "config duhet të ketë version"
 assert len(cfg.get("rules", [])) > 0, "config duhet të ketë rules"
 assert "judicial_decision" in cfg.get("profiles", {})
 
-print("✓ TEST 2 KALOI")
+print("TEST 2 KALOI")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 3 — Detektori: duplicate_document_number (critical)
+# TEST 3 — Detektori: Numër dokumenti i përsëritur (critical)
 # ═══════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 72)
-print("TEST 3 — duplicate_document_number (5 seanca me të njëjtin numër)")
+print("TEST 3 — Numër dokumenti i përsëritur (5 seanca me të njëjtin numër)")
 print("=" * 72)
 
-# Simulojmë 5 dokumente me të njëjtin numër dokumenti
 same_doc_num = "05340452"
 docs = []
 for i in range(5):
@@ -105,23 +113,23 @@ for i in range(5):
     docs.append(extract_forensic_data(text, f"seanca_{i+1}.pdf"))
 
 flags = run_forensic_detectors(docs, profile="judicial_decision")
-print(f"Total flamuj: {len(flags)}")
+print(f"Total konstatime: {len(flags)}")
 for f in flags:
     print(f"  [{f.severity.upper()}] {f.rule_id}: {f.message[:100]}")
 
 critical_flags = [f for f in flags if f.severity == "critical"]
-assert any(f.rule_id == "duplicate_document_number" for f in critical_flags), \
-    "Duhet të kapi numrin e përsëritur të dokumentit"
+assert any(f.rule_id == RULE_DUPLICATE_DOC_NUMBER for f in critical_flags), \
+    f"Duhet të kapi numrin e përsëritur të dokumentit (rule_id='{RULE_DUPLICATE_DOC_NUMBER}')"
 
-print("✓ TEST 3 KALOI")
+print("TEST 3 KALOI")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 4 — Detektori: expired_conviction_used (denim i skaduar)
+# TEST 4 — Detektori: Dënim i skaduar i përdorur
 # ═══════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 72)
-print("TEST 4 — expired_conviction_used (P.nr.869/18 në 2024)")
+print("TEST 4 — Dënim i skaduar i përdorur (P.nr.869/18 në 2024)")
 print("=" * 72)
 
 text_vendim = """
@@ -135,22 +143,22 @@ print(f"case_numbers: {doc.case_numbers}")
 print(f"latest_date:  {doc.latest_date}")
 
 flags = run_forensic_detectors([doc], profile="judicial_decision")
-print(f"Total flamuj: {len(flags)}")
+print(f"Total konstatime: {len(flags)}")
 for f in flags:
     print(f"  [{f.severity.upper()}] {f.rule_id}: {f.message[:100]}")
 
-assert any(f.rule_id == "expired_conviction_used" for f in flags), \
-    "Duhet të kapi denimin e skaduar"
+assert any(f.rule_id == RULE_EXPIRED_CONVICTION for f in flags), \
+    f"Duhet të kapi denimin e skaduar (rule_id='{RULE_EXPIRED_CONVICTION}')"
 
-print("✓ TEST 4 KALOI")
+print("TEST 4 KALOI")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 5 — Detektori: duplicate_session_dates
+# TEST 5 — Detektori: Data seancash të përsëritura
 # ═══════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 72)
-print("TEST 5 — duplicate_session_dates (3 seanca me të njëjtën datë)")
+print("TEST 5 — Data seancash të përsëritura (3 seanca me të njëjtën datë)")
 print("=" * 72)
 
 same_date = "19.01.2024"
@@ -169,18 +177,18 @@ for f in flags:
     print(f"  [{f.severity.upper()}] {f.rule_id}: {f.message[:100]}")
 
 # Kontrollo
-has_session_flag = any(f.rule_id == "duplicate_session_dates" for f in flags)
-print(f"Ka duplicate_session_dates flag: {has_session_flag}")
+has_session_flag = any(f.rule_id == RULE_DUPLICATE_SESSION_DATES for f in flags)
+print(f"Ka '{RULE_DUPLICATE_SESSION_DATES}' flag: {has_session_flag}")
 
-print("✓ TEST 5 PËRFUNDOI")
+print("TEST 5 PËRFUNDOI")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 6 — Detektori: psychiatric_basis_insufficient
+# TEST 6 — Detektori: Bazë psikiatrike e pamjaftueshme
 # ═══════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 72)
-print("TEST 6 — psychiatric_basis_insufficient (raport pa ekzaminim)")
+print("TEST 6 — Bazë psikiatrike e pamjaftueshme (raport pa ekzaminim)")
 print("=" * 72)
 
 text_psikiatrik = """
@@ -195,10 +203,10 @@ flags = run_forensic_detectors([doc], profile="judicial_decision")
 for f in flags:
     print(f"  [{f.severity.upper()}] {f.rule_id}: {f.message[:100]}")
 
-has_flag = any(f.rule_id == "psychiatric_basis_insufficient" for f in flags)
-print(f"Ka psychiatric_basis flag: {has_flag}")
+has_flag = any(f.rule_id == RULE_PSYCHIATRIC_INSUFFICIENT for f in flags)
+print(f"Ka '{RULE_PSYCHIATRIC_INSUFFICIENT}' flag: {has_flag}")
 
-print("✓ TEST 6 PËRFUNDOI")
+print("TEST 6 PËRFUNDOI")
 
 
 print("\n" + "=" * 72)
