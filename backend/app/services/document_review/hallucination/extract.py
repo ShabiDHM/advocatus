@@ -1,11 +1,14 @@
 # FILE: backend/app/services/document_review/hallucination/extract.py
-# PHOENIX PROTOCOL - HALLUCINATION EXTRACT V1.25
-# Ekstraktuesit nga teksti + helper-a konteksti + formatim date.
-# V1.25: Shtuar alias `_extract_dates_iso` në fund për backward compat me
-#        service.py dhe verifier.py që importojnë emrin e vjetër.
+# PHOENIX PROTOCOL - HALLUCINATION EXTRACT V1.26
+# V1.26: DEAD CODE REMOVAL —
+#        - `has_real_citation_context` kishte `found_any` të panevojshëm:
+#          të dyja rrugët e fundit kthenin False. Tani thjesht `return False`
+#          pas ciklit. Logjika e saktë (return True vetëm kur gjendet match
+#          jashtë kontekstit të sugjerimit) mbetet identike.
+# V1.25: Shtuar alias `_extract_dates_iso` për backward compat.
 
 import re
-from typing import List, Set
+from typing import Set
 
 from ..patterns import (
     DATE_PATTERN,
@@ -176,12 +179,13 @@ def has_real_citation_context(
 ) -> bool:
     """
     Kthen True nëse vlera shfaqet në tekst PA fjalë sugjerimi përreth.
-    Kthen False nëse çdo dukuri është në kontekst sugjerimi.
+    Kthen False nëse çdo dukuri është në kontekst sugjerimi ose vlera mungon.
+
+    V1.26: Hequr `found_any` i panevojshëm (ishte dead — të dyja rrugët
+    kthenin False).
     """
     if not text or not value:
         return False
-
-    found_any = False
 
     for prefix in prefixes:
         pat = f"{prefix} {value}".strip() if prefix else value
@@ -189,7 +193,6 @@ def has_real_citation_context(
             continue
         idx = text.find(pat)
         while idx != -1:
-            found_any = True
             start = max(0, idx - window)
             end = min(len(text), idx + len(pat) + window)
             ctx = text[start:end].lower()
@@ -198,9 +201,6 @@ def has_real_citation_context(
                 return True
 
             idx = text.find(pat, idx + 1)
-
-    if not found_any:
-        return False
 
     return False
 

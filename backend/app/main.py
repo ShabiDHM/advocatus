@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .core.lifespan import lifespan
-from .core.config import settings
+
 
 # Router Imports - Klienti Normal
 from .api.endpoints.auth import router as auth_router

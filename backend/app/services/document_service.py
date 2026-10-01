@@ -1,12 +1,20 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V10.0 (TOTAL CASCADE WIPEOUT)
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V10.1 (TOTAL CASCADE WIPEOUT)
+# V10.1: CLEANUP —
+#        - Hequr `import importlib` (dead — 0 përdorime).
+#        - Hequr `redis_client` param nga `finalize_document_processing`
+#          (i papërdorur — dead param).
+#        - `CACHE_DIR` përdor path absolut nga file location, jo `os.getcwd()`
+#          (cwd mund të ndryshojë kur shërbyesi startohet nga systemd/docker;
+#          cache shkonte në path të rastësishëm).
+# V10.0: TOTAL CASCADE WIPEOUT.
 
 import logging
 import datetime
-import importlib
 import json
 import os
 from datetime import timezone
+from pathlib import Path
 from typing import List, Optional, Tuple, Any, Dict
 from bson import ObjectId
 import redis
@@ -19,7 +27,9 @@ from . import vector_store_service, storage_service
 
 logger = logging.getLogger(__name__)
 
-CACHE_DIR = os.path.join(os.getcwd(), ".file_cache")
+# V10.1: path absolut — jo varur nga cwd
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+CACHE_DIR = str(_PROJECT_ROOT / ".file_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
@@ -37,7 +47,7 @@ def create_document_record(
         "file_name": file_name,
         "status": {"$ne": "DELETED"}
     })
-    
+
     if existing_doc:
         logger.warning(f"⚠️ [Duplicate Guard] Document '{file_name}' already exists in case {case_id}.")
         raise HTTPException(
@@ -46,10 +56,10 @@ def create_document_record(
         )
 
     document_data = {
-        "owner_id": owner.id, 
-        "case_id": case_object_id, 
+        "owner_id": owner.id,
+        "case_id": case_object_id,
         "file_name": file_name,
-        "storage_key": storage_key, 
+        "storage_key": storage_key,
         "mime_type": mime_type,
         "status": DocumentStatus.PENDING,
         "created_at": datetime.datetime.now(timezone.utc),
@@ -58,16 +68,21 @@ def create_document_record(
     insert_result = db.documents.insert_one(document_data)
     if not insert_result.inserted_id:
         raise HTTPException(status_code=500, detail="Dështoi krijimi i regjistrit të dokumentit.")
-    
+
     new_doc = db.documents.find_one({"_id": insert_result.inserted_id})
     return DocumentOut.model_validate(new_doc)
 
 
 def finalize_document_processing(
-    db: Database, redis_client: redis.Redis, doc_id_str: str,
+    db: Database, doc_id_str: str,
     processed_text_storage_key: Optional[str] = None, summary: Optional[str] = None,
     preview_storage_key: Optional[str] = None
 ):
+    """
+    V10.1: Hequr `redis_client` i papërdorur nga signature. Nëse dikush
+    thirret me të si keyword, do të hedhë TypeError — kështu detektojmë
+    callers që ende e kalojnë dhe i pastrojmë.
+    """
     try:
         doc_object_id = ObjectId(doc_id_str)
     except Exception:
@@ -81,11 +96,16 @@ def finalize_document_processing(
         update_fields["summary"] = summary
     if preview_storage_key:
         update_fields["preview_storage_key"] = preview_storage_key
-        
+
     db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
 
 
 def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> List[DocumentOut]:
+    """
+    V10.1: Filtrim owner-only — DESIGN DECISION (shih commit history).
+    Nëse do të kalohet në team-shared documents, zëvendësohet me
+    `_build_case_access_query` nga case_service.
+    """
     try:
         documents_cursor = db.documents.find({"case_id": ObjectId(case_id), "owner_id": owner.id}).sort("created_at", -1)
         documents = list(documents_cursor)
@@ -98,9 +118,9 @@ def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> Lis
 def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> DocumentOut:
     try:
         doc_oid = ObjectId(doc_id)
-    except:
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid Document ID.")
-        
+
     document_data = db.documents.find_one({"_id": doc_oid, "owner_id": owner.id})
     if not document_data:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -110,13 +130,13 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
 def get_preview_file_path_or_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Optional[str], Any, DocumentOut, int]:
     document = get_and_verify_document(db, doc_id, owner)
     storage_key = document.preview_storage_key or document.storage_key
-    
+
     if not storage_key:
         raise FileNotFoundError("Përmbajtja e dokumentit nuk është e disponueshme.")
 
     safe_cache_name = storage_key.replace('/', '_')
     cached_path = os.path.join(CACHE_DIR, safe_cache_name)
-    
+
     if os.path.exists(cached_path) and os.path.getsize(cached_path) > 0:
         return cached_path, None, document, os.path.getsize(cached_path)
 
@@ -150,7 +170,7 @@ def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> 
         raise HTTPException(status_code=404, detail="Skedari origjinal nuk u gjet në hapësirën ruajtëse.")
     try:
         file_stream = storage_service.download_original_document_stream(document.storage_key)
-        if file_stream is None: 
+        if file_stream is None:
             raise FileNotFoundError
         return file_stream, document
     except Exception as e:
@@ -175,14 +195,14 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     # 1. Kërko dokumentin në 'documents' dhe 'media_evidence'
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     is_media = False
-    
+
     if not document_to_delete:
         document_to_delete = db.media_evidence.find_one({"_id": doc_id, "owner_id": owner.id})
         is_media = True
 
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Dokumenti ose Prova Audio nuk u gjet.")
-    
+
     doc_id_str = str(doc_id)
     storage_key = document_to_delete.get("storage_key")
     processed_key = document_to_delete.get("processed_text_storage_key")
@@ -193,12 +213,12 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         if k:
             cached_file = os.path.join(CACHE_DIR, k.replace('/', '_'))
             if os.path.exists(cached_file):
-                try: 
+                try:
                     os.remove(cached_file)
-                except Exception: 
+                except Exception:
                     pass
 
-    # 3. Fshirje nga RAG (Vector Store - Pinecone/Chroma)
+    # 3. Fshirje nga RAG (Vector Store)
     try:
         vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
         logger.info(f"✅ Vektorët RAG u fshinë për {doc_id_str}")
@@ -222,25 +242,26 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         findings_cursor = db.findings.find(findings_query, {"_id": 1})
         deleted_finding_ids = [str(f["_id"]) for f in findings_cursor]
         db.findings.delete_many(findings_query)
-    except Exception as e:
+    except Exception:
         pass
 
-    # 6. TOTAL WIPEOUT NGA BACKBLAZE (B2)
-    # Sigurohemi që delete_file do të thirret për çdo skedar fizik të lidhur
+    # 6. TOTAL WIPEOUT NGA BACKBLAZE (B2) — thirrje POSITIONAL (konsistencë
+    # me case_service.py). Nëse storage_service.delete_file ka signature
+    # me parametër `storage_key`, të dy format janë ekuivalente.
     keys_to_delete = [k for k in [storage_key, processed_key, preview_key] if k]
     for key in set(keys_to_delete):
         try:
-            storage_service.delete_file(storage_key=key)
+            storage_service.delete_file(key)
             logger.info(f"✅ Skedari u fshi nga Backblaze: {key}")
         except Exception as e:
             logger.error(f"⚠️ S3 cleanup failed for {key}: {e}")
-    
+
     # 7. Fshirje Finale nga MongoDB
     if is_media:
         db.media_evidence.delete_one({"_id": doc_id})
     else:
         db.documents.delete_one({"_id": doc_id})
-    
+
     # 8. Njoftim Real-time për Frontend-in (SSE)
     try:
         if redis_client:
@@ -249,7 +270,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
             redis_client.publish(channel, json.dumps(payload))
     except Exception as sse_err:
         logger.error(f"SSE deletion broadcast warning: {sse_err}")
-    
+
     return deleted_finding_ids
 
 
@@ -269,7 +290,7 @@ def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids:
         except Exception as e:
             logger.error(f"Bulk delete failed for {doc_id_str}: {e}")
             failed_count += 1
-            
+
     return {
         "success": True,
         "deleted_count": deleted_count,

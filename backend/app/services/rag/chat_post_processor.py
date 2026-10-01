@@ -1,11 +1,15 @@
 # FILE: backend/app/services/rag/chat_post_processor.py
-# PHOENIX PROTOCOL - CHAT POST-PROCESSOR V2.4
-# V2.4: FIX — _DATE_LIKE_ARTICLE_SEQUENCE_RE kufizohet në vlera reale datë
-#       (ditë 1-31, muaj 1-12, vit 1900-2099). Më parë hiqte çdo sekuencë
-#       "Neni X. Neni Y. Neni ZZZZ" edhe kur ishte legjitime.
-# V2.3: FIX — Filter validiteti për nenet e ekstraktuara nga output-i i LLM.
+# PHOENIX PROTOCOL - CHAT POST-PROCESSOR V2.5
+# V2.5: REGEX DIAERESIS FIX —
+#       - `_ARTICLE_OUTPUT_RE` dhe `_DATE_LIKE_ARTICLE_SEQUENCE_RE` tani
+#         match-ojnë edhe "Nenet" (pa ë) dhe "Nene" (plural i pacaktuar).
+#         Konsistencë me context_builder V6.12 / cross_doc_comparator V1.3.
+#         Përpara: LLM që shkruante "Nenet 5" nuk kapej nga post-processor-i
+#         → hallucinated nene nuk flag-oheshin në "KORRIGJIME".
+# V2.4: FIX — _DATE_LIKE_ARTICLE_SEQUENCE_RE kufizohet në vlera reale datë.
+# V2.3: FIX — Filter validiteti për nenet e ekstraktuara.
 # V2.2: FIX — _find_missing_articles normalizon "Neni 1.2" -> "1".
-# V2.1: Shtuar vërejtje pozitive për "dy ligje të vlefshme" me burim dokumenti.
+# V2.1: Shtuar vërejtje pozitive për "dy ligje të vlefshme".
 # V2.0: Hequr kontradiktat. Vetëm citime ligjesh + nenesh.
 # V1.2: FIX formatim markdown.
 
@@ -21,7 +25,7 @@ MAX_DISPLAY_CORRECT_ARTICLES = 5
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# REGEX
+# REGEX (V2.5: `[ëe]t|e` në alternativë — konsistencë me context_builder)
 # ═══════════════════════════════════════════════════════════════════════════
 
 _LAW_NUMBER_OUTPUT_RE = re.compile(
@@ -30,15 +34,15 @@ _LAW_NUMBER_OUTPUT_RE = re.compile(
 )
 
 _ARTICLE_OUTPUT_RE = re.compile(
-    r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)',
+    r'\bNen(?:i|it|in|[ëe]t|e)\s+(\d+(?:[\.\/]\d+)*)',
     re.IGNORECASE | re.UNICODE
 )
 
 # V2.4: Vetëm sekuenca me vlera datë reale (ditë 1-31, muaj 1-12, vit 1900-2099)
 _DATE_LIKE_ARTICLE_SEQUENCE_RE = re.compile(
-    r'Nen(?:i|it|in|ët)\s+(?:0?[1-9]|[12]\d|3[01])[\s\.\n,;]+'
-    r'Nen(?:i|it|in|ët)\s+(?:0?[1-9]|1[0-2])[\s\.\n,;]+'
-    r'Nen(?:i|it|in|ët)\s+(?:19|20)\d{2}',
+    r'Nen(?:i|it|in|[ëe]t|e)\s+(?:0?[1-9]|[12]\d|3[01])[\s\.\n,;]+'
+    r'Nen(?:i|it|in|[ëe]t|e)\s+(?:0?[1-9]|1[0-2])[\s\.\n,;]+'
+    r'Nen(?:i|it|in|[ëe]t|e)\s+(?:19|20)\d{2}',
     re.IGNORECASE | re.UNICODE
 )
 

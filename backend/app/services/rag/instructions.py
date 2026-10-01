@@ -1,9 +1,7 @@
 # FILE: backend/app/services/rag/instructions.py
-# PHOENIX PROTOCOL - RAG INSTRUCTIONS V1.0
+# PHOENIX PROTOCOL - RAG INSTRUCTIONS V1.1
+# V1.1: TYPO FIX — "mosputhje" → "mospërputhje" në Rule 7.
 # V1.0: EKSTRAKTUAR nga albanian_rag_service.py V282.25.
-#       Përmban NATURAL_COUNSEL_INSTRUCTION — udhëzimin bazë anti-hallucination
-#       dhe rregullat e strukturimit të përgjigjeve nga LLM-ja.
-#       Nuk ka varësi. Mund të importohet lirshëm.
 
 NATURAL_COUNSEL_INSTRUCTION = """
 UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
@@ -52,7 +50,7 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
    - NËSE nuk gjendet afat → shkruaj "Afati: kontrollo manualisht".
 
 7. ⚠️ KONTRADIKTAT E BRENDSHME (PËRKUFIZIM I NGUSHTË):
-   - KONTRADIKTË = mosputhje FAKTIKE brenda TË NJËJTIT dokument:
+   - KONTRADIKTË = mospërputhje FAKTIKE brenda TË NJËJTIT dokument:
        * Dy data të ndryshme për të njëjtin fakt (p.sh. "29.04.2024" vs "21.04.2024")
        * Dy kohëzgjatje të ndryshme (p.sh. "6 muaj" vs "12 muaj")
        * Dy distanca të ndryshme (p.sh. "100 metra" vs "50 metra")

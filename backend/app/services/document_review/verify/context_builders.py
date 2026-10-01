@@ -1,13 +1,16 @@
 # FILE: backend/app/services/document_review/verify/context_builders.py
-# PHOENIX PROTOCOL - VERIFY CONTEXT BUILDERS V1.2
-# V1.2: PROFESSIONAL LANGUAGE —
-#       - Blloku [PRECEDENTE]: "similarity=" → "ngjashmëri=",
-#         "Rerank score:" → "Pikësimi i renditjes:",
-#         "Total:" → "Gjithsej:", "me similarity <" → "me ngjashmëri <".
-#       - Të gjitha termat anglisht që shfaqen në block për LLM u zëvendësuan
-#         me terma shqip (konsistencë me udhëzimin "SHKRUAJ VETËM NË SHQIP").
-# V1.1: CASE CONTEXT — _block_case_context() injekton bllokun [FASHIKULLI]
-#       kur case_profile ka has_context=True. Zero ndryshim kur mungon.
+# PHOENIX PROTOCOL - VERIFY CONTEXT BUILDERS V1.3
+# V1.3: `_truncate_draft` MAX_CHARS FIX —
+#       - Parametri `max_chars` përdorej vetëm në kontrollin `len(doc_text)
+#         <= max_chars`, ndërsa slicing përdorte konstantet DRAFT_HEAD_CHARS
+#         dhe DRAFT_TAIL_CHARS (45000 / 10000). Nëse dikush thirrte me
+#         max_chars < 55000, do prodhonte head+tail > teksti origjinal
+#         (dyfishim + omitted negativ). Tani head/tail kufizohen me
+#         min(DRAFT_HEAD_CHARS, max_chars) dhe min(DRAFT_TAIL_CHARS,
+#         max_chars - head_chars). Sjellja default (max_chars=60000)
+#         mbetet IDENTIKE: head=45000, tail=10000.
+# V1.2: PROFESSIONAL LANGUAGE (SHQIP në bllokun [PRECEDENTE]).
+# V1.1: CASE CONTEXT.
 # V1.0: Ekstraktuar nga verify_prompts.py V1.14.
 
 from typing import Any, Dict, List, Optional
@@ -31,9 +34,13 @@ def _truncate_draft(doc_text: str, max_chars: int = DEFAULT_MAX_DRAFT_CHARS) -> 
     if len(doc_text) <= max_chars:
         return doc_text
 
-    head = doc_text[:DRAFT_HEAD_CHARS]
-    tail = doc_text[-DRAFT_TAIL_CHARS:]
-    omitted = len(doc_text) - DRAFT_HEAD_CHARS - DRAFT_TAIL_CHARS
+    # V1.3: Kufizo head/tail sipas max_chars
+    head_chars = min(DRAFT_HEAD_CHARS, max_chars)
+    tail_chars = min(DRAFT_TAIL_CHARS, max(0, max_chars - head_chars))
+
+    head = doc_text[:head_chars]
+    tail = doc_text[-tail_chars:] if tail_chars > 0 else ""
+    omitted = len(doc_text) - head_chars - tail_chars
     return (
         head
         + f"\n\n[...{omitted} karaktere të hequr për gjatësi — kontrollo fundin e draftit...]\n\n"
@@ -88,11 +95,6 @@ def _block_draft_text(doc_text: str) -> List[str]:
 
 
 def _block_case_context(case_profile: Optional[Dict[str, Any]]) -> List[str]:
-    """
-    V1.1: Kthen bllokun e fashikullit për injeksion.
-    Nëse case_profile mungon ose është bosh → kthen listë bosh
-    (zero ndryshim në sjelljen kur rasti ka vetëm draftin).
-    """
     if not case_profile or not case_profile.get("has_context"):
         return []
     block = case_profile.get("block") or ""
@@ -286,7 +288,7 @@ def build_verify_context(
     case_profile: Optional[Dict[str, Any]] = None,
 ) -> str:
     section_cfg = VERIFY_SECTION_PROMPTS.get(section_key)
-    needs: List[str] = cfg.get("needs", []) if (cfg := section_cfg) else []
+    needs: List[str] = section_cfg.get("needs", []) if section_cfg else []
 
     lines: List[str] = []
 

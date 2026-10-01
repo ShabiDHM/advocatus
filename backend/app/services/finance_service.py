@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
 from fastapi import HTTPException, UploadFile
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
 from app.models.finance import (
     InvoiceCreate, InvoiceInDB, InvoiceUpdate, 

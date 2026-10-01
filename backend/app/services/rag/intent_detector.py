@@ -7,7 +7,7 @@
 # V6.0: Shtuar QueryDepthDetector — klasifikon pyetjet faktike vs analitike.
 # V5.0: Hequr intenti FORENSIC_AUDIT.
 
-import re
+
 import logging
 
 logger = logging.getLogger(__name__)

@@ -1,13 +1,22 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V282.33
-# V282.33: SMART GLOBAL N_RESULTS —
-#          - Kur query përmban numër specifik precedenti (PML.Nr.X, Rev.Nr.X,
-#            P.nr.X, C.nr.X, CA.nr.X, PP.II.nr.X), n_results për global search
-#            reduktohet nga 15 → 5.
-#          - Arsye: "Bulletproof Retrieval V68.5" kthen 25 precedentë pavarësisht
-#            se query kërkon vetëm një. Konteksti mbushet me chunks jorelevantë
-#            → pre_llm +9s, total +7s. Reduktimi në 5 sjell tekstin origjinal
-#            të kërkuar pa overhead.
+# PROTOKOLLI PHOENIX - SHËRBI MI DOKTRINAR RAG V282.37
+# V282.37: ASYNC + PARALLEL PRE-VERIFY —
+#          - `_verify_single_article` (sync) thirrej direkt në loop async →
+#            bllokonte event loop për çdo nen (SSE heartbeats, chat-e tjera,
+#            detyra background ngrinin). Tani: asyncio.to_thread + asyncio.gather.
+#          - Verifikimi i neneve tani PARALEL (më parë sekuencial). Për 5 nene
+#            ~5x më i shpejtë.
+#          - Wrap në try/except → në defekt upstream, `{}` trajtohet si missing
+#            (nuk hedh exception, nuk ndal chat-in).
+# V282.36: KEYERROR GUARD —
+#          - `verified_articles` / `ambiguous_articles` / `missing_articles`
+#            përdornin `v["exists"]` direkt. Nëse `_verify_single_article`
+#            kthen dict pa 'exists' (version mismatch, defekt upstream,
+#            exception e brendshme), chat hedh KeyError para se të arrijë
+#            LLM. Tani përdoret helper `_is_verified(v)` me `.get()`.
+# V282.35: ASYNC RAG INTEGRATION (DRAFTING + STATUTORY).
+# V282.34: ROBUSTNESS (backspace, precedent regex, async DB, dead code).
+# V282.33: SMART GLOBAL N_RESULTS.
 # V282.32: GLOBAL FETCH KUR user_wants_global=True.
 # V282.31: TIMING + CASE CONTEXT (A+B+C).
 # V282.30: DYNAMIC RULE 19 REMINDER.
@@ -50,10 +59,6 @@ from app.services.rag.cache import (
 from app.services.rag.text_utils import (
     GLOBAL_SEARCH_TRIGGERS,
     _user_wants_global_search,
-    _stem_albanian,
-    _words_match,
-    _MATCH_STOPWORDS,
-    _extract_meaningful_words,
     _detect_relevant_documents,
 )
 from app.services.rag.block_builders import (
@@ -63,14 +68,6 @@ from app.services.rag.block_builders import (
     _build_cited_precedents_block,
 )
 from app.services.rag.official_cleaner import (
-    _unwrap_lines,
-    _extract_gazette_info,
-    _extract_law_number_from_source,
-    _is_document_header_line,
-    _is_law_header_candidate,
-    _is_header_continuation,
-    _remove_repeated_headers,
-    _clean_official_text,
     _format_direct_answer,
 )
 from app.services.rag.intent_helpers import (
@@ -86,7 +83,7 @@ from app.services.pillars.base_pillar_service import BasePillarService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
-from app.services.llm.llm_client import DEEP_ANALYSIS_MODEL, FAST_SEARCH_MODEL
+from app.services.llm.llm_client import FAST_SEARCH_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +94,8 @@ logger = logging.getLogger(__name__)
 
 MAX_DOCS_FOR_CONTRADICTION_SCAN = 30
 
-# V282.33: N_results dinamike për global search
-_GLOBAL_N_DEFAULT = 15          # për pyetje të përgjithshme
-_GLOBAL_N_PRECEDENT_SPECIFIC = 5  # për pyetje me precedent specifik
+_GLOBAL_N_DEFAULT = 15
+_GLOBAL_N_PRECEDENT_SPECIFIC = 5
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -107,23 +103,17 @@ _GLOBAL_N_PRECEDENT_SPECIFIC = 5  # për pyetje me precedent specifik
 # ═══════════════════════════════════════════════════════════════════════════
 
 _PRECEDENT_QUERY_RE = re.compile(
-    r'\b(PML|REV|KMLP|PP\.II|PP\.I|CA|AC|P\.nr|C\.nr|P\.|C\.)'
-    r'[\.\s]*'
+    r'\b(?:PML|REV|KMLP|PP\.II|PP\.I|CA|AC|P|C)'
+    r'[\s\.]+'
     r'(?:nr\.?|Nr\.?|NR\.?)?'
-    r'[\.\s]*'
+    r'[\s\.]*'
     r'\d+\s*[/\.]\s*\d+',
     re.IGNORECASE,
 )
 
 
 def _detect_specific_precedent_query(query: str) -> bool:
-    """
-    V282.33: Kontrollon nëse query përmban numër specifik precedenti.
-    Shembuj:
-      - "Çfarë thotë Gjykata Supreme në vendimin PML.Nr.185/2025?" → True
-      - "Kush janë të dyshuarit?" → False
-      - "Trego precedentët supremë për dhunë në familje" → False
-    """
+    """V282.33/34: Kontrollon nëse query përmban numër specifik precedenti."""
     if not query:
         return False
     return bool(_PRECEDENT_QUERY_RE.search(query))
@@ -182,9 +172,7 @@ Ky fashikull përmban DY kategori precedentësh:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_case_metadata(case_doc: Optional[Dict[str, Any]]) -> Dict[str, str]:
-    """
-    V282.31: Nxjerr metadata e zgjeruar nga case_doc për system_prompt.
-    """
+    """V282.31: Nxjerr metadata e zgjeruar nga case_doc për system_prompt."""
     if not case_doc:
         return {}
 
@@ -242,9 +230,7 @@ def _build_case_header(
     current_date_str: str,
     case_meta: Dict[str, str],
 ) -> str:
-    """
-    V282.31: Ndërton header të pasur me metadata e lëndës.
-    """
+    """V282.31: Ndërton header të pasur me metadata e lëndës."""
     lines = [
         f'LËNDA: **{case_title}** | LËMIA: **{detected_domain}** | '
         f'KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}'
@@ -276,6 +262,20 @@ def _build_case_header(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# V282.36: VERIFICATION HELPER (KeyError guard)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _is_verified(v: Dict[str, Any]) -> bool:
+    """
+    V282.36: Kthen True nëse verifikimi rezultoi me ekzistencë.
+    Përdor .get() në vend të v["exists"] — parandalon KeyError kur
+    _verify_single_article kthen dict pa 'exists' (version mismatch, defekt
+    upstream, exception e brendshme).
+    """
+    return bool(v.get("exists"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # SERVICE
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -284,21 +284,22 @@ class AlbanianRAGService:
         self.db = db
         self.response_generator = ResponseGenerator()
         logger.info(
-            f"✅ [RAG] Juristi AI Natural Client Service V282.33 Initialized "
+            f"✅ [RAG] Juristi AI Natural Client Service V282.37 Initialized "
             f"(chat model: {FAST_SEARCH_MODEL}, "
             f"judicial-docs whitelist: ON, dual-law rule: ON, query-depth: ON, "
-            f"pre-verify: ON, fast-path: DIRECT, dynamic-cleaner: ON, timing: ON, "
-            f"multi-law-chat: ON, global-on-demand: ON, no-fake-precedents: ON, "
-            f"pure-chat: ON, query-aware-docs: ON, stemming: ON, caching: ON, "
-            f"comparison: ON, timeline: ON, contradiction-scan: ON, "
-            f"suspects-injection: ON, no-boilerplate: ON, "
+            f"pre-verify: ASYNC+PARALLEL, fast-path: DIRECT, dynamic-cleaner: ON, "
+            f"timing: ON, multi-law-chat: ON, global-on-demand: ON, "
+            f"no-fake-precedents: ON, pure-chat: ON, query-aware-docs: ON, "
+            f"stemming: ON, caching: ON, comparison: ON, timeline: ON, "
+            f"contradiction-scan: ON, suspects-injection: ON, no-boilerplate: ON, "
             f"precedent-source: ON, precedent-verified: ON, "
             f"dynamic-rule19: ON, force-reminder: ON, "
             f"parallel-vector-fetch: ON, enriched-case-context: ON, "
             f"auto-timeline: ON, global-fetch-on-user-request: ON, "
             f"smart-global-nresults: ON, "
             f"partial-coverage-fix: ON, dynamic-chunks: ON, "
-            f"modularized: ON, chat-history: DELEGATED)."
+            f"modularized: ON, async-db: ON, async-rag-pillars: ON, "
+            f"verify-guard: ON, chat-history: DELEGATED)."
         )
 
     def _optimize_query(self, query: str) -> str:
@@ -315,16 +316,22 @@ class AlbanianRAGService:
             cleaned = re.sub(preamble, "", cleaned, flags=re.IGNORECASE)
 
         abbreviations = {
-            r"\bLMD\b": "Ligji për Marrëdhëniet e Detyrimeve",
-            r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
-            r"\bKPRK\b": "Kodi Penal i Republikës së Kosovës (Nr. 06/L-074)",
-            r"\bKPPRK\b": "Kodi i Procedurës Penale të Kosovës",
-            r"\bLPK\b": "Ligji për Procedurën Kontestimore",
-            r"\bLFK\b": "Ligji për Familjen i Kosovës",
-            r"\bPSRK\b": "Prokuroria Speciale e Republikës së Kosovës",
+            "LMD": "Ligji për Marrëdhëniet e Detyrimeve",
+            "LSHT": "Ligji për Shoqëritë Tregtare",
+            "KPRK": "Kodi Penal i Republikës së Kosovës (Nr. 06/L-074)",
+            "KPPRK": "Kodi i Procedurës Penale të Kosovës",
+            "LPK": "Ligji për Procedurën Kontestimore",
+            "LFK": "Ligji për Familjen i Kosovës",
+            "PSRK": "Prokuroria Speciale e Republikës së Kosovës",
         }
         for abbr, expansion in abbreviations.items():
-            cleaned = re.sub(abbr, f"{abbr} ({expansion})", cleaned, flags=re.IGNORECASE)
+            pattern = rf"\b{re.escape(abbr)}\b"
+            cleaned = re.sub(
+                pattern,
+                lambda m, exp=expansion: f"{m.group(0)} ({exp})",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
 
         return cleaned.strip()
 
@@ -359,7 +366,9 @@ class AlbanianRAGService:
                 c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
                 _q1 = time.time()
-                case_doc = self.db.cases.find_one({"_id": c_oid})
+                case_doc = await asyncio.to_thread(
+                    self.db.cases.find_one, {"_id": c_oid}
+                )
                 logger.info(f"⏱️ [TIMING]   mongo_case_query: {time.time() - _q1:.2f}s")
 
                 if case_doc:
@@ -370,7 +379,7 @@ class AlbanianRAGService:
                     case_meta = _extract_case_metadata(case_doc)
                     if case_meta:
                         logger.info(
-                            f"📋 [Case Context V282.33] Metadata e zbuluar: "
+                            f"📋 [Case Context V282.37] Metadata e zbuluar: "
                             f"{sorted(case_meta.keys())}"
                         )
             except Exception as ex:
@@ -387,10 +396,9 @@ class AlbanianRAGService:
         query_lower = query.lower()
         optimized_query = self._optimize_query(query)
 
-        # V282.33: Zbulim i hershëm i precedentit specifik
         has_specific_precedent = _detect_specific_precedent_query(query)
         if has_specific_precedent:
-            logger.info("🎯 [V282.33] Precedent specifik u zbulua në query — global n_results reduktohet")
+            logger.info("🎯 [V282.37] Precedent specifik u zbulua në query — global n_results reduktohet")
 
         legal_query = extract_legal_query(query)
         _lap("extract_legal_query")
@@ -402,24 +410,47 @@ class AlbanianRAGService:
         missing_articles: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
 
         if legal_query["is_legal_query"] and legal_query["articles"]:
-            verification_results: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
-            for art in legal_query["articles"]:
-                v = _verify_single_article(
-                    self.db,
-                    art["number"],
-                    art.get("paragraph"),
-                    art.get("law_hint", ""),
-                )
-                verification_results.append((art, v))
+            # V282.37: PARALLEL + NON-BLOCKING verification
+            _t_verify = time.time()
 
-            verified_articles = [(a, v) for a, v in verification_results if v["exists"]]
+            async def _verify_one(art: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+                """V282.37: Thirrje sync e _verify_single_article në thread pool."""
+                try:
+                    v = await asyncio.to_thread(
+                        _verify_single_article,
+                        self.db,
+                        art["number"],
+                        art.get("paragraph"),
+                        art.get("law_hint", ""),
+                    )
+                    return (art, v or {})
+                except Exception as e:
+                    logger.warning(
+                        f"[PreVerify V282.37] Verifikimi dështoi për "
+                        f"Neni {art.get('number')}: {e}"
+                    )
+                    return (art, {})
+
+            verification_results: List[Tuple[Dict[str, Any], Dict[str, Any]]] = list(
+                await asyncio.gather(
+                    *[_verify_one(art) for art in legal_query["articles"]]
+                )
+            )
+
+            logger.info(
+                f"⏱️ [TIMING]   pre_verify ({len(verification_results)} articles parallel): "
+                f"{time.time() - _t_verify:.2f}s"
+            )
+
+            # V282.36: .get() për robustness
+            verified_articles = [(a, v) for a, v in verification_results if _is_verified(v)]
             ambiguous_articles = [
                 (a, v) for a, v in verification_results
-                if not v["exists"] and v.get("alternative_laws")
+                if not _is_verified(v) and v.get("alternative_laws")
             ]
             missing_articles = [
                 (a, v) for a, v in verification_results
-                if not v["exists"] and not v.get("alternative_laws")
+                if not _is_verified(v) and not v.get("alternative_laws")
             ]
 
             if (
@@ -493,7 +524,7 @@ class AlbanianRAGService:
                         )
 
             logger.info(
-                f"🔎 [PreVerify V282.33] articles total={len(verification_results)} "
+                f"🔎 [PreVerify V282.37] articles total={len(verification_results)} "
                 f"verified={len(verified_articles)} ambiguous={len(ambiguous_articles)} "
                 f"missing={len(missing_articles)} has_general={legal_query['has_general_query']}"
             )
@@ -509,13 +540,13 @@ class AlbanianRAGService:
         if not user_wants_global:
             if should_fetch_global:
                 logger.info(
-                    f"⏭️ [V282.33] Skip global — pyetje faktuale pa kërkesë eksplicite "
+                    f"⏭️ [V282.37] Skip global — pyetje faktuale pa kërkesë eksplicite "
                     f"për precedentë."
                 )
             should_fetch_global = False
         else:
             logger.info(
-                f"🌐 [V282.33] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
+                f"🌐 [V282.37] Global search AKTIV — përdoruesi kërkoi precedentë/jurisprudencë"
             )
 
         logger.info(
@@ -554,7 +585,7 @@ class AlbanianRAGService:
 
         if is_factual_legal_query:
             logger.info(
-                f"⚡ [FastPath V282.33 DIRECT] Skip LLM — return verified text directly "
+                f"⚡ [FastPath V282.37 DIRECT] Skip LLM — return verified text directly "
                 f"({len(verified_articles)} verified articles)"
             )
 
@@ -571,7 +602,7 @@ class AlbanianRAGService:
                 if cached_docs is not None:
                     db_documents = cached_docs
                     logger.info(
-                        f"⚡ [Cache HIT V282.33] case_docs: {len(db_documents)} docs "
+                        f"⚡ [Cache HIT V282.37] case_docs: {len(db_documents)} docs "
                         f"(saved ~2.5s)"
                     )
                     _lap("load_docs")
@@ -587,13 +618,21 @@ class AlbanianRAGService:
                         doc_filter["_id"] = {"$in": doc_oids + doc_strs}
 
                     _q2 = time.time()
-                    db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("_id", 1)]))
+
+                    def _fetch_docs():
+                        return list(
+                            self.db.documents.find(doc_filter).sort(
+                                [("created_at", 1), ("_id", 1)]
+                            )
+                        )
+
+                    db_documents = await asyncio.to_thread(_fetch_docs)
                     logger.info(f"⏱️ [TIMING]   mongo_docs_query ({len(db_documents)} docs): {time.time() - _q2:.2f}s")
                     _lap("load_docs")
 
                     if db_documents:
                         await _set_cached_case_docs(str(case_id), db_documents, ttl=CACHE_TTL_CASE_DOCS)
-                        logger.info(f"💾 [Cache MISS V282.33] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
+                        logger.info(f"💾 [Cache MISS V282.37] case_docs cached (TTL={CACHE_TTL_CASE_DOCS}s)")
             except Exception as ex:
                 logger.info(f"Could not read client documents (fallback empty): {ex}")
 
@@ -651,7 +690,7 @@ class AlbanianRAGService:
             )
         else:
             logger.info(
-                f"⏭️ [V282.33] Skip contradiction scan — "
+                f"⏭️ [V282.37] Skip contradiction scan — "
                 f"{len(db_documents)} docs > limit {MAX_DOCS_FOR_CONTRADICTION_SCAN}"
             )
 
@@ -663,9 +702,11 @@ class AlbanianRAGService:
 
         _lap("contradiction_scan")
 
+        _wants_comparison = user_wants_comparison(query_lower)
+
         _skip_doc_filter = (
             user_intent in ("COMPREHENSIVE_ANALYSIS", "STATUTORY_VERIFICATION", "DRAFTING")
-            or user_wants_comparison(query_lower)
+            or _wants_comparison
         )
 
         context_documents = db_documents
@@ -673,19 +714,19 @@ class AlbanianRAGService:
             context_documents, was_filtered = _detect_relevant_documents(query, db_documents, max_match=3)
             if was_filtered:
                 logger.info(
-                    f"🎯 [V282.33] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
+                    f"🎯 [V282.37] Query-aware docs: {len(context_documents)}/{len(db_documents)} "
                     f"dokumente të zgjedhura për kontekst LLM: "
                     f"{[d.get('file_name', '?') for d in context_documents]}"
                 )
             else:
                 logger.info(
-                    f"📚 [V282.33] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
+                    f"📚 [V282.37] Pa filtrim dokumentesh — konteksti përfshin të gjitha "
                     f"{len(db_documents)} dokumentet"
                 )
         elif _skip_doc_filter and db_documents:
             logger.info(
-                f"📚 [V282.33] SKIP query-aware filter (intent={user_intent}, "
-                f"comparison={user_wants_comparison(query_lower)}) — "
+                f"📚 [V282.37] SKIP query-aware filter (intent={user_intent}, "
+                f"comparison={_wants_comparison}) — "
                 f"konteksti përfshin të gjitha {len(db_documents)} dokumentet"
             )
 
@@ -696,11 +737,11 @@ class AlbanianRAGService:
         timeline_block = ""
 
         try:
-            if user_wants_comparison(query_lower) and len(db_documents) >= 2:
+            if _wants_comparison and len(db_documents) >= 2:
                 comparison_block = build_comparison_table(context_documents)
                 if comparison_block:
                     logger.info(
-                        f"📊 [V282.33] Tabelë krahasuese aktivizuar "
+                        f"📊 [V282.37] Tabelë krahasuese aktivizuar "
                         f"({len(comparison_block)} chars)"
                     )
         except Exception as e:
@@ -717,7 +758,7 @@ class AlbanianRAGService:
                 timeline_block = build_timeline(events)
                 if timeline_block:
                     logger.info(
-                        f"📅 [V282.33] Timeline aktivizuar "
+                        f"📅 [V282.37] Timeline aktivizuar "
                         f"({len(events)} ngjarje, auto={'po' if user_intent in ('COMPREHENSIVE_ANALYSIS','STATUTORY_VERIFICATION') else 'jo'})"
                     )
         except Exception as e:
@@ -746,7 +787,6 @@ class AlbanianRAGService:
 
         exec_query = optimized_query
         system_prompt = ""
-        whitelist: Dict[str, Any] = {"articles": [], "articles_display": [], "laws_abbrev": [], "laws_number": [], "pairs": [], "laws_by_file": {}, "source_filter": "unknown"}
 
         case_docs_cache_key = _chunks_cache_key(
             str(case_id or ""),
@@ -756,9 +796,7 @@ class AlbanianRAGService:
         )
 
         # ═══════════════════════════════════════════════════════════════════════
-        # V282.31: PARALLEL VECTOR FETCH
-        # V282.32: _needs_global_vec përfshin user_wants_global
-        # V282.33: n_results dinamike (5 për precedent specifik, 15 default)
+        # PARALLEL VECTOR FETCH
         # ═══════════════════════════════════════════════════════════════════════
         _N_RESULTS_BY_INTENT = {
             "COMPREHENSIVE_ANALYSIS": 30,
@@ -775,7 +813,6 @@ class AlbanianRAGService:
             or user_wants_global
         )
 
-        # V282.33: Smart global n_results
         _global_n = (
             _GLOBAL_N_PRECEDENT_SPECIFIC
             if has_specific_precedent
@@ -786,7 +823,7 @@ class AlbanianRAGService:
             cached = await _get_cached_chunks(case_docs_cache_key)
             if cached is not None:
                 logger.info(
-                    f"⚡ [Cache HIT V282.33] vector_case: {len(cached)} chunks"
+                    f"⚡ [Cache HIT V282.37] vector_case: {len(cached)} chunks"
                 )
                 return cached
             try:
@@ -801,7 +838,7 @@ class AlbanianRAGService:
                 if result:
                     await _set_cached_chunks(case_docs_cache_key, result, ttl=CACHE_TTL_CASE_CHUNKS)
                     logger.info(
-                        f"💾 [Cache MISS V282.33] vector_case cached "
+                        f"💾 [Cache MISS V282.37] vector_case cached "
                         f"(n_results={vector_n_results}, intent={user_intent})"
                     )
                 return result or []
@@ -828,7 +865,7 @@ class AlbanianRAGService:
                 _fetch_global_vec(),
             )
             logger.info(
-                f"⚡ [V282.33 Parallel] vector_case + vector_global: "
+                f"⚡ [V282.37 Parallel] vector_case + vector_global: "
                 f"{time.time() - _t_vec:.2f}s | "
                 f"case={len(case_docs)} chunks, "
                 f"global={len(global_docs)} chunks "
@@ -845,7 +882,7 @@ class AlbanianRAGService:
             if not _needs_global_vec:
                 logger.info(f"⏭️ [QueryDepth] Skip global_docs (factual + document selected)")
 
-            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
+            manifest_str, context_str, _ = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
             )
             _lap("context_builder")
@@ -888,8 +925,23 @@ class AlbanianRAGService:
                 dossier_blocks.append(f"SHKRESA #{idx}: {doc_title} (Faqe: {p_count})\n{raw_text}\n")
 
             context_docs = "\n".join(dossier_blocks)
-            whitelist = ContextBuilder._extract_whitelist_from_case_files(db_documents)
             _lap("statutory_context")
+
+            t_rag = time.time()
+            try:
+                rag_ctx, _ = await BasePillarService.get_rag_context_async(
+                    user_id=str(user_id or ""),
+                    case_id=str(case_id or ""),
+                    query_text=optimized_query,
+                    n_results=8,
+                )
+                logger.info(
+                    f"⏱️ [TIMING]   rag_context_async (statutory): "
+                    f"{time.time() - t_rag:.2f}s ({len(rag_ctx)} chars)"
+                )
+            except Exception as _re:
+                logger.warning(f"⚠️ [V282.37] get_rag_context_async dështoi (statutory): {_re}")
+                rag_ctx = ""
 
             base_prompt = StatutoryVerificationService.build_prompt(
                 case_title=case_title,
@@ -902,7 +954,8 @@ class AlbanianRAGService:
                 query_text=optimized_query,
                 user_id=user_id,
                 case_id=case_id,
-                db=self.db
+                db=self.db,
+                rag_context=rag_ctx,
             )
             system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
             if contradictions_block:
@@ -912,12 +965,28 @@ class AlbanianRAGService:
 
         elif user_intent == "DRAFTING":
             if not _needs_global_vec:
-                logger.info(f"⏭️ [V282.33] Skip global_docs në DRAFTING")
+                logger.info(f"⏭️ [V282.37] Skip global_docs në DRAFTING")
 
-            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
+            manifest_str, context_str, _ = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
             )
             _lap("context_builder")
+
+            t_rag = time.time()
+            try:
+                rag_ctx, _ = await BasePillarService.get_rag_context_async(
+                    user_id=str(user_id or ""),
+                    case_id=str(case_id or ""),
+                    query_text=optimized_query,
+                    n_results=8,
+                )
+                logger.info(
+                    f"⏱️ [TIMING]   rag_context_async (drafting): "
+                    f"{time.time() - t_rag:.2f}s ({len(rag_ctx)} chars)"
+                )
+            except Exception as _re:
+                logger.warning(f"⚠️ [V282.37] get_rag_context_async dështoi (drafting): {_re}")
+                rag_ctx = ""
 
             base_prompt = LegalDraftingService.build_prompt(
                 case_title=case_title,
@@ -930,7 +999,8 @@ class AlbanianRAGService:
                 case_domain=detected_domain,
                 db=self.db,
                 user_id=user_id,
-                case_id=case_id
+                case_id=case_id,
+                rag_context=rag_ctx,
             )
             system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
             if contradictions_block:
@@ -942,9 +1012,9 @@ class AlbanianRAGService:
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
             if not _needs_global_vec:
-                logger.info(f"⏭️ [V282.33] Skip global_docs (chat i thjeshtë)")
+                logger.info(f"⏭️ [V282.37] Skip global_docs (chat i thjeshtë)")
 
-            manifest_str, context_str, whitelist = ContextBuilder.build_with_whitelist(
+            manifest_str, context_str, _ = ContextBuilder.build_with_whitelist(
                 case_docs, global_docs, db_documents, context_documents
             )
             _lap("context_builder")
@@ -989,16 +1059,16 @@ class AlbanianRAGService:
 
             if has_verified and has_unverified:
                 system_prompt += _RULE_19_REMINDER_MIXED
-                logger.info("[Rule19 V282.33] Reminder: MIXED (verified + unverified)")
+                logger.info("[Rule19 V282.37] Reminder: MIXED (verified + unverified)")
             elif has_verified:
                 system_prompt += _RULE_19_REMINDER_VERIFIED
-                logger.info("[Rule19 V282.33] Reminder: VERIFIED only")
+                logger.info("[Rule19 V282.37] Reminder: VERIFIED only")
             elif has_unverified:
                 system_prompt += _RULE_19_REMINDER_UNVERIFIED
-                logger.info("[Rule19 V282.33] Reminder: UNVERIFIED only")
+                logger.info("[Rule19 V282.37] Reminder: UNVERIFIED only")
             else:
                 logger.warning(
-                    "[Rule19 V282.33] cited_precedents_block ekziston por nuk "
+                    "[Rule19 V282.37] cited_precedents_block ekziston por nuk "
                     "përmban asnjë marker të njohur."
                 )
 
@@ -1031,7 +1101,7 @@ class AlbanianRAGService:
 
         if llm_failed:
             logger.warning(
-                f"⚠️ [V282.33] LLM dështoi. "
+                f"⚠️ [V282.37] LLM dështoi. "
                 f"Output: {full_generated_response[:100]}..."
             )
             _lap("total")

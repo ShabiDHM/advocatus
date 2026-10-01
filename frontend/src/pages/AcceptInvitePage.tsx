@@ -95,7 +95,7 @@ const AcceptInvitePage: React.FC = () => {
                                             onChange={(e) => setUsername(e.target.value)}
                                             required
                                             className="glass-input w-full pl-10 pr-3 py-2.5 rounded-lg border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40 text-sm text-text-primary placeholder:text-text-disabled"
-                                            placeholder={t('invite.fullNamePlaceholder', 'Shkruani emrin dhe mbiemrin (shmb. Shaban Bala)')}
+                                            placeholder={t('invite.fullNamePlaceholder', 'Shkruani emrin dhe mbiemrin (shmb. Emri Mbiemri)')}
                                         />
                                     </div>
                                 </div>

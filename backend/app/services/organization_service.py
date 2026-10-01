@@ -1,21 +1,27 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.6 (ORG-ID REFACTOR)
-# V3.6: REFACTOR — `org_id` → `organization_id` (heq legacy).
-#       Të gjitha query/write në db.users përdorin vetëm `organization_id`.
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.7 (PARAM NAME + DEAD IMPORTS)
+# V3.7: CLEANUP —
+#       - Rename `org_id` → `organization_id` në 3 funksione
+#         (`update_organization_plan`, `increment_active_users`,
+#         `decrement_active_users`). Konsistencë me `organization_id`
+#         që përdoret kudo tjetër. Të gjithë callers ekzistues janë
+#         POSITIONAL (admin.py) — zero risk breaking.
+#       - Hequr 3 dead imports: `timedelta`, `settings`, `PLAN_LIMITS`
+#         (0 përdorime në file).
+# V3.6: REFACTOR — `org_id` → `organization_id` (fushat e DB).
 # V3.5: DYNAMIC REAL-TIME USER COUNT SYNC.
 
 from typing import List, Optional, Dict
 from bson import ObjectId
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pymongo.database import Database
 from fastapi import HTTPException, status
 import uuid
 import logging
 
-from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models.organization import OrganizationInDB
-from app.models.user import UserInDB, UserOut, ProductPlan, PLAN_LIMITS
+from app.models.user import UserInDB, UserOut, ProductPlan
 from app.services import email_service
 
 logger = logging.getLogger(__name__)
@@ -92,19 +98,25 @@ class OrganizationService:
             "created_at": org_doc.get("created_at")
         }
 
-    def update_organization_plan(self, db: Database, org_id: ObjectId, new_plan_tier: str) -> bool:
+    # V3.7: `org_id` → `organization_id`
+    def update_organization_plan(self, db: Database, organization_id: ObjectId, new_plan_tier: str) -> bool:
         new_limit = TIER_LIMITS.get(new_plan_tier, 1)
         db.organizations.update_one(
-            {"_id": org_id},
+            {"_id": organization_id},
             {"$set": {"plan_tier": new_plan_tier, "user_limit": new_limit, "updated_at": datetime.now(timezone.utc)}}
         )
         return True
 
-    def increment_active_users(self, db: Database, org_id: ObjectId):
-        db.organizations.update_one({"_id": org_id}, {"$inc": {"current_active_users": 1}})
+    # V3.7: `org_id` → `organization_id`
+    def increment_active_users(self, db: Database, organization_id: ObjectId):
+        db.organizations.update_one({"_id": organization_id}, {"$inc": {"current_active_users": 1}})
 
-    def decrement_active_users(self, db: Database, org_id: ObjectId):
-        db.organizations.update_one({"_id": org_id, "current_active_users": {"$gt": 0}}, {"$inc": {"current_active_users": -1}})
+    # V3.7: `org_id` → `organization_id`
+    def decrement_active_users(self, db: Database, organization_id: ObjectId):
+        db.organizations.update_one(
+            {"_id": organization_id, "current_active_users": {"$gt": 0}},
+            {"$inc": {"current_active_users": -1}}
+        )
 
     def get_members(self, db: Database, current_user: UserInDB) -> List[Dict]:
         # V3.6: Vetëm `organization_id`

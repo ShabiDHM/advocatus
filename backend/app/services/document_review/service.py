@@ -1,10 +1,24 @@
 # FILE: backend/app/services/document_review/service.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.29
-# V5.29: DYNAMIC DB LAWS — Integrim i get_all_law_numbers_from_db().
-#        Në fillim të hallucination check, lexon të gjitha ligjet e njohura
-#        nga legal_knowledge_base dhe i kalon si extra_allowed_laws tek
-#        check_all_sections. Zero hardcoding — çdo ligj i shtuar në DB
-#        automatikisht i lejuar.
+# PHOENIX PROTOCOL - DOCUMENT REVIEW SERVICE V5.30
+# V5.30: ROBUSTNESS + REPORTING FIX —
+#        (1) DOCUMENT GUARD: `document.get(...)` → `(document or {}).get(...)`
+#            në 3 vende (content/extracted_text/text, document_type,
+#            file_name). Parandalon AttributeError kur `document` është
+#            None por `extraction` ekziston me text bosh (short-circuit
+#            në `or` do të kalonte te document.get).
+#        (2) LOAD TRY/EXCEPT: load_document + load_extraction tani të
+#            mbështjellë në try/except → kthen `empty_result` me mesazh
+#            gabimi (konsistencë me verifier.py V2.6).
+#        (3) PRECEDENTS_FOUND FIX: `precedents_found_total` përdorte
+#            `section_stats["supreme_court_precedents"]["precedents_found"]`
+#            që nuk ekzistonte kurrë → gjithmonë 0. Tani përdoret
+#            `len(found_precedent_cases)` (set i populluar gjatë section
+#            execution).
+#        (4) CONCISE_MODE IN BATCH: stat dict i batched tani përfshin
+#            `concise_mode: True` (ARTICLE_VERIFICATION_CONCISE_SUFFIX
+#            aplikohet brenda çdo batch → lista `concise_sections` tani
+#            e përfshin article_verification në mënyrë korrekte).
+# V5.29: DYNAMIC DB LAWS.
 # V5.28: QUALITY METRICS.
 # V5.27: PROFESSIONAL LANGUAGE.
 # V5.26: (P1 fix).
@@ -19,7 +33,7 @@ import logging
 import threading
 import concurrent.futures
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Callable, Tuple, Set
+from typing import Any, Dict, List, Optional, Callable, Set
 
 from .citation_extractor import build_citation_profile
 from .fact_extractor import build_fact_profile
@@ -173,7 +187,7 @@ def _merge_article_verification_batches(contents: List[str]) -> str:
             out_lines.append("")
 
     result = "\n".join(out_lines).strip()
-    logger.info(f"🧹 [V5.29 MERGE] {len(non_empty)} batches → {len(result)} chars")
+    logger.info(f"🧹 [V5.30 MERGE] {len(non_empty)} batches → {len(result)} chars")
     return result
 
 
@@ -203,20 +217,25 @@ class DocumentReviewService:
             logger.info(f"⏱️ [TIMING] {label}: {elapsed:.2f}s")
             return elapsed
 
-        # ═══ 1. LOAD ═══
+        # ═══ 1. LOAD (V5.30: try/except) ═══
         t0 = time.time()
-        document = load_document(self.db, case_id, document_id)
-        extraction = load_extraction(self.db, case_id, document_id)
+        try:
+            document = load_document(self.db, case_id, document_id)
+            extraction = load_extraction(self.db, case_id, document_id)
+        except Exception as e:
+            logger.error(f"❌ [DOC_REVIEW V5.30] Load failed: {e}")
+            return empty_result(case_id, document_id, f"Gabim gjatë leximit: {e}")
         _lap("load_document+extraction", t0)
 
         if not document and not extraction:
             return empty_result(case_id, document_id, "Document not found.")
 
+        # V5.30: guard `(document or {})` në çdo access
         doc_text = (
             (extraction or {}).get("text")
-            or document.get("content")
-            or document.get("extracted_text")
-            or document.get("text")
+            or (document or {}).get("content")
+            or (document or {}).get("extracted_text")
+            or (document or {}).get("text")
             or ""
         )
         if not doc_text.strip():
@@ -224,13 +243,13 @@ class DocumentReviewService:
 
         document_type = (
             (extraction or {}).get("document_type")
-            or document.get("document_type")
+            or (document or {}).get("document_type")
             or "Dokument"
         )
-        file_name = document.get("file_name", "Dokument")
+        file_name = (document or {}).get("file_name", "Dokument")
 
         logger.info(
-            f"🔍 [DOC_REVIEW V5.29] Starting: doc={document_id}, "
+            f"🔍 [DOC_REVIEW V5.30] Starting: doc={document_id}, "
             f"file={file_name}, type={document_type}, len={len(doc_text)} chars, "
             f"client={client_name or '?'} ({client_position or '?'}), "
             f"parallel x{MAX_CONCURRENT_SECTIONS}"
@@ -270,7 +289,7 @@ class DocumentReviewService:
             )
             if case_profile.get("has_context"):
                 logger.info(
-                    f"📚 [CASE_PROFILE V5.29] Aktiv: "
+                    f"📚 [CASE_PROFILE V5.30] Aktiv: "
                     f"docs={case_profile['stats']['documents_scanned']}, "
                     f"subjects={case_profile['stats']['unique_subjects']}, "
                     f"block_chars={len(case_profile.get('block', ''))}"
@@ -293,15 +312,15 @@ class DocumentReviewService:
             if forensic_result.has_findings:
                 forensic_dict = forensic_result.to_dict()
                 logger.info(
-                    f"🔴 [KONSTATIMET V5.29] Aktive: "
+                    f"🔴 [KONSTATIMET V5.30] Aktive: "
                     f"profile={forensic_result.profile_used}, "
                     f"total={len(forensic_result.flags)}, "
                     f"block_chars={len(forensic_result.block)}"
                 )
             else:
-                logger.info(f"ℹ️ [KONSTATIMET V5.29] Pa konstatime.")
+                logger.info(f"ℹ️ [KONSTATIMET V5.30] Pa konstatime.")
         except Exception as e:
-            logger.warning(f"⚠️ [KONSTATIMET V5.29] Dështoi: {e}")
+            logger.warning(f"⚠️ [KONSTATIMET V5.30] Dështoi: {e}")
             forensic_result = None
         _lap("run_forensic_analysis", t0)
 
@@ -334,7 +353,7 @@ class DocumentReviewService:
         sections_start = time.time()
 
         logger.info(
-            f"🚀 [PARALLEL V5.29] {len(DOCUMENT_REVIEW_PROMPTS)} seksione, "
+            f"🚀 [PARALLEL V5.30] {len(DOCUMENT_REVIEW_PROMPTS)} seksione, "
             f"max_workers={MAX_CONCURRENT_SECTIONS}"
         )
 
@@ -374,7 +393,7 @@ class DocumentReviewService:
             ]
 
             logger.info(
-                f"⚡ [V5.29 BATCH] article_verification: {total_articles} nene "
+                f"⚡ [V5.30 BATCH] article_verification: {total_articles} nene "
                 f"→ {len(batches)} batches"
             )
 
@@ -443,6 +462,7 @@ class DocumentReviewService:
                     "max_tokens": section_max_tokens,
                     "batched": True,
                     "batch_count": len(batches),
+                    "concise_mode": True,   # V5.30: concise applied inside batches
                 },
                 {"context_build_time": 0.0, "precedent_search_time": precedent_search_time},
             )
@@ -533,7 +553,7 @@ class DocumentReviewService:
             )
 
             logger.info(
-                f"▶️ [SECTION START V5.29] {section_key} "
+                f"▶️ [SECTION START V5.30] {section_key} "
                 f"(ctx={len(verified_context)}, concise={'ON' if concise_applied else 'off'}, "
                 f"case_context={'ON' if case_context_active else 'off'}, "
                 f"konstatime={'ON' if forensic_context_active else 'off'})"
@@ -554,7 +574,7 @@ class DocumentReviewService:
                     stream_callback=None,
                 )
                 elapsed = round(time.time() - section_start, 2)
-                logger.info(f"✅ [SECTION DONE V5.29] {section_key}: {elapsed}s, {len(content)} chars")
+                logger.info(f"✅ [SECTION DONE V5.30] {section_key}: {elapsed}s, {len(content)} chars")
                 return (
                     section_key,
                     {"title": section_title, "content": content},
@@ -658,7 +678,7 @@ class DocumentReviewService:
 
                 if new_cases or new_dates or new_articles:
                     logger.info(
-                        f"📅 [V5.29 HALLUCINATION] Vlera nga konstatimet: "
+                        f"📅 [V5.30 HALLUCINATION] Vlera nga konstatimet: "
                         f"cases +{len(new_cases)}, dates +{len(new_dates)}, "
                         f"articles +{len(new_articles)}"
                     )
@@ -667,14 +687,14 @@ class DocumentReviewService:
                 extra_dates = extra_dates | fc_dates
                 extra_articles = extra_articles | fc_articles
             except Exception as e:
-                logger.warning(f"⚠️ [V5.29] extract_allowed_values_from_flags dështoi: {e}")
+                logger.warning(f"⚠️ [V5.30] extract_allowed_values_from_flags dështoi: {e}")
 
         # ═══ V5.29: DYNAMIC DB LAWS ═══
         t_db = time.time()
         try:
             db_laws = get_all_law_numbers_from_db(self.db)
         except Exception as e:
-            logger.warning(f"⚠️ [V5.29] get_all_law_numbers_from_db dështoi: {e}")
+            logger.warning(f"⚠️ [V5.30] get_all_law_numbers_from_db dështoi: {e}")
             db_laws = set()
         logger.info(
             f"⏱️ [TIMING] db_laws_fetch: {time.time() - t_db:.2f}s "
@@ -690,12 +710,12 @@ class DocumentReviewService:
             extra_allowed_cases=extra_cases,
             extra_allowed_dates=extra_dates,
             extra_allowed_articles=extra_articles,
-            extra_allowed_laws=db_laws,   # V5.29
+            extra_allowed_laws=db_laws,
         )
         hallucination_time = _lap("hallucination_check", t0)
 
         logger.info(
-            f"🧪 [HALLUCINATION V5.29] status={hallucination_report['status']}, "
+            f"🧪 [HALLUCINATION V5.30] status={hallucination_report['status']}, "
             f"issues={hallucination_report['total_issues']}"
         )
 
@@ -729,7 +749,7 @@ class DocumentReviewService:
                 )
                 blocked_count += 1
 
-            logger.warning(f"🛡️ [V5.29 GATE] Bllokuan {blocked_count} seksione")
+            logger.warning(f"🛡️ [V5.30 GATE] Bllokuan {blocked_count} seksione")
 
         # ═══ V5.29: QUALITY METRICS ═══
         t0 = time.time()
@@ -754,9 +774,9 @@ class DocumentReviewService:
         _lap("build_full_report", t0)
 
         duration = round(time.time() - start, 2)
-        precedents_found_total = (
-            section_stats.get("supreme_court_precedents", {}).get("precedents_found", 0)
-        )
+
+        # V5.30: precedents_found_total nga seti i populluar gjatë sections
+        precedents_found_total = len(found_precedent_cases)
 
         concise_sections = [k for k, s in section_stats.items() if s.get("concise_mode")]
         case_context_sections = [k for k, s in section_stats.items() if s.get("case_context_active")]
@@ -793,7 +813,7 @@ class DocumentReviewService:
                 "sections_blocked": len(hallucination_report.get("suspicious_sections", [])),
                 "report_chars": len(full_report),
                 "duration_sec": duration,
-                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.29",
+                "execution_mode": f"parallel_buffered_x{MAX_CONCURRENT_SECTIONS}_v5.30",
                 "hallucination_status": hallucination_report["status"],
                 "hallucination_issues": hallucination_report["total_issues"],
                 "hallucination_suspicious_sections": hallucination_report["suspicious_sections"],
@@ -813,7 +833,7 @@ class DocumentReviewService:
                     {"rule_id": f.rule_id, "severity": f.severity, "message": f.message}
                     for f in (forensic_result.flags if forensic_result else [])[:20]
                 ],
-                "db_laws_count": len(db_laws),   # V5.29
+                "db_laws_count": len(db_laws),
                 "quality_metrics": quality_metrics,
                 "timing_breakdown": {
                     "citation_extract_sec": round(citation_time, 2),
@@ -833,7 +853,7 @@ class DocumentReviewService:
         _lap("persist", t0)
 
         logger.info(
-            f"✅ [DOC_REVIEW V5.29] Complete: "
+            f"✅ [DOC_REVIEW V5.30] Complete: "
             f"sections={result['stats']['sections_generated']}/{result['stats']['sections_total']}, "
             f"blocked={result['stats']['sections_blocked']}, "
             f"hallucination={hallucination_report['status']}, "

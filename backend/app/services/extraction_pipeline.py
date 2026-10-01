@@ -1,9 +1,13 @@
 # FILE: backend/app/services/extraction_pipeline.py
-# PHOENIX PROTOCOL - EXTRACTION PIPELINE V1.5
-# V1.5: HASH-SKIP GJITHMONË — existing_by_docid ngarkohet edhe me force_reprocess=True.
-#       Nëse teksti nuk ka ndryshuar (hash match), skip për çdo dokument pavarësisht
-#       force flag. Kjo kursen 283s të NER-it kur teksti është i paprekur.
-#       Re-extraction ndodh vetëm nëse hash-i ndryshon (dokument u modifikua).
+# PHOENIX PROTOCOL - EXTRACTION PIPELINE V1.6
+# V1.6: DOCUMENTATION —
+#       - Shtuar shënim për `cached_hash` bosh (legacy extract para V1.4):
+#         nuk skip, re-extract bëhet. Kjo është sjellja e saktë (evidence
+#         e vjetër mund të ketë hash bosh).
+# V1.5: HASH-SKIP GJITHMONË — existing_by_docid ngarkohet edhe me
+#       force_reprocess=True. Nëse teksti nuk ka ndryshuar (hash match),
+#       skip për çdo dokument pavarësisht force flag. Kjo kursen 283s
+#       të NER-it kur teksti është i paprekur.
 # V1.4: ORG-AWARE FETCH.
 # V1.3: PARALLEL DOCUMENTS.
 
@@ -13,7 +17,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, AsyncGenerator, Tuple
+from typing import Dict, Any, List, Optional, AsyncGenerator
 
 from bson import ObjectId
 
@@ -73,13 +77,11 @@ class ExtractionPipeline:
             "max_concurrent_docs": MAX_CONCURRENT_DOCS,
         }
 
-        # V1.5: GJITHMONË ngarko existing_by_docid (edhe me force_reprocess=True)
-        # Hash-based skip bëhet brenda _process_one_document
         existing_by_docid: Dict[str, Dict[str, Any]] = self._fetch_existing_extractions(
             case_id, [str(d["_id"]) for d in documents]
         )
         logger.info(
-            f"📚 [EXTRACT V1.5] Ngarkuar {len(existing_by_docid)} ekstraktime ekzistuese "
+            f"📚 [EXTRACT V1.6] Ngarkuar {len(existing_by_docid)} ekstraktime ekzistuese "
             f"(force_reprocess={force_reprocess})"
         )
 
@@ -96,7 +98,7 @@ class ExtractionPipeline:
                     user_id=user_id,
                     existing_by_docid=existing_by_docid,
                     event_queue=event_queue,
-                    force_reprocess=force_reprocess,  # V1.5: kalo më poshtë
+                    force_reprocess=force_reprocess,
                 )
 
         tasks = [
@@ -105,7 +107,7 @@ class ExtractionPipeline:
         ]
 
         logger.info(
-            f"🚀 [EXTRACT V1.5] Nisur {total} dokumente me "
+            f"🚀 [EXTRACT V1.6] Nisur {total} dokumente me "
             f"max_concurrent={MAX_CONCURRENT_DOCS} (user={user_id}, "
             f"force={force_reprocess})"
         )
@@ -142,7 +144,7 @@ class ExtractionPipeline:
             try:
                 res = t.result()
             except (asyncio.CancelledError, Exception) as e:
-                logger.error(f"❌ [EXTRACT V1.5] Worker task error: {e}")
+                logger.error(f"❌ [EXTRACT V1.6] Worker task error: {e}")
                 failed += 1
                 continue
 
@@ -174,7 +176,7 @@ class ExtractionPipeline:
             "max_concurrent_docs": MAX_CONCURRENT_DOCS,
         }
 
-        logger.info(f"✅ [EXTRACT V1.5] Pipeline complete: {summary}")
+        logger.info(f"✅ [EXTRACT V1.6] Pipeline complete: {summary}")
         yield {"event": "complete", "summary": summary}
 
     def _fetch_documents(
@@ -183,9 +185,7 @@ class ExtractionPipeline:
         case_id: str,
         document_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        V1.4: NUK filtrohet me owner_id — aksesi verifikohet nga router.
-        """
+        """V1.4: NUK filtrohet me owner_id — aksesi verifikohet nga router."""
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
         filter_q: Dict[str, Any] = {
@@ -235,8 +235,9 @@ class ExtractionPipeline:
         force_reprocess: bool = False,
     ) -> Dict[str, Any]:
         """
-        V1.5: Cache check GJITHMONË (pavarësisht force_reprocess).
-        Skip vetëm nëse hash-i përputhet — re-extract vetëm nëse teksti ndryshoi.
+        V1.6: Cache check GJITHMONË. Skip vetëm nëse hash-i përputhet.
+        Nëse `cached_hash` është bosh (legacy extract para V1.4), nuk skip
+        — re-extract bëhet.
         """
         doc_id = str(doc["_id"])
         file_name = doc.get("file_name", f"doc_{idx}")
@@ -253,11 +254,10 @@ class ExtractionPipeline:
             cached = existing_by_docid[doc_id]
             cached_hash = cached.get("text_hash", "")
 
-            # V1.5: Skip VETËM nëse hash-i përputhet — edhe me force_reprocess=True
             if cached_hash and cached_hash == current_hash:
                 logger.info(
-                    f"⚡ [EXTRACT V1.5] Doc {doc_id}: hash match → SKIP "
-                    f"(force_reprocess={force_reprocess} injorohet per tekst te paprekur)"
+                    f"⚡ [EXTRACT V1.6] Doc {doc_id}: hash match → SKIP "
+                    f"(force_reprocess={force_reprocess} injorohet)"
                 )
                 await event_queue.put({
                     "event": "document_skipped",
@@ -268,11 +268,14 @@ class ExtractionPipeline:
                 })
                 return {"status": "skipped"}
 
-            # Hash ndryshoi ose bosh → re-extract
             if cached_hash and cached_hash != current_hash:
                 logger.info(
-                    f"🔄 [EXTRACT V1.5] Doc {doc_id}: text CHANGED "
+                    f"🔄 [EXTRACT V1.6] Doc {doc_id}: text CHANGED "
                     f"(hash {cached_hash[:8]}... → {current_hash[:8]}...) → re-extracting"
+                )
+            elif not cached_hash:
+                logger.info(
+                    f"🔄 [EXTRACT V1.6] Doc {doc_id}: legacy extract (hash bosh) → re-extracting"
                 )
 
         await event_queue.put({
@@ -301,7 +304,7 @@ class ExtractionPipeline:
 
         except asyncio.TimeoutError:
             logger.warning(
-                f"⚠️ [EXTRACT V1.5] Document {doc_id} timed out after "
+                f"⚠️ [EXTRACT V1.6] Document {doc_id} timed out after "
                 f"{DOCUMENT_TIMEOUT_SEC}s"
             )
             await event_queue.put({
@@ -313,7 +316,7 @@ class ExtractionPipeline:
             return {"status": "failed", "error": "timeout"}
 
         except Exception as e:
-            logger.exception(f"❌ [EXTRACT V1.5] Document {doc_id} failed")
+            logger.exception(f"❌ [EXTRACT V1.6] Document {doc_id} failed")
             await event_queue.put({
                 "event": "document_failed",
                 "document_id": doc_id,
@@ -378,7 +381,7 @@ class ExtractionPipeline:
         )
         document_type = categorization.get("primary_category")
         logger.info(
-            f"📋 [EXTRACT V1.5] doc={doc_id}: categorized as "
+            f"📋 [EXTRACT V1.6] doc={doc_id}: categorized as "
             f"'{document_type}' (conf={categorization.get('confidence')})"
         )
 
@@ -405,7 +408,7 @@ class ExtractionPipeline:
 
         parallel_duration = round(time.time() - t_parallel, 2)
         logger.info(
-            f"⚡ [EXTRACT V1.5] doc={doc_id}: NER + Metadata paralel përfunduan "
+            f"⚡ [EXTRACT V1.6] doc={doc_id}: NER + Metadata paralel përfunduan "
             f"në {parallel_duration}s"
         )
 

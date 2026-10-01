@@ -6,9 +6,9 @@
 # 4. STATUS: Production-ready, requires `cryptography` library (pip install cryptography).
 
 import base64
-import hashlib
+
 import logging
-import os
+
 from typing import Optional
 
 try:

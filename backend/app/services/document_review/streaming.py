@@ -1,15 +1,14 @@
 # FILE: backend/app/services/document_review/streaming.py
-# PHOENIX PROTOCOL - STREAMING V1.3
-# V1.3: ROLE CONFLICT FIX — Hequr identiteti global "Auditues Ligjor i
-#       Gjykatës Supreme" dhe blloku "ROLI YT" nga wrapper-i. Identiteti
-#       tani vjen EKSKLUZIVISHT nga section_cfg['prompt'] (secila section
-#       ka rolin e vet: Partner, Verifikues, Analist, Revizor, Strateg).
-#       Zgjidh konfliktin e dyfishtë ku LLM merrte dy role kontradiktore.
-#       Gjithashtu heq "NUK justifikon" që binte ndesh me "Arsyetimi"
-#       në seksionin "readiness".
-# V1.2: System prompt i ri "Auditues Ligjor i Gjykatës Supreme" (jo "Revizor").
-#       Udhëzime eksplicite: "MOS përmbledh — AUDITO".
-# V1.1: max_tokens dinamik (jo 8192 hardcoded).
+# PHOENIX PROTOCOL - STREAMING V1.4
+# V1.4: ROLE NEUTRALITY COMPLETION —
+#       - Hequr rreshti "MOS përmbledh dokumentin — AUDITOJE atë." nga
+#         user_content. Ky ishte i mbetur nga wrapper-i ANALIZO dhe binte
+#         ndesh me section prompts VERIFY (të cilat thonë "KY ËSHTË
+#         VERIFIKIM DRAFTI — JO audit i fashikullit"). Tani wrapper-i
+#         është plotësisht neutral ndaj rolit.
+# V1.3: ROLE CONFLICT FIX (identiteti per-section, "NUK justifikon" hequr).
+# V1.2: System prompt i ri "Auditues Ligjor i Gjykatës Supreme".
+# V1.1: max_tokens dinamik.
 # V1.0: Ekstraktuar nga document_review_service.py V4.2.
 
 import time
@@ -30,7 +29,6 @@ from .constants import STREAM_BATCH_CHARS, STREAM_BATCH_INTERVAL_SEC
 
 logger = logging.getLogger(__name__)
 
-# Fallback nëse section_cfg nuk ka max_tokens të përcaktuar
 DEFAULT_MAX_TOKENS = 3000
 
 
@@ -74,7 +72,7 @@ def stream_section_sync(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SECTION STREAMING — V1.3 (identitet per-section)
+# SECTION STREAMING — V1.4 (plotësisht role-neutral)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def synthesize_section_streaming(
@@ -86,10 +84,13 @@ def synthesize_section_streaming(
     stream_callback: Optional[Callable[[str, str], None]] = None,
 ) -> str:
     """
-    V1.3: Streaming i një section.
+    V1.4: Streaming i një section.
 
-    Wrapper-i jep VETËM kontekstin e dokumentit + formatimin.
-    Identiteti dhe rregullat specifike vijnë nga section_cfg['prompt'].
+    Wrapper-i është ROLE-NEUTRAL:
+      - Jep vetëm kontekstin e dokumentit + formatimin.
+      - Identiteti dhe detyra specifike vijnë EKSKLUZIVISHT nga
+        section_cfg['prompt'] (ANALIZO: Partner/Analist/Revizor;
+        VERIFY: Verifikues/Partner).
     """
     section_max_tokens = section_cfg.get("max_tokens", DEFAULT_MAX_TOKENS)
     section_title = section_cfg.get("title", section_key)
@@ -115,7 +116,6 @@ FORMATIMI:
 DETYRA JOTE: Harto seksionin "{section_title}".
 
 MOS përsërit faktet — INTERPRETOJI dhe NXIRR përfundime.
-MOS përmbledh dokumentin — AUDITOJE atë.
 """
 
     logger.info(

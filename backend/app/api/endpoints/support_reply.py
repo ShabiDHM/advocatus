@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/support_reply.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from pymongo.database import Database

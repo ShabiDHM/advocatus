@@ -1,12 +1,14 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V13.5 (HEADER CONSISTENCY)
-// V13.5: Harmonizuar stil-et e tab-ave aktivë me Header V22.0:
-//        - Hequr glass-panel (saturate 160% krijonte perceptim të ngjyrës)
-//        - rounded-full → rounded-xl, shadow-lg/15 → shadow-md/20
-//        - h-9 → py-2, tracking-wider → tracking-widest
-// V13.4: Removed admin role suffix
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.6
+// V13.6: HARDCODED NAME FIX —
+//        - `formatName` kthente "Shaban Bala" (emri i zhvilluesit) kur
+//          user.full_name/username mungon → shfaqej emri i gabuar për
+//          çdo përdorues të re pa profil. Tani fallback gjenerik:
+//          t('general.user', 'Përdorues').
+// V13.5: Harmonizuar stil-et e tab-ave aktivë me Header V22.0.
+// V13.4: Removed admin role suffix.
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { ProfileTab } from '../components/business/ProfileTab';
@@ -23,10 +25,16 @@ const BusinessPage: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
 
-  const formatName = (name: string | undefined) => {
-    if (!name) return "Shaban Bala";
-    return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  };
+  // V13.6: Fallback gjenerik (jo emri i zhvilluesit)
+  const displayName = useMemo(() => {
+    const raw = user?.full_name || user?.username;
+    if (!raw) return t('general.user', 'Përdorues');
+    return raw
+      .toLowerCase()
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }, [user?.full_name, user?.username, t]);
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -58,7 +66,7 @@ const BusinessPage: React.FC = () => {
                     {t('general.welcome', 'Mirësevini')}
                 </h1>
                 <p className="text-base sm:text-lg font-bold text-text-secondary tracking-wide">
-                    {formatName(user?.full_name || user?.username)}
+                    {displayName}
                 </p>
             </div>
 

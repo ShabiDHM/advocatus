@@ -18,7 +18,7 @@
 import re
 import logging
 import os
-from typing import Dict, Any, List, Set
+from typing import Dict, Any, Set
 
 logger = logging.getLogger(__name__)
 

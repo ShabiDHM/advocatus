@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, JSONResponse
 from pymongo.database import Database
-from typing import Optional
+
 from bson import ObjectId
 import logging
 

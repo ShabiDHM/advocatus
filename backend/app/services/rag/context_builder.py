@@ -1,18 +1,16 @@
 # FILE: backend/app/services/rag/context_builder.py
-# PHOENIX PROTOCOL - CONTEXT BUILDER V6.11 (JUDICIAL-DOCS WHITELIST)
-# V6.11: FIX KRITIK UTF-8 — Rikthyer të gjitha karakteret e prishura (mojibake):
-#        - Regex-et _ARTICLE_RE / _ARTICLE_ABBREV_RE / _ARTICLE_LAWNUM_RE
-#          (Nenët, ë, –) — më parë nuk matchonin nenet në shumës.
-#        - LEGAL_DOC_KEYWORDS (urdhër, kërkesë, kallëzim, ankësë, ...) —
-#          më parë _is_judicial_document nuk i njihte.
-#        - Emoji + diakritika në _format_whitelist dhe log.
-# V6.10: OPTIMIZIM — MAX_CONTEXT_CHARS 450K → 80K, MAX_DOC_CHARS_IN_CONTEXT
-#        6K → 3K. Impakti: kontekst 33K → ~20K chars, llm_first_token 9s → 6s.
-# V6.9: (1) MAX_DOC_CHARS_IN_CONTEXT 10K → 6K (shpejtësi LLM).
-#       (2) build() dhe build_with_whitelist() pranojnë parametër opsional
-#           context_documents — për të filtruar vetëm tekstin e kontekstit.
-# V6.8: Limit i tekstin në kontekst (10K chars/dok).
-# V6.7: Konsistencë terminologjike "gjyqësore".
+# PHOENIX PROTOCOL - CONTEXT BUILDER V6.12 (JUDICIAL-DOCS WHITELIST)
+# V6.12: REGEX DIAERESIS FIX —
+#        - `_ARTICLE_RE`, `_ARTICLE_ABBREV_RE`, `_ARTICLE_LAWNUM_RE` tani
+#          match-ojnë edhe "Nenet" (pa ë) dhe "Nene" (plural i pacaktuar).
+#          Përpara: vetëm "Nenët" (me ë) match-ohej → dokumente me OCR pa
+#          diakritikë humbnin nene nga whitelist → false-positive
+#          hallucination. Tani: `[ëe]t|e` në alternativë (konsistencë me
+#          patterns.py që përdor `Nen[ëe]t`).
+# V6.11: FIX KRITIK UTF-8 (mojibake).
+# V6.10: OPTIMIZIM — MAX_CONTEXT_CHARS 450K → 80K.
+# V6.9: context_documents opsional.
+# V6.8: Limit i tekstit në kontekst.
 
 import re
 import logging
@@ -21,21 +19,12 @@ from typing import List, Dict, Any, Tuple, Set, Optional
 
 logger = logging.getLogger(__name__)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V6.10: LIMIT I KONTEKSTIT TOTAL
-# ═══════════════════════════════════════════════════════════════════════════
 MAX_CONTEXT_CHARS = 80_000
 RESERVED_FOR_WHITELIST = 25_000
 MAX_DISPLAY_ARTICLES = 5
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V6.10: LIMIT PËR TEKSTIN E SECILËS SHKRESË
-# ═══════════════════════════════════════════════════════════════════════════
 MAX_DOC_CHARS_IN_CONTEXT = 3_000
 
-# ═══════════════════════════════════════════════════════════════════════════
-# V6.5: Fjalët kyçe për dokumentet GJYQËSORE
-# ═══════════════════════════════════════════════════════════════════════════
 
 LEGAL_DOC_KEYWORDS = [
     "vendim",
@@ -65,11 +54,11 @@ LEGAL_DOC_KEYWORDS = [
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# REGEX PËR WHITELIST
+# REGEX PËR WHITELIST (V6.12: `[ëe]t|e` shtesë)
 # ═══════════════════════════════════════════════════════════════════════════
 
 _ARTICLE_RE = re.compile(
-    r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)',
+    r'\bNen(?:i|it|in|[ëe]t|e)\s+(\d+(?:[\.\/]\d+)*)',
     re.IGNORECASE | re.UNICODE
 )
 
@@ -84,13 +73,13 @@ _LAW_NUMBER_RE = re.compile(
 )
 
 _ARTICLE_ABBREV_RE = re.compile(
-    r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)\s+(?:i|të|te|e|së)\s+'
+    r'\bNen(?:i|it|in|[ëe]t|e)\s+(\d+(?:[\.\/]\d+)*)\s+(?:i|të|te|e|së)\s+'
     r'(KPPRK|KPRK|KPK|LPK|LMDHF|LMD|LFK|LSHT|LPP|KDPM|LPTS|PSRK|Kushtetuta)',
     re.IGNORECASE | re.UNICODE
 )
 
 _ARTICLE_LAWNUM_RE = re.compile(
-    r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)\s+(?:i|të|te|e|së)\s+'
+    r'\bNen(?:i|it|in|[ëe]t|e)\s+(\d+(?:[\.\/]\d+)*)\s+(?:i|të|te|e|së)\s+'
     r'(?:i\s+)?Ligj(?:it|i|ji|in)?\s+(?:Nr\.?\s*)?(\d{2}\s*\/\s*[A-Za-z]\s*[-–]?\s*\d{2,4})',
     re.IGNORECASE | re.UNICODE
 )
@@ -98,11 +87,12 @@ _ARTICLE_LAWNUM_RE = re.compile(
 
 class ContextBuilder:
     """
-    Ndërtuesi Qendror i Kontekstit Juridik (V6.11):
+    Ndërtuesi Qendror i Kontekstit Juridik (V6.12):
+    - V6.12: Regex artikujsh pranon "Nenet"/"Nene" (pa diaeresis).
     - V6.11: FIX KRITIK UTF-8 — regex + keywords + string-e.
     - V6.10: MAX_CONTEXT_CHARS 450K → 80K; MAX_DOC_CHARS_IN_CONTEXT 6K → 3K.
-    - V6.9: Context_documents opsional (whitelist nga të gjitha, konteksti nga subset).
-    - V6.8: Limit tekstin e shkresave në kontekst (10K chars/dok).
+    - V6.9: Context_documents opsional.
+    - V6.8: Limit tekstin e shkresave në kontekst.
     - V6.7: Konsistencë terminologjike "gjyqësore".
     - V6.5: Whitelist nga TË GJITHA dokumentet gjyqësore.
     """
@@ -157,11 +147,7 @@ class ContextBuilder:
 
     @staticmethod
     def _is_judicial_document(doc: Dict[str, Any]) -> bool:
-        """
-        V6.5: Kthen True nëse dokumenti është dokument GJYQËSOR
-        (vendim, aktvendim, aktgjykim, urdhër, aktakuzë, kërkesë, padi,
-        kallëzim, refuzim, apel).
-        """
+        """V6.5: Kthen True nëse dokumenti është dokument GJYQËSOR."""
         name = (doc.get("file_name") or doc.get("title") or "").lower()
         return any(kw in name for kw in LEGAL_DOC_KEYWORDS)
 
@@ -204,10 +190,7 @@ class ContextBuilder:
 
     @staticmethod
     def _extract_whitelist_from_case_files(db_documents: List[Dict]) -> Dict[str, Any]:
-        """
-        V6.5: Ekstrakton whitelist nga dokumentet GJYQËSORE (vendime +
-        procedurale). Fallback: nëse nuk ka dokumente gjyqësore → të gjitha.
-        """
+        """V6.5: Ekstrakton whitelist nga dokumentet GJYQËSORE."""
         legal_docs = [d for d in (db_documents or []) if ContextBuilder._is_judicial_document(d)]
 
         used_filter = "legal_only"
@@ -297,7 +280,7 @@ class ContextBuilder:
         else:
             lines.append("📖 NENET: (asnjë nen i identifikuar)")
             lines.append("")
-            
+
         if pairs:
             lines.append(f"✅ ÇIFTET E VËRTETA (Neni X i Ligjit) ({len(pairs)}):")
             for art, law in pairs[:80]:
@@ -391,7 +374,6 @@ class ContextBuilder:
         if len(full_context) > truncate_limit:
             full_context = full_context[:truncate_limit] + "\n\n[...Konteksti u optimizua...]"
 
-        # V6.10: Whitelist gjithmonë nga db_documents i plotë
         whitelist = ContextBuilder._extract_whitelist_from_case_files(db_documents)
         whitelist_section = ContextBuilder._format_whitelist(whitelist)
 
@@ -404,7 +386,7 @@ class ContextBuilder:
         total_docs_count = len(db_documents or [])
 
         logger.info(
-            f"📊 [ContextBuilder V6.11] Kontekst: {len(final_context)} chars | "
+            f"📊 [ContextBuilder V6.12] Kontekst: {len(final_context)} chars | "
             f"whitelist ({whitelist.get('source_filter')}): "
             f"{len(whitelist['articles'])} nene ({len(whitelist['articles_display'])} display), "
             f"{len(whitelist['laws_abbrev'])} akronime, "

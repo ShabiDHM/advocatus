@@ -1,25 +1,30 @@
 # FILE: backend/app/services/pillars/hallucination_filter.py
-# PHOENIX PROTOCOL - SUPREME COURT PRECEDENT & CITATION FILTER V10.1
-# V10.1: (1) FIX — normalize_precedent() tani kanonizon "nr"/"."/",",
+# PHOENIX PROTOCOL - SUPREME COURT PRECEDENT & CITATION FILTER V10.2
+# V10.2: REGEX ORDERING —
+#        - `KOSOVO_CASE_NUMBER_REGEX` tani rendit alternativat nga më
+#          specifiku te më i përgjithshmi (KMLP para KM, ANR para A,
+#          CA para C, Cn para C). Funksionalisht e njëjta sjellje falë
+#          backtracking-ut të re, por pa pasur nevojë për backtrack në
+#          rastet e gjata. Zero ndryshim në output.
+# V10.1: (1) FIX — normalize_precedent() tani kanonizon "nr"/"."/","
 #           duke trajtuar "PML nr 123/2024" = "PML.nr.123/2024" = "PML 123/2024"
-#           si të njëjtin precedent. Më parë jepnin false-positive hallucinim.
-#       (2) FIX — SIGNATURE_PATTERN hequr re.DOTALL; ".*$" tani ndalon në
-#           fund të rreshtit (MULTILINE), nuk gllabëron tekstin pas nënshkrimit.
+#           si të njëjtin precedent.
+#       (2) FIX — SIGNATURE_PATTERN hequr re.DOTALL.
 # V10.0: Real precedent validation + filtering against context.
 
 import re
 import logging
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# REGEX — Kosovo case number patterns
+# REGEX — Kosovo case number patterns (V10.2: ordered longest-first)
 # ────────────────────────────────────────────────────────────────────────────
 
 KOSOVO_CASE_NUMBER_REGEX = re.compile(
-    r'\b(?:PML|Rev|PKR|PA1|AC|CA|A|ANR|KMLP|P|C|Cn)'
+    r'\b(?:PML|Rev|PKR|PA1|KMLP|ANR|AC|CA|Cn|C|A|P)'
     r'\.?\s*(?:nr|Nr|NR)?\.?\s*'
     r'\d+\s*/\s*\d{2,4}\b',
     re.IGNORECASE,
@@ -63,7 +68,7 @@ SIGNATURE_PATTERN = re.compile(
 
 class HallucinationFilter:
     """
-    V10.1 — Filtri Real i Precedentëve dhe Nënshkrimeve Fiktive:
+    V10.2 — Filtri Real i Precedentëve dhe Nënshkrimeve Fiktive:
 
     1. clean_response()       — Heq nënshkrimet fiktive dhe placeholder-at
     2. find_all_precedents()  — Nxjerr të gjithë numrat e lëndëve nga teksti

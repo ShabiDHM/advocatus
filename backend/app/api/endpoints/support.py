@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/support.py
 # PHOENIX PROTOCOL - SUPPORT ENDPOINTS V2.0 (ADDED STORAGE + ADMIN REPLY)
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime, timezone

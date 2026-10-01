@@ -1,7 +1,12 @@
 # FILE: backend/app/services/document_review/hallucination/successors.py
-# PHOENIX PROTOCOL - HALLUCINATION SUCCESSORS V1.25
-# Grumbullon ligjet pasardhëse nga verification_report.
-# Përdoret nga _build_allowed për të lejuar ligjet e reja të sugjeruara.
+# PHOENIX PROTOCOL - HALLUCINATION SUCCESSORS V1.26
+# V1.26: DEAD PARAMETER FIX —
+#        - `scan_dict_for_laws(d, context_label)` pranonte `context_label`
+#          por nuk e përdorte. Të gjithë thirrësit e kalonin (successor[i],
+#          art5.sr, art3.alt2, ...) → informacion konteksti i humbur.
+#          Tani logohet në DEBUG për tracing se cilat burime kontribuuan
+#          cilat numra. Nuk ndryshon API-n, logjikën, as performance.
+# V1.25: Grumbullon ligjet pasardhëse nga verification_report.
 
 import logging
 from typing import Any, Dict, Set
@@ -20,7 +25,12 @@ _LAW_TITLE_FIELDS = ("law_title", "law_name")
 
 
 def scan_dict_for_laws(d: Dict[str, Any], context_label: str) -> Set[str]:
-    """Nxjerr numra ligjesh nga një dict (law_number + law_title)."""
+    """
+    Nxjerr numra ligjesh nga një dict (law_number + law_title).
+
+    context_label: etiketë për tracing (p.sh. "successor[0]", "art5.sr").
+                   Logohet në DEBUG kur kontribuohen numra.
+    """
     found: Set[str] = set()
     if not isinstance(d, dict):
         return found
@@ -38,6 +48,13 @@ def scan_dict_for_laws(d: Dict[str, Any], context_label: str) -> Set[str]:
             nums = extract_law_numbers_from_title_strict(str(val))
             if nums:
                 found.update(nums)
+
+    # V1.26: Përdorim context_label për tracing
+    if found and logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            f"[HALLUCINATION V1.26] scan_dict_for_laws({context_label}): "
+            f"+{len(found)} → {sorted(found)}"
+        )
 
     return found
 
@@ -95,9 +112,9 @@ def collect_successor_laws(verification_report: Dict[str, Any]) -> Set[str]:
 
     if successors:
         logger.info(
-            f"[HALLUCINATION V1.25] Successor laws collected: {sorted(successors)}"
+            f"[HALLUCINATION V1.26] Successor laws collected: {sorted(successors)}"
         )
     else:
-        logger.info(f"[HALLUCINATION V1.25] No successor laws collected.")
+        logger.info(f"[HALLUCINATION V1.26] No successor laws collected.")
 
     return successors

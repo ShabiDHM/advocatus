@@ -1,9 +1,13 @@
 # FILE: backend/app/services/document_review/report_builder.py
-# PHOENIX PROTOCOL - REPORT BUILDER V1.3
-# V1.3: TOP-LEVEL TITLE CHANGE —
-#       - "RAPORT VERIFIKIMI — X" → "ANALIZË E DOKUMENTIT — X".
-#       - Arsye: dallon qartë nga Verifiko (i cili mban "RAPORT VERIFIKIMI")
-#         dhe pasqyron rolin këshillues të Analizo.
+# PHOENIX PROTOCOL - REPORT BUILDER V1.4
+# V1.4: CRITICAL FIX — SECTION_ORDER MUNGONTE "konstatimet_e_analizes" —
+#       - `DOCUMENT_REVIEW_PROMPTS` (prompts.py V4.27) deklaron 8 seksione,
+#         por `SECTION_ORDER` kishte vetëm 7. Rezultati: LLM-ja gjeneronte
+#         "KONSTATIMET E ANALIZËS" (max_tokens=3200) në çdo raport POR nuk
+#         shfaqej KURRË në `full_report` — kosto LLM e harxhuar + humbje e
+#         përmbledhjes ekzekutive (baza për apel). Tani rendi i 8 seksioneve
+#         përputhet saktësisht me `DOCUMENT_REVIEW_PROMPTS`.
+# V1.3: TOP-LEVEL TITLE CHANGE — "ANALIZË E DOKUMENTIT — X" (jo "RAPORT VERIFIKIMI").
 # V1.2: STATS TRANSPARENCY.
 # V1.1: ANALIZA_E_THELLUAR + LOOP REFACTOR.
 
@@ -14,6 +18,7 @@ from typing import Dict, Any, List
 logger = logging.getLogger(__name__)
 
 
+# V1.4: Rendi përputhet SAKTËSISHT me DOCUMENT_REVIEW_PROMPTS (8 seksione)
 SECTION_ORDER: List[str] = [
     "document_summary",
     "article_verification",
@@ -22,6 +27,7 @@ SECTION_ORDER: List[str] = [
     "errors_corrections",
     "action_steps",
     "analiza_e_thelluar",
+    "konstatimet_e_analizes",   # V1.4: ishte harruar
 ]
 
 
@@ -37,7 +43,6 @@ def build_full_report(
 
     lines: List[str] = []
 
-    # V1.3: Top-level title ndryshuar
     lines.append(f"# ANALIZË E DOKUMENTIT — {document_type.upper()}")
     lines.append("")
     lines.append(f"**Dokumenti:** {file_name}")

@@ -10,7 +10,7 @@ import time
 import json
 from celery import shared_task
 from bson import ObjectId
-from typing import Optional, Dict
+from typing import Optional
 from redis import Redis 
 from pymongo.database import Database
 

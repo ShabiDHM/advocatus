@@ -1,13 +1,23 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.4
-# V98.4: CHAT METRICS — Integrim i compute_chat_metrics() dhe
-#        log_chat_metrics(). generate_stream() tani grumbullon output-in
-#        dhe nxjerr metrika automatike pas përfundimit:
-#        - response_chars, empty, truncated
-#        - duration_sec, ttft_sec (time to first token)
-#        - grounding (burimet e RAG-ut të përmendura në përgjigje)
-#        - cost_estimate_usd, quality_score
-#        Zero kosto ekstra LLM. Vetëm statistika në Python.
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V98.6
+# V98.6: PII REDACTION (GDPR) — INTEGRIM text_sterilization_service
+#        - `_call_with_retry` aplikon redaktim PII në `messages` PARA
+#          dërgimit në OpenRouter (bypass-i i llm_client u mbyll).
+#        - Strategji selektive për të shmangur kosto:
+#            * system  → regex-only (kontekst i madh)
+#            * user    → mesazhi i fundit: full NER; historiku: regex-only
+#            * assistant → pa ndryshim
+#        - Parametër i ri `redact_pii: bool = True` (default ON).
+# V98.5: HARDENING —
+#        - `MAX_SINGLE_PASS_CHARS` 1_500_000 → 300_000. Vlera e vjetër
+#          (≈600k tokens) ishte mbi context window e çdo modeli aktual
+#          → 400 Invalid Request në API. 300k chars ≈ 120k tokens — brenda
+#          limitit të DeepSeek V4 Flash (~128k) me margin të sigurt.
+#        - Guard për `user_query` bosh/jo-string → skip API call, yield
+#          mesazh kuptimplotë (përpara: 400 i fshehur).
+#        - Guard për `history` me entries jo-dict → AttributeError i
+#          parandaluar.
+# V98.4: CHAT METRICS — compute_chat_metrics() + log_chat_metrics().
 # V98.3: MODEL MIGRATION.
 # V98.2: Hequr 4 dead items.
 # V98.1: CLAUDE OVERRIDE REMOVED.
@@ -28,11 +38,17 @@ from app.services.document_review.quality_metrics import (
     compute_chat_metrics,
     log_chat_metrics,
 )
+from app.services.text_sterilization_service import sterilize_text_for_llm
 
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
-MAX_SINGLE_PASS_CHARS = 1_500_000
+
+# V98.5: 1.5M → 300k (≈120k tokens). Mbi këtë, API hedh 400.
+MAX_SINGLE_PASS_CHARS = 300_000
+
+# V98.6: Default i redaktimit PII për chat RAG.
+DEFAULT_REDACT_PII = True
 
 
 def _get_target_model() -> str:
@@ -56,14 +72,89 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
     }
 
 
+def _redact_messages_for_llm(
+    messages: List[Dict[str, str]]
+) -> List[Dict[str, str]]:
+    """
+    V98.6: Redakton PII në `messages` përpara dërgimit te LLM.
+
+    Strategji (minimizon koston e NER):
+    - system    → regex-only (kontekst i madh; NER do ishte i kushtueshëm)
+    - user      → mesazhi i fundit: full NER; historiku: regex-only
+    - assistant → pa ndryshim (output i mëparshëm AI, tashmë i pastër)
+
+    Fail-safe: në çdo exception, kthen tekstin origjinal (pa redaktim) —
+    nuk bllokon chat-in, vetëm regjistron.
+    """
+    if not messages:
+        return messages
+
+    # Gjej indeksin e user-it të fundit (=pyetja aktuale)
+    last_user_idx = -1
+    for i, m in enumerate(messages):
+        if isinstance(m, dict) and m.get("role") == "user":
+            last_user_idx = i
+
+    redacted: List[Dict[str, str]] = []
+    redacted_count = 0
+
+    for i, m in enumerate(messages):
+        if not isinstance(m, dict):
+            redacted.append(m)
+            continue
+
+        role = m.get("role", "")
+        content = m.get("content", "")
+
+        if not isinstance(content, str) or not content:
+            redacted.append(m)
+            continue
+
+        try:
+            if role == "system":
+                new_content = sterilize_text_for_llm(
+                    content, redact_names=False
+                )
+            elif role == "user":
+                # Vetëm mesazhi i fundit i user-it merr NER të plotë
+                use_ner = (i == last_user_idx)
+                new_content = sterilize_text_for_llm(
+                    content, redact_names=use_ner
+                )
+            else:
+                new_content = content
+        except Exception as e:
+            logger.warning(
+                f"⚠️ [PII Redaction V98.6] Dështoi për rolin '{role}' "
+                f"(indeksi {i}): {e}"
+            )
+            new_content = content
+
+        if new_content != content:
+            redacted_count += 1
+            redacted.append({**m, "content": new_content})
+        else:
+            redacted.append(m)
+
+    if redacted_count > 0:
+        logger.info(
+            f"🔒 [PII Redaction V98.6] {redacted_count}/{len(messages)} "
+            f"mesazhe u redaktuan."
+        )
+
+    return redacted
+
+
 class ResponseGenerator:
     """
-    Gjeneruesi Qendror i Përgjigjeve (V98.4):
+    Gjeneruesi Qendror i Përgjigjeve (V98.6):
     - Motor i vetëm me parametër opsional `model`:
         * Chat-i i klientit → FAST_SEARCH_MODEL (gpt-4o-mini)
         * Law Audit / other → default DEEP_ANALYSIS_MODEL (deepseek v4 flash)
     - Mbrojtje e plotë nga mbingarkesat (429 Auto-Retry me 3 tentativa).
     - Matje automatike e cilësisë së përgjigjes (V98.4).
+    - Guard-e për input bosh / malformed (V98.5).
+    - PII redaction (GDPR) në LLM boundary (V98.6).
     """
 
     def __init__(self):
@@ -75,9 +166,14 @@ class ResponseGenerator:
         stream: bool = True,
         max_tokens: int = 8192,
         model: Optional[str] = None,
+        redact_pii: bool = DEFAULT_REDACT_PII,
     ):
         last_error = None
         target_model = model if model else _get_target_model()
+
+        # V98.6: PII REDACTION — hapi i fundit para dërgimit në OpenRouter
+        if redact_pii:
+            messages = _redact_messages_for_llm(messages)
 
         kwargs: Dict[str, Any] = {
             "model": target_model,
@@ -112,17 +208,24 @@ class ResponseGenerator:
         context: str = "",
         history: Optional[List[Dict[str, Any]]] = None,
         model: Optional[str] = None,
+        redact_pii: bool = DEFAULT_REDACT_PII,
     ) -> AsyncGenerator[str, None]:
         """
-        V98.4: Grumbullon output-in, mat metrikat, i logon pas përfundimit.
-        model: Nëse None → përdor _get_target_model() (DeepSeek V4 Flash 0731).
-               Nëse jepet → përdor atë model (p.sh. FAST_SEARCH_MODEL për chat).
+        V98.6: Redaktim PII para streaming-ut. Grumbullon output-in, mat
+        metrikat, i logon pas përfundimit.
+        Guard-e për input bosh / malformed.
         """
         target_model = model if model else _get_target_model()
 
         # ═══════════════════════════════════════════════════════════════
-        # V98.4: ACCUMULATOR PËR METRIKA
+        # V98.5: GUARD — user_query bosh → skip API call
         # ═══════════════════════════════════════════════════════════════
+        if not user_query or not isinstance(user_query, str) or not user_query.strip():
+            logger.warning("⚠️ [ResponseGenerator V98.5] user_query bosh ose jo-string — skip API call.")
+            error_msg = "[Gabim: Pyetja është bosh ose e pavlefshme.]"
+            yield error_msg
+            return
+
         accumulated_chunks: List[str] = []
         start_time = time.time()
         first_token_time: Optional[float] = None
@@ -142,8 +245,11 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
 """
             messages = [{"role": "system", "content": enhanced_system_prompt[:MAX_SINGLE_PASS_CHARS]}]
 
+            # V98.5: Guard për history entries jo-dict
             if history and isinstance(history, list):
                 for h in history[-8:]:
+                    if not isinstance(h, dict):
+                        continue
                     r = "assistant" if h.get("role") in ["ai", "assistant"] else "user"
                     c = h.get("content") or h.get("text") or ""
                     if c and not c.startswith("[Gabim Teknik"):
@@ -151,11 +257,13 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
 
             messages.append({"role": "user", "content": user_query})
 
+            # V98.6: redact_pii kalon në _call_with_retry
             response = await self._call_with_retry(
                 messages,
                 stream=True,
                 max_tokens=8192,
                 model=model,
+                redact_pii=redact_pii,
             )
 
             async for chunk in response:
@@ -164,7 +272,6 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
                     if choice.delta and choice.delta.content:
                         delta_text = choice.delta.content
 
-                        # V98.4: Gjurmim TTFT
                         if first_token_time is None:
                             first_token_time = time.time()
 
@@ -181,9 +288,6 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
             yield error_msg
 
         finally:
-            # ═══════════════════════════════════════════════════════════
-            # V98.4: METRICS LOGGING (gjithmonë, edhe në gabim)
-            # ═══════════════════════════════════════════════════════════
             duration = time.time() - start_time
             ttft = (first_token_time - start_time) if first_token_time else None
             full_response = "".join(accumulated_chunks)
@@ -195,7 +299,7 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
                     duration_sec=duration,
                     ttft_sec=ttft,
                     model=target_model,
-                    input_chars=len(context or "") + len(user_query) + len(system_prompt),
+                    input_chars=len(context or "") + len(user_query or "") + len(system_prompt or ""),
                     output_chars=len(full_response),
                 )
                 metrics["completed_normally"] = completed_normally

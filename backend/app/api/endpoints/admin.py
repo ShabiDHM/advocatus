@@ -1,11 +1,13 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - ADMIN ROUTER V50.2 (PRICE 99.00)
-# V50.2: PRICE UPDATE — Default unlock price: 9.99 → 99.00.
+# PHOENIX PROTOCOL - ADMIN ROUTER V50.3 (PRICE 99.99)
+# V50.3: PRICE ALIGNMENT — Default unlock price: 99.00 → 99.99 (konsistencë
+#        me mandatin: One-Time Pass 19.99 / Solo 49.99 / Team 99.99).
+# V50.2: Default unlock price: 9.99 → 99.00.
 # V50.1: `{org_id}` → `{organization_id}` në URL/parametrin e upgrade_organization_tier.
 # V50.0: 1-CLICK CASE UNLOCK & INSTANT ACTIVATION.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from typing import List, Annotated, Optional, Dict, Any
+from typing import List, Annotated, Optional
 from pymongo.database import Database
 from enum import Enum
 from bson import ObjectId
@@ -24,7 +26,7 @@ from .dependencies import get_current_admin_user, get_db
 router = APIRouter(tags=["Administrator"])
 
 # --- CONSTANTS ---
-DEFAULT_CASE_UNLOCK_PRICE_EUR = 99.00   # V50.2: 9.99 → 99.00
+DEFAULT_CASE_UNLOCK_PRICE_EUR = 99.99   # V50.3: 99.00 → 99.99
 
 # --- MODELS ---
 
@@ -33,7 +35,7 @@ class TierUpdateRequest(BaseModel):
 
 class UnlockActionRequest(BaseModel):
     payment_method: str = Field("CASH", description="CASH, MBANKING, ose CARD")
-    amount: float = Field(DEFAULT_CASE_UNLOCK_PRICE_EUR)   # V50.2
+    amount: float = Field(DEFAULT_CASE_UNLOCK_PRICE_EUR)   # V50.3
     note: Optional[str] = "Zhbllokuar nga Paneli i Adminit"
 
 

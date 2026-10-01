@@ -1,5 +1,9 @@
 # FILE: backend/app/services/document_review/mongo_verifier/laws.py
-# PHOENIX PROTOCOL - MONGO VERIFIER / LAWS V1.1
+# PHOENIX PROTOCOL - MONGO VERIFIER / LAWS V1.2
+# V1.2: ROBUSTNESS + VERSION SYNC —
+#       - `law["number"]` → `law.get("number", "")`; skip nëse bosh
+#         (parandalon KeyError kur dict vjen i mangët nga citation_profile).
+#       - Log message: "V2.12" → "V1.2" (ishte mbetje e versionit të vjetër).
 # V1.1: DYNAMIC ALLOWED LAWS — Shtuar get_all_law_numbers_from_db().
 #       Lexon të gjitha numrat e ligjeve nga legal_knowledge_base, nxjerr
 #       numrin nga law_title. Zero hardcoding në hallucination_checker.
@@ -29,7 +33,12 @@ def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[st
     collection = db[LEGAL_KB_COLLECTION]
 
     for law in laws_by_number:
-        law_number = law["number"]
+        # V1.2: .get() — skip nëse mungon numri
+        law_number = (law.get("number") or "").strip()
+        if not law_number:
+            logger.warning("⚠️ [verify_law_numbers] Entry pa 'number' — skip")
+            continue
+
         result = {
             "number": law_number,
             "name": law.get("name", ""),
@@ -89,14 +98,14 @@ def verify_law_numbers(db, laws_by_number: List[Dict[str, Any]]) -> List[Dict[st
 
         results.append(result)
 
-    verified = sum(1 for r in results if r["exists"])
+    verified = sum(1 for r in results if r.get("exists"))
     replaced = sum(
         1 for r in results
         if r.get("match_reason", "").startswith("law_replaced_by")
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.12] Laws by number: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V1.2] Laws by number: {len(results)} total, "
         f"{verified} verified, {replaced} replaced"
     )
     return results
@@ -137,13 +146,13 @@ def get_all_law_numbers_from_db(db) -> Set[str]:
                     laws.add(normalized)
 
         logger.info(
-            f"📚 [LAWS V1.1] U lexuan {len(laws)} numra ligjesh nga DB "
+            f"📚 [LAWS V1.2] U lexuan {len(laws)} numra ligjesh nga DB "
             f"(koleksioni: {LEGAL_KB_COLLECTION})"
         )
         return laws
 
     except Exception as e:
-        logger.warning(f"⚠️ [LAWS V1.1] Leximi i ligjeve nga DB dështoi: {e}")
+        logger.warning(f"⚠️ [LAWS V1.2] Leximi i ligjeve nga DB dështoi: {e}")
         return set()
 
 

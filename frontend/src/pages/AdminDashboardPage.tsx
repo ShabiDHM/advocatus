@@ -1,16 +1,24 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V51.1 (PRICE 99.99)
-// V51.1: PRICE UPDATE — DEFAULT_UNLOCK_PRICE_EUR constant = 99.99.
-//        Të gjitha hardcoded 9.99 u zëvendësuan me konstantën.
-// V51.0: FIX — 3 URL fetch (/api/admin/cases*) u korrigjuan në /api/v1/admin/cases*
-//        FIX — Token nuk lexohej (localStorage.getItem('token') kthente bosh).
-//        U shtua _getAuthToken() helper që provon disa keys + cookie fallback.
-// V50.0: 1-CLICK CASE UNLOCK & MULTI-PAYMENT MANAGEMENT
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V51.4
+// V51.4: SUBSCRIPTION_TIER HARDCODING FIX —
+//        - `handleUpdateUser`: `subscription_tier: 'PRO' as any` ishte HARDCODED
+//          → çdo admin update e bënte userin PRO. Meqë tier PRO është hequr
+//          nga sistemi, kjo ishte bypass i plotë i aksesit (nga CaseViewPage:
+//          `isPro = user?.subscription_tier === 'PRO' || user?.role === 'ADMIN'`).
+//          Tani: ruan vlerën ekzistuese të userit nga `editForm.subscription_tier`.
+// V51.3: PRICE ALIGNMENT —
+//        - DEFAULT_UNLOCK_PRICE_EUR: 99.00 → 19.99. Përputhet me çmimin
+//          user-facing (LandingPage/ProductShowcase: One-Time Pass 19.99€).
+// V51.2: ERROR HANDLING + REVENUE FIX —
+//        - `handleLockCase`: shtuar kontroll `res.ok`.
+//        - `totalRevenueEst`: nullish coalescing (0 mbahet si 0).
+// V51.1: PRICE UPDATE.
+// V51.0: FIX — 3 URL fetch u korrigjuan. Token helper.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-    Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
+import {
+    Search, Edit2, Trash2, CheckCircle, Loader2, Clock,
     Briefcase, AlertTriangle, Building2, User as UserIcon, Star, Mail, Key, ShieldAlert, Filter,
     Unlock, Lock, CreditCard, Banknote, RefreshCw, DollarSign, FolderGit2
 } from 'lucide-react';
@@ -22,8 +30,8 @@ import { User, UpdateUserRequest } from '../data/types';
 import { AccountType, ProductPlan } from '../data/enums';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
-type UnifiedAdminUser = User & { 
-    firmName?: string; 
+type UnifiedAdminUser = User & {
+    firmName?: string;
     expiry_date?: Date | null;
     plan_tier?: 'DEFAULT' | 'GROWTH';
     user_limit?: number;
@@ -50,8 +58,8 @@ type UserRole = 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
 type StatusFilter = 'ALL' | 'ACTIVE' | 'PENDING' | 'INACTIVE_EXPIRED' | 'TEAM';
 type CaseStatusFilter = 'ALL' | 'LOCKED' | 'UNLOCKED';
 
-// V51.1: Çmimi i konfigurueshëm në një vend të vetëm
-const DEFAULT_UNLOCK_PRICE_EUR = 99.00;
+// V51.3: Çmimi i konfigurueshëm — përputhet me LandingPage/ProductShowcase (19.99€).
+const DEFAULT_UNLOCK_PRICE_EUR = 19.99;
 
 // V51.0: Helper që provon disa keys + cookie fallback
 const _getAuthToken = (): string => {
@@ -74,7 +82,7 @@ const _getAuthToken = (): string => {
 const AdminDashboardPage: React.FC = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<MainTab>('CASES_PAYMENTS');
-    
+
     // Users State
     const [users, setUsers] = useState<UnifiedAdminUser[]>([]);
     const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -107,7 +115,7 @@ const AdminDashboardPage: React.FC = () => {
                 firmName: user.organization_name,
                 expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null,
                 plan_tier: user.plan_tier || (user.product_plan === ProductPlan.TEAM_PLAN ? 'GROWTH' : 'DEFAULT'),
-                user_limit: user.user_limit || (user.product_plan === ProductPlan.TEAM_PLAN ? 5 : 1) 
+                user_limit: user.user_limit || (user.product_plan === ProductPlan.TEAM_PLAN ? 5 : 1)
             })).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
 
             mappedUsers.sort((a, b) => getStatusScore(a) - getStatusScore(b));
@@ -141,8 +149,8 @@ const AdminDashboardPage: React.FC = () => {
 
     const getStatusScore = (user: UnifiedAdminUser) => {
         if (user.status === 'pending_invite') return 1;
-        if (user.subscription_status !== 'ACTIVE' || user.status === 'inactive') return 0; 
-        return 2; 
+        if (user.subscription_status !== 'ACTIVE' || user.status === 'inactive') return 0;
+        return 2;
     };
 
     // =========================================================================
@@ -170,15 +178,15 @@ const AdminDashboardPage: React.FC = () => {
             });
 
             if (res.ok) {
-                setCases(prev => prev.map(c => c._id === caseId ? { 
-                    ...c, 
-                    is_unlocked: true, 
+                setCases(prev => prev.map(c => c._id === caseId ? {
+                    ...c,
+                    is_unlocked: true,
                     unlock_payment_method: paymentMethod,
                     unlock_amount: amount,
                     unlocked_at: new Date().toISOString()
                 } : c));
             } else {
-                const err = await res.json();
+                const err = await res.json().catch(() => ({}));
                 alert(err.detail || "Dështoi zhbllokimi i lëndës.");
             }
         } catch (error) {
@@ -204,9 +212,13 @@ const AdminDashboardPage: React.FC = () => {
 
             if (res.ok) {
                 setCases(prev => prev.map(c => c._id === caseId ? { ...c, is_unlocked: false } : c));
+            } else {
+                const err = await res.json().catch(() => ({}));
+                alert(err.detail || "Dështoi bllokimi i lëndës.");
             }
         } catch (error) {
             console.error("Lock error:", error);
+            alert("Ndodhi një gabim gjatë bllokimit.");
         } finally {
             setActionLoadingId(null);
         }
@@ -223,15 +235,16 @@ const AdminDashboardPage: React.FC = () => {
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUser?.id) return;
-        
+
         try {
+            // V51.4: subscription_tier ruhet nga user-i ekzistues (jo hardcoded 'PRO').
             const userUpdatePayload: UpdateUserRequest = {
                 username: editForm.username,
                 email: editForm.email,
                 role: editForm.role,
                 status: editForm.status,
                 account_type: editForm.account_type,
-                subscription_tier: 'PRO' as any,
+                subscription_tier: editForm.subscription_tier as any,
                 product_plan: editForm.product_plan,
                 subscription_status: editForm.subscription_status,
                 subscription_expiry: editForm.expiry_date ? editForm.expiry_date.toISOString() : undefined,
@@ -246,7 +259,7 @@ const AdminDashboardPage: React.FC = () => {
             }
 
             setEditingUser(null);
-            setTimeout(() => loadAdminData(), 200); 
+            setTimeout(() => loadAdminData(), 200);
         } catch (error: any) {
             const msg = error.response?.data?.detail || t('common.error_occurred');
             alert(msg);
@@ -305,7 +318,7 @@ const AdminDashboardPage: React.FC = () => {
     };
 
     const filteredCases = cases.filter(c => {
-        const matchesSearch = 
+        const matchesSearch =
             c.title?.toLowerCase().includes(caseSearchQuery.toLowerCase()) ||
             c.client_name?.toLowerCase().includes(caseSearchQuery.toLowerCase()) ||
             c.owner_email?.toLowerCase().includes(caseSearchQuery.toLowerCase());
@@ -318,21 +331,21 @@ const AdminDashboardPage: React.FC = () => {
     });
 
     const totalRevenueEst = cases.reduce(
-        (acc, c) => acc + (c.is_unlocked ? (c.unlock_amount || DEFAULT_UNLOCK_PRICE_EUR) : 0),
+        (acc, c) => acc + (c.is_unlocked ? (c.unlock_amount ?? DEFAULT_UNLOCK_PRICE_EUR) : 0),
         0
     );
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-canvas">
             <style>{`.dark-select { color-scheme: dark; } .react-datepicker-wrapper { width: 100%; }`}</style>
-            
+
             {/* Header */}
             <div className="mb-6 select-none flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-text-primary mb-1">Paneli i Super Adminit</h1>
                     <p className="text-text-secondary text-sm">Menaxhimi i Pagesave, Zhbllokimi me 1 Klikim dhe Kontrolli i Përdoruesve</p>
                 </div>
-                <button 
+                <button
                     onClick={() => { loadCasesData(); loadAdminData(); }}
                     className="flex items-center gap-2 px-4 py-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary transition-all w-fit shadow-sm"
                 >
@@ -367,7 +380,6 @@ const AdminDashboardPage: React.FC = () => {
             {/* TAB 1: 💰 LËNDËT DHE PAGESAT ME 1 KLIKIM */}
             {activeTab === 'CASES_PAYMENTS' && (
                 <div className="space-y-6">
-                    {/* Quick Stats Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="glass-panel p-4 rounded-2xl border border-main bg-surface/40">
                             <div className="text-text-muted text-xs font-bold uppercase mb-1">Gjithsej Lëndë</div>
@@ -387,7 +399,6 @@ const AdminDashboardPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Table Container */}
                     <div className="glass-panel rounded-2xl border border-main overflow-hidden bg-canvas">
                         <div className="p-4 border-b border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-surface">
                             <div className="flex items-center gap-2 select-none">
@@ -396,17 +407,16 @@ const AdminDashboardPage: React.FC = () => {
                             </div>
                             <div className="relative w-full sm:w-72 flex items-center">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Kërko lëndën, klientin, email-in..." 
-                                    value={caseSearchQuery} 
-                                    onChange={(e) => setCaseSearchQuery(e.target.value)} 
+                                <input
+                                    type="text"
+                                    placeholder="Kërko lëndën, klientin, email-in..."
+                                    value={caseSearchQuery}
+                                    onChange={(e) => setCaseSearchQuery(e.target.value)}
                                     className="w-full h-10 pl-9 pr-4 bg-canvas border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all"
                                 />
                             </div>
                         </div>
 
-                        {/* Filter Pills */}
                         <div className="p-3 border-b border-main bg-canvas/40 flex flex-wrap items-center gap-2 select-none">
                             <button
                                 onClick={() => setCaseFilter('ALL')}
@@ -434,7 +444,6 @@ const AdminDashboardPage: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Desktop Table */}
                         <div className="w-full overflow-x-auto">
                             <table className="w-full text-left text-sm text-text-secondary">
                                 <thead className="bg-surface text-text-primary uppercase text-xs font-bold border-b border-main select-none">
@@ -484,7 +493,7 @@ const AdminDashboardPage: React.FC = () => {
                                                                 <CheckCircle className="w-3.5 h-3.5" /> E ZHBLLOKUAR (AKTIVE)
                                                             </span>
                                                             <div className="text-[11px] text-text-muted font-mono">
-                                                                {c.unlock_payment_method || 'CASH'} • {c.unlock_amount || DEFAULT_UNLOCK_PRICE_EUR}€
+                                                                {c.unlock_payment_method || 'CASH'} • {c.unlock_amount ?? DEFAULT_UNLOCK_PRICE_EUR}€
                                                             </div>
                                                         </div>
                                                     ) : (
@@ -498,16 +507,21 @@ const AdminDashboardPage: React.FC = () => {
                                                         <button
                                                             onClick={() => handleLockCase(c._id)}
                                                             disabled={actionLoadingId === c._id}
-                                                            className="px-3 py-1.5 bg-danger-start/10 text-danger-start hover:bg-danger-start/20 border border-danger-start/20 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5 focus:outline-none"
+                                                            className="px-3 py-1.5 bg-danger-start/10 text-danger-start hover:bg-danger-start/20 border border-danger-start/20 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5 focus:outline-none disabled:opacity-50"
                                                         >
-                                                            <Lock className="w-3.5 h-3.5" /> Blloko
+                                                            {actionLoadingId === c._id ? (
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Lock className="w-3.5 h-3.5" />
+                                                            )}
+                                                            Blloko
                                                         </button>
                                                     ) : (
                                                         <div className="inline-flex items-center gap-2">
                                                             <button
                                                                 onClick={() => handleUnlockCase(c._id, 'CASH', DEFAULT_UNLOCK_PRICE_EUR)}
                                                                 disabled={actionLoadingId === c._id}
-                                                                className="px-3 py-1.5 bg-success-start text-white hover:bg-opacity-90 rounded-lg text-xs font-bold shadow-md shadow-success-start/20 transition-all inline-flex items-center gap-1.5 focus:outline-none"
+                                                                className="px-3 py-1.5 bg-success-start text-white hover:bg-opacity-90 rounded-lg text-xs font-bold shadow-md shadow-success-start/20 transition-all inline-flex items-center gap-1.5 focus:outline-none disabled:opacity-50"
                                                             >
                                                                 {actionLoadingId === c._id ? (
                                                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -519,7 +533,7 @@ const AdminDashboardPage: React.FC = () => {
                                                             <button
                                                                 onClick={() => handleUnlockCase(c._id, 'MBANKING', DEFAULT_UNLOCK_PRICE_EUR)}
                                                                 disabled={actionLoadingId === c._id}
-                                                                className="px-2.5 py-1.5 bg-surface text-primary-start hover:bg-hover border border-primary-start/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 focus:outline-none"
+                                                                className="px-2.5 py-1.5 bg-surface text-primary-start hover:bg-hover border border-primary-start/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 focus:outline-none disabled:opacity-50"
                                                                 title="Zhblloko si m-Banking"
                                                             >
                                                                 <CreditCard className="w-3.5 h-3.5" /> m-Bank
@@ -537,7 +551,7 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             )}
 
-            {/* TAB 2: 👥 BAZA E PËRDORUESVE — IDENTIK ME V51.0 */}
+            {/* TAB 2: 👥 BAZA E PËRDORUESVE */}
             {activeTab === 'USERS' && (
                 <div className="glass-panel rounded-2xl border border-main overflow-hidden bg-canvas">
                     <div className="p-4 border-b border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-surface">
@@ -547,11 +561,11 @@ const AdminDashboardPage: React.FC = () => {
                         </div>
                         <div className="relative w-full sm:w-64 h-11 flex items-center">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
-                            <input 
-                                type="text" 
-                                placeholder={t('general.search_placeholder', 'Kërko...')} 
-                                value={searchQuery} 
-                                onChange={(e) => setSearchQuery(e.target.value)} 
+                            <input
+                                type="text"
+                                placeholder={t('general.search_placeholder', 'Kërko...')}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full h-11 sm:h-9 pl-9 pr-4 bg-canvas border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all"
                             />
                         </div>
@@ -563,25 +577,25 @@ const AdminDashboardPage: React.FC = () => {
                         </div>
                         {[
                             { key: 'ALL', label: 'Të Gjithë', count: users.length },
-                            { 
-                                key: 'ACTIVE', 
-                                label: 'Aktivë', 
-                                count: users.filter(u => u.status === 'active' && u.subscription_status === 'ACTIVE' && (!u.expiry_date || u.expiry_date >= new Date())).length 
+                            {
+                                key: 'ACTIVE',
+                                label: 'Aktivë',
+                                count: users.filter(u => u.status === 'active' && u.subscription_status === 'ACTIVE' && (!u.expiry_date || u.expiry_date >= new Date())).length
                             },
-                            { 
-                                key: 'PENDING', 
-                                label: 'Ftesa', 
-                                count: users.filter(u => u.status === 'pending_invite').length 
+                            {
+                                key: 'PENDING',
+                                label: 'Ftesa',
+                                count: users.filter(u => u.status === 'pending_invite').length
                             },
-                            { 
-                                key: 'INACTIVE_EXPIRED', 
-                                label: 'Inaktivë / Skaduar', 
-                                count: users.filter(u => u.subscription_status === 'INACTIVE' || u.status === 'inactive' || (u.expiry_date && u.expiry_date < new Date())).length 
+                            {
+                                key: 'INACTIVE_EXPIRED',
+                                label: 'Inaktivë / Skaduar',
+                                count: users.filter(u => u.subscription_status === 'INACTIVE' || u.status === 'inactive' || (u.expiry_date && u.expiry_date < new Date())).length
                             },
-                            { 
-                                key: 'TEAM', 
-                                label: 'TEAM (5 Vende)', 
-                                count: users.filter(u => u.product_plan === ProductPlan.TEAM_PLAN).length 
+                            {
+                                key: 'TEAM',
+                                label: 'TEAM (5 Vende)',
+                                count: users.filter(u => u.product_plan === ProductPlan.TEAM_PLAN).length
                             },
                         ].map(f => (
                             <button
@@ -589,8 +603,8 @@ const AdminDashboardPage: React.FC = () => {
                                 type="button"
                                 onClick={() => setStatusFilter(f.key as StatusFilter)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 focus:outline-none ${
-                                    statusFilter === f.key 
-                                        ? 'bg-primary-start text-white shadow-md shadow-primary-start/20' 
+                                    statusFilter === f.key
+                                        ? 'bg-primary-start text-white shadow-md shadow-primary-start/20'
                                         : 'bg-surface hover:bg-hover text-text-secondary border border-main'
                                 }`}
                             >
@@ -652,16 +666,16 @@ const AdminDashboardPage: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4">{renderStatusBadge(user)}</td>
                                             <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                                <button 
+                                                <button
                                                     type="button"
-                                                    onClick={() => handleEditClick(user)} 
+                                                    onClick={() => handleEditClick(user)}
                                                     className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 hover:bg-primary-start/20 transition-colors focus:outline-none"
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
-                                                <button 
+                                                <button
                                                     type="button"
-                                                    onClick={() => handleDeleteUser(user.id)} 
+                                                    onClick={() => handleDeleteUser(user.id)}
                                                     className="p-2 bg-danger-start/10 text-danger-start rounded-lg border border-danger-start/20 hover:bg-danger-start/20 transition-colors focus:outline-none"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -676,12 +690,12 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             )}
 
-            {/* MODAL — IDENTIK ME V51.0, PA NDRYSHIME */}
+            {/* MODAL — Menaxho Profilin SaaS */}
             {editingUser && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto custom-finance-scroll">
-                    <motion.div 
-                        initial={{ scale: 0.95, opacity: 0 }} 
-                        animate={{ scale: 1, opacity: 1 }} 
+                    <motion.div
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
                         className="glass-panel border border-main p-6 rounded-2xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] bg-canvas"
                     >
                         <h3 className="text-xl font-bold text-text-primary mb-6 border-b border-main pb-4 tracking-tight select-none">
@@ -696,9 +710,9 @@ const AdminDashboardPage: React.FC = () => {
                                     <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                         {t('admin.label_role', 'Roli')}
                                     </label>
-                                    <select 
-                                        value={editForm.role || 'STANDARD'} 
-                                        onChange={e => setEditForm({ ...editForm, role: e.target.value as UserRole })} 
+                                    <select
+                                        value={editForm.role || 'STANDARD'}
+                                        onChange={e => setEditForm({ ...editForm, role: e.target.value as UserRole })}
                                         className="w-full rounded-xl px-3 h-11 bg-surface border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
                                     >
                                         <option value="STANDARD" className="bg-canvas text-text-primary">{t('admin.option_role_standard', 'STANDARD (Përdorues i zakonshëm)')}</option>
@@ -716,9 +730,9 @@ const AdminDashboardPage: React.FC = () => {
                                         <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                             {t('admin.label_product_plan', 'Plani i Produktit')}
                                         </label>
-                                        <select 
-                                            value={editForm.product_plan} 
-                                            onChange={e => setEditForm({ ...editForm, product_plan: e.target.value as ProductPlan })} 
+                                        <select
+                                            value={editForm.product_plan}
+                                            onChange={e => setEditForm({ ...editForm, product_plan: e.target.value as ProductPlan })}
                                             className="w-full rounded-xl px-3 h-11 bg-surface border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
                                         >
                                             <option value={ProductPlan.SOLO_PLAN} className="bg-canvas text-text-primary">{t('admin.option_plan_solo', 'SOLO (1 Vend)')}</option>
@@ -729,9 +743,9 @@ const AdminDashboardPage: React.FC = () => {
                                         <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                             {t('admin.label_account_type', 'Tipi i Llogarisë')}
                                         </label>
-                                        <select 
-                                            value={editForm.account_type} 
-                                            onChange={e => setEditForm({ ...editForm, account_type: e.target.value as AccountType })} 
+                                        <select
+                                            value={editForm.account_type}
+                                            onChange={e => setEditForm({ ...editForm, account_type: e.target.value as AccountType })}
                                             className="w-full rounded-xl px-3 h-11 bg-surface border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
                                         >
                                             <option value={AccountType.SOLO} className="bg-canvas text-text-primary">{t('admin.option_account_individual', 'Individual')}</option>
@@ -750,23 +764,23 @@ const AdminDashboardPage: React.FC = () => {
                                         <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                             {t('admin.label_gatekeeper_status', 'Statusi i Gatekeeper')}
                                         </label>
-                                        <select 
-                                            value={editForm.subscription_status} 
-                                            onChange={e => setEditForm({ ...editForm, subscription_status: e.target.value })} 
+                                        <select
+                                            value={editForm.subscription_status}
+                                            onChange={e => setEditForm({ ...editForm, subscription_status: e.target.value })}
                                             className="w-full rounded-xl px-3 h-11 bg-canvas border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
                                         >
                                             <option value="ACTIVE" className="bg-canvas text-text-primary">{t('admin.option_status_active', 'ACTIVE (Akses i Lejuar)')}</option>
                                             <option value="INACTIVE" className="bg-canvas text-text-primary">{t('admin.option_status_inactive', 'INACTIVE (Akses i Refuzuar)')}</option>
                                         </select>
                                     </div>
-                                    
+
                                     <div className="space-y-1.5">
                                         <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                             Statusi i Llogarisë
                                         </label>
-                                        <select 
-                                            value={editForm.status || 'active'} 
-                                            onChange={e => setEditForm({ ...editForm, status: e.target.value as 'active' | 'inactive' | 'pending_invite' })} 
+                                        <select
+                                            value={editForm.status || 'active'}
+                                            onChange={e => setEditForm({ ...editForm, status: e.target.value as 'active' | 'inactive' | 'pending_invite' })}
                                             className="w-full rounded-xl px-3 h-11 bg-canvas border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
                                         >
                                             <option value="active" className="bg-canvas text-text-primary">AKTIV (Llogari e Aktivizuar)</option>
@@ -775,33 +789,33 @@ const AdminDashboardPage: React.FC = () => {
                                         </select>
                                     </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-1 gap-4">
                                     <div className="space-y-1.5">
                                         <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                             {t('admin.label_expiry_date', 'Data e Skadimit')}
                                         </label>
-                                        <DatePicker 
-                                            selected={editForm.expiry_date} 
-                                            onChange={(date) => setEditForm({ ...editForm, expiry_date: date })} 
-                                            className="w-full rounded-xl px-3 h-11 bg-canvas border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20" 
-                                            placeholderText={t('admin.placeholder_no_expiry', 'Pa Skadim')} 
-                                            dateFormat="dd/MM/yyyy" 
+                                        <DatePicker
+                                            selected={editForm.expiry_date}
+                                            onChange={(date) => setEditForm({ ...editForm, expiry_date: date })}
+                                            className="w-full rounded-xl px-3 h-11 bg-canvas border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
+                                            placeholderText={t('admin.placeholder_no_expiry', 'Pa Skadim')}
+                                            dateFormat="dd/MM/yyyy"
                                         />
                                     </div>
                                 </div>
                             </div>
 
                             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-6 border-t border-main">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setEditingUser(null)} 
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingUser(null)}
                                     className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none"
                                 >
                                     {t('general.cancel', 'Anulo')}
                                 </button>
-                                <button 
-                                    type="submit" 
+                                <button
+                                    type="submit"
                                     className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-bold bg-primary-start hover:bg-opacity-95 text-white shadow-lg shadow-primary-start/15 focus:outline-none"
                                 >
                                     {t('admin.button_save_profile', 'Ruaj Profilin SaaS')}

@@ -15,7 +15,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, timezone
 import asyncio
 import logging

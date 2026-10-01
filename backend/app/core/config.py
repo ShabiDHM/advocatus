@@ -5,7 +5,7 @@
 # V16.1: LLM_MODEL → deepseek/deepseek-v4-flash-0731.
 # V16.0: 100% PURE MINIMALIST.
 
-import os
+
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

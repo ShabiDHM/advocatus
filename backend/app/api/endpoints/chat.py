@@ -7,7 +7,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from typing import Annotated, Optional, List, Literal, Dict, Any
+from typing import Annotated, Optional, List, Literal, Any
 from pydantic import BaseModel
 import logging
 from datetime import datetime, timezone

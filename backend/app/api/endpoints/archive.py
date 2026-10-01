@@ -2,13 +2,13 @@
 # PHOENIX PROTOCOL - ARCHIVE API V6.0
 # V6.0: Hequr klasa e vdekur ArchiveForensicReportRequest.
 
-from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
+from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException
 from fastapi.responses import Response
-from typing import List, Annotated, Optional, Dict, Any
+from typing import List, Annotated, Optional
 from pymongo.database import Database
 from pydantic import BaseModel
 import urllib.parse
-import mimetypes
+
 
 from ...models.user import UserInDB
 from ...models.archive import ArchiveItemOut

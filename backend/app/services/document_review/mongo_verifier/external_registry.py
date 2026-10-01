@@ -10,7 +10,7 @@
 #   - "external" (traktat ndërkombëtar — verifikuar si i njohur)
 #   - "unverified" (nuk u gjet në DB dhe nuk njihet si traktat)
 
-import os
+
 import json
 import logging
 from pathlib import Path

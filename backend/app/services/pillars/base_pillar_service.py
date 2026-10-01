@@ -1,28 +1,34 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V132.0
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V132.1
+# V132.1: ASYNC RAG CONTEXT —
+#         - Shtuar `get_rag_context_async()` që ekzekuton query-t e vector
+#           store në `asyncio.to_thread` — parandalon bllokimin e event loop.
+#           Thirret nga callers async (albanian_rag_service.chat).
+#         - `get_rag_context()` (sync) mbetet për backward compat / callers sync.
 # V132.0: Removed 3 dead wrapper methods:
-#   - get_timeline_context() (0 external references)
-#   - get_role_guard()       (0 external references)
-#   - get_role_tone()        (0 external references)
+#         - get_timeline_context() (0 external references)
+#         - get_role_guard()       (0 external references)
+#         - get_role_tone()        (0 external references)
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timezone
+import asyncio
+from typing import Dict, List, Tuple
+
 
 logger = logging.getLogger(__name__)
 
 # Spirancat Institucionale për zbulim autonom të lëmisë dhe departamentit nga shkresat
 INSTITUTIONAL_ANCHORS = {
     "KOMERCIALE": [
-        "gjykata komerciale", "gjykatës komerciale", "dhomat e shkallës së parë", 
-        "departamenti për çështje ekonomike", "shoqëri tregtare", "shoqëria tregtare", 
+        "gjykata komerciale", "gjykatës komerciale", "dhomat e shkallës së parë",
+        "departamenti për çështje ekonomike", "shoqëri tregtare", "shoqëria tregtare",
         "sh.p.k.", "shpk", "nui:", "aksionar", "ortak", "arbk", "kontratë tregtare",
         "falimentim", "kreditë tregtare", "faturë", "garanci bankare"
     ],
     "PENALE": [
-        "prokuroria speciale", "prokurorisë speciale", "prokuroria themelore", 
+        "prokuroria speciale", "prokurorisë speciale", "prokuroria themelore",
         "departamenti i krimeve të rënda", "departamenti special", "departamenti i përgjithshëm penal",
-        "kallëzim penal", "aktakuzë", "aktakuze", "vepër penale", 
+        "kallëzim penal", "aktakuzë", "aktakuze", "vepër penale",
         "paraburgim", "kpprk", "kprk", "kodi penal", "psrk", "shqyrtim fillestar"
     ],
     "ADMINISTRATIVE": [
@@ -34,20 +40,20 @@ INSTITUTIONAL_ANCHORS = {
         "inspektorati i punës", "pagë", "paga e papaguar", "pushim vjetor"
     ],
     "FAMILJARE": [
-        "shkurorëzim", "divorc", "kujdestaria e fëmijës", "alimentacion", 
+        "shkurorëzim", "divorc", "kujdestaria e fëmijës", "alimentacion",
         "qendra për punë sociale", "qps", "dhunë në familje", "urdhër mbrojtje", "urdher mbrojtes",
         "divizioni familjar", "besimi i fëmijëve"
     ],
     "PRONËSORE": [
-        "pengim posedimi", "vërtetim pronësie", "kadastër", "kadaster", "uzurpim", 
+        "pengim posedimi", "vërtetim pronësie", "kadastër", "kadaster", "uzurpim",
         "e drejta sendore", "lpts", "bashkëpronësi", "servitut", "paluajtshmëri", "pjesëtim fizik"
     ],
     "KUSHTETUESE": [
-        "gjykata kushtetuese", "kërkesë kushtetuese", "neni 31 i kushtetutës", 
+        "gjykata kushtetuese", "kërkesë kushtetuese", "neni 31 i kushtetutës",
         "neni 54 i kushtetutës", "kednj", "liri themelore", "shkelje e të drejtave të njeriut"
     ],
     "CIVILE": [
-        "kërkesëpadi", "padi civile", "dëmshpërblim", "lmd", "lpk", 
+        "kërkesëpadi", "padi civile", "dëmshpërblim", "lmd", "lpk",
         "procedurë kontestimore", "borxh", "përmbarim", "përmbarues", "divizioni civil"
     ]
 }
@@ -114,7 +120,7 @@ STATUTORY_CORPUS = {
 
 
 class BasePillarService:
-    """Shërbimi Bazë Universal — V132.0 me Zbulim Autonom Hibrid dhe RAG të Optimizuar."""
+    """Shërbimi Bazë Universal — V132.1 me Zbulim Autonom Hibrid dhe RAG të Optimizuar."""
 
     @staticmethod
     def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
@@ -143,7 +149,6 @@ class BasePillarService:
         if top_score == 0:
             return "CIVILE"
 
-        # Zbulim hibrid nëse lëmia e dytë është e rëndësishme (p.sh. Penale / Civile)
         if second_score >= 6 and (second_score / top_score) >= 0.45:
             return f"{top_domain} / {second_domain}"
 
@@ -179,6 +184,10 @@ class BasePillarService:
         query_text: str = "",
         n_results: int = 8
     ) -> Tuple[str, str]:
+        """
+        V132.0: SYNC — për callers jo-async. Bllokon thread-in aktual.
+        Për callers async, përdor `get_rag_context_async()`.
+        """
         global_rag_context = ""
         case_rag_context = ""
 
@@ -228,5 +237,89 @@ class BasePillarService:
             logger.warning(f"[RAG] Vector store import error: {e}")
         except Exception as e:
             logger.error(f"[RAG] Vector query error: {e}")
+
+        return global_rag_context, case_rag_context
+
+    @staticmethod
+    async def get_rag_context_async(
+        user_id: str = "",
+        case_id: str = "",
+        query_text: str = "",
+        n_results: int = 8
+    ) -> Tuple[str, str]:
+        """
+        V132.1: ASYNC-safe — ekzekuton query-t e vector store në thread pool
+        përmes asyncio.to_thread, duke mos bllokuar event loop.
+
+        Global + case query ekzekutohen paralel me asyncio.gather().
+        """
+        try:
+            from app.services.vector_store_service import (
+                query_global_knowledge_base,
+                query_case_knowledge_base
+            )
+        except ImportError as e:
+            logger.warning(f"[RAG] Vector store import error: {e}")
+            return "", ""
+
+        async def _fetch_global() -> str:
+            if not query_text:
+                return ""
+            try:
+                results = await asyncio.to_thread(
+                    query_global_knowledge_base, query_text, n_results=n_results,
+                )
+                if not results:
+                    return ""
+                parts = []
+                for res in results:
+                    source = res.get("source", "Precedent Suprem")
+                    text = res.get("text", "").strip()
+                    if text:
+                        parts.append(f"[{source}]: {text[:800]}")
+                return "\n\n".join(parts)
+            except Exception as e:
+                logger.error(f"[RAG async] Global query error: {e}")
+                return ""
+
+        async def _fetch_case() -> str:
+            if not (user_id and case_id and query_text):
+                return ""
+
+            def _do_case_query():
+                try:
+                    return query_case_knowledge_base(
+                        user_id=user_id,
+                        query_text=query_text,
+                        case_context_id=case_id,
+                        n_results=n_results
+                    )
+                except TypeError:
+                    return query_case_knowledge_base(
+                        user_id=user_id,
+                        query_text=query_text,
+                        case_id=case_id,
+                        n_results=n_results
+                    )
+
+            try:
+                results = await asyncio.to_thread(_do_case_query)
+                if not results:
+                    return ""
+                parts = []
+                for res in results:
+                    source = res.get("source", "Dokument i Lëndës")
+                    text = res.get("text", "").strip()
+                    if text:
+                        parts.append(f"[{source}]: {text[:800]}")
+                return "\n\n".join(parts)
+            except Exception as e:
+                logger.error(f"[RAG async] Case query error: {e}")
+                return ""
+
+        global_rag_context, case_rag_context = await asyncio.gather(
+            _fetch_global(),
+            _fetch_case(),
+        )
 
         return global_rag_context, case_rag_context

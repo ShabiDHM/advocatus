@@ -8,7 +8,7 @@
 # V6.0: VOICE → EVENT PARSER.
 
 import logging
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta, date
 from bson import ObjectId
 from fastapi import HTTPException, status

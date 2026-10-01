@@ -1,6 +1,6 @@
 # FILE: backend/app/models/analytics.py
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 
 class SalesTrendPoint(BaseModel):
     date: str

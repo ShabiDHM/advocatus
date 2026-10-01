@@ -1,13 +1,19 @@
 # FILE: backend/app/services/document_review/verify/prompt_sections.py
-# PHOENIX PROTOCOL - VERIFY PROMPT SECTIONS V1.7
-# V1.7: MAX_TOKENS INCREASE (2 sections) — Sipas vëzhgimit në prod, u
-#       konstatuan 2 truncations:
-#       - legal_quality: 3500 → 5500 (output=8039 chars, u cungua)
-#       - readiness: 1600 → 3000 (output=3821 chars, u cungua)
-#       Raporti real i gjuhës shqipe është ~2.3-2.4 chars/token (jo 2.5),
-#       kështu që buxheti duhet rritur për seksionet e gjata.
-# V1.6: MAX_TOKENS INCREASE — legal_quality: 2200 → 3500.
-# V1.5: PROFESSIONAL LANGUAGE (vazhdim).
+# PHOENIX PROTOCOL - VERIFY PROMPT SECTIONS V1.8
+# V1.8: ROLLOUT COMPLETION — V1.5/V1.7 changelog-et deklaronin
+#       "PROFESSIONAL LANGUAGE (vazhdim)" dhe "LAW_NUMBER_RULE", por asnjë
+#       section prompt nuk i përdorte. V1.8 i aktivizon:
+#         - PROFESSIONAL_LANGUAGE_RULE → të gjitha 6 sekcionet + 2 sub-prompts
+#           (parandalon "flamuj kritikë", "sistemi identifikoi", etj. në
+#           raportet VERIFY — që lexohen nga avokatë).
+#         - LAW_NUMBER_RULE → legal_quality + concrete_recommendations
+#           (parandalon zëvendësimin e numrit të ligjit, p.sh. 06/L-074 →
+#           06/L-082 — risk i halucinacionit në citime).
+#       FORENSIC_FINDINGS_RULE qëndron vetëm në prompts.py (ANALIZO) —
+#       referon [KONSTATIMET_E_ANALIZËS], jo kontekst VERIFY.
+# V1.7: MAX_TOKENS INCREASE (legal_quality 5500, readiness 3000).
+# V1.6: MAX_TOKENS INCREASE (legal_quality 3500).
+# V1.5: PROFESSIONAL LANGUAGE (fillim).
 # V1.4: ABBREV_REPLACEMENT_RULE.
 # V1.3: FORMAL_COMPLETENESS HARDENED.
 # V1.2: CASE_CONTEXT.
@@ -23,6 +29,8 @@ from .prompt_rules import (
     PRECEDENT_RECOMMENDATION_RULE,
     CASE_CONTEXT_RULE,
     ABBREV_REPLACEMENT_RULE,
+    LAW_NUMBER_RULE,                  # V1.8: rollout completion
+    PROFESSIONAL_LANGUAGE_RULE,       # V1.8: rollout completion
 )
 
 
@@ -118,7 +126,7 @@ RREGULLA:
 - Kontrollo VETËM pjesët që shfaqen në "[CHECKLIST]"
 - NUK LEJOHET të shpikësh pjesë që nuk janë në listë
 - NUK LEJOHET të shpallësh "mungon" pa skanuar TË GJITHA faqet për sinonime
-""" + DEDUP_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -126,7 +134,7 @@ RREGULLA:
     # ═══════════════════════════════════════════════════════════════════════
     "legal_quality": {
         "title": "2. CILËSIA LIGJORE (NENET)",
-        "max_tokens": 5500,   # V1.7: 3500 → 5500 (output=8039 chars u cungua)
+        "max_tokens": 5500,
         "needs": ["draft", "checklist", "articles", "case_context"],
         "prompt": """Ti je "Verifikues i Cilësisë Ligjore" me specializim në legjislacionin e Kosovës.
 
@@ -193,7 +201,7 @@ Shembull i mirë i Seksionit C:
 RREGULLA:
 - Përdor VETËM nenet që shfaqen në "[NENE]" — me LIGJIN E CITUAR SAKTË.
 - NUK përsërit nenet që tashmë janë raportuar në Seksionin A (Python).
-""" + CASE_CONTEXT_RULE + DEDUP_RULE,
+""" + LAW_NUMBER_RULE + CASE_CONTEXT_RULE + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -247,7 +255,7 @@ PSE_RELEVANT_END
 
 - SHKRUAJ VETËM NË SHQIP. Termat si "ngjashmëri" ose "pikë" NUK lejohen në output.
 
-""" + PRECEDENT_SOURCE_RULE + DEDUP_RULE,
+""" + PRECEDENT_SOURCE_RULE + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -304,7 +312,7 @@ Format:
 RREGULLA:
 - Bazohu VETËM në tekstin e draftit dhe në "[CHECKLIST]".
 - Fokus te CILËSIA e argumentimit, jo te plotësia formale.
-""" + CASE_CONTEXT_RULE + DEDUP_RULE,
+""" + CASE_CONTEXT_RULE + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 
     "weaknesses_risks_ab": {
@@ -344,7 +352,7 @@ Format:
 RREGULLA:
 - Bazohu VETËM në tekstin e draftit dhe në "[CHECKLIST]".
 - Fokus te CILËSIA e argumentimit, jo te plotësia formale.
-""" + CASE_CONTEXT_RULE + DEDUP_RULE,
+""" + CASE_CONTEXT_RULE + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 
     "weaknesses_risks_cde": {
@@ -386,7 +394,7 @@ Format:
 RREGULLA:
 - Bazohu VETËM në tekstin e draftit dhe në "[CHECKLIST]".
 - Fokus te CILËSIA e argumentimit, jo te plotësia formale.
-""" + CASE_CONTEXT_RULE + DEDUP_RULE,
+""" + CASE_CONTEXT_RULE + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -485,7 +493,7 @@ SHEMBUJ TË SAKTË (i mirë vs i dobët):
 - Totali i output-it: **~2500 karaktere**.
 - NUK lejohet të kalosh këto limite. Nëse ka më shumë se 3 rekomandime kritike
   → zgjidh 3 më të rëndësishmet. Cilësia > sasia.
-""" + ABBREV_REPLACEMENT_RULE + PRECEDENT_RECOMMENDATION_RULE + CASE_CONTEXT_RULE + CROSS_SECTION_CONSISTENCY_RULE + DEDUP_RULE,
+""" + ABBREV_REPLACEMENT_RULE + PRECEDENT_RECOMMENDATION_RULE + CASE_CONTEXT_RULE + CROSS_SECTION_CONSISTENCY_RULE + LAW_NUMBER_RULE + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -493,7 +501,7 @@ SHEMBUJ TË SAKTË (i mirë vs i dobët):
     # ═══════════════════════════════════════════════════════════════════════
     "readiness": {
         "title": "6. GATISHMËRIA",
-        "max_tokens": 3000,   # V1.7: 1600 → 3000 (output=3821 chars u cungua)
+        "max_tokens": 3000,
         "needs": ["draft", "checklist"],
         "prompt": """Ti je "Partner i Lartë" që jep verdiktin final.
 
@@ -536,6 +544,6 @@ RREGULLA:
   * Nuk ka dobësi kritike
 - **KËRKON PUNË** nëse: 60-89% plotësi ose dobësi të përmirësueshme
 - **I PËRPLOTË** nëse: < 60% plotësi ose mungesë e bazës ligjore
-""" + DEDUP_RULE,
+""" + PROFESSIONAL_LANGUAGE_RULE + DEDUP_RULE,
     },
 }

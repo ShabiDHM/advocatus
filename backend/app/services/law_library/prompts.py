@@ -11,7 +11,7 @@
 #   - PR7: Few-shot example (i vogël)
 #   - PR8: Chain-of-thought trigger
 
-from typing import Dict, Any
+
 
 PROMPT_VERSION = "1.1"
 

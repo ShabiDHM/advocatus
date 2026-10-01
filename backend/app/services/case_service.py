@@ -1,5 +1,11 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V59.2
+# PHOENIX PROTOCOL - CASE SERVICE V59.3
+# V59.3: SUBCOLLECTION $in DEFENSIVE —
+#        - `_cleanup_case_subcollections` përdorte VETËM string për case_id
+#          (`{"case_id": case_id_str}`), ndërsa pjesa tjetër e file-it përdor
+#          `{"$in": [case_id, case_id_str]}` (documents, media, archives).
+#          Nëse ndonjë subcollection ka case_id si ObjectId (legacy ose
+#          variacione), u krijua leak. Tani konsistent.
 # V59.2: HEADER CLEANUP — Konsoliduar shënimet historike të versioneve.
 # V59.1: ACCESS QUERY CLARITY — personal_clauses me komente për defensive
 #        klauzolat str/ObjectId (legacy compatibility).
@@ -8,19 +14,19 @@
 #        case_cross_references + $unset case_document_verifications në purge.
 # V58.0: ORG-ID REFACTOR — Canonical: `organization_id`. Heq `org_id` (legacy).
 
-import re
-import urllib.parse
+
+
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List, cast
 from bson import ObjectId
-from bson.errors import InvalidId
+
 from fastapi import HTTPException
 from pymongo.database import Database
 import logging
 
 from ..models.case import CaseCreate
 from ..models.user import UserInDB
-from ..celery_app import celery_app
+
 from app.services import storage_service, vector_store_service
 
 logger = logging.getLogger(__name__)
@@ -227,7 +233,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V59.0: CASCADE SUBCOLLECTIONS CLEANUP
+# V59.3: CASCADE SUBCOLLECTIONS CLEANUP (defensive $in)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _cleanup_case_subcollections(
@@ -239,22 +245,28 @@ def _cleanup_case_subcollections(
     Collections: case_extractions, case_synthesis, case_chat_history,
                  case_cross_references.
 
+    V59.3: Filtron edhe case_id si ObjectId edhe si string — konsistencë
+    me pjesën tjetër të cleanup-it (documents/media/archives). Nëse ndonjë
+    subcollection ka case_id si ObjectId (legacy ose variacione), fshihet
+    si duhet.
+
     Kthen {collection_name: deleted_count}.
     """
     counts: Dict[str, int] = {}
+    filter_query = {"case_id": {"$in": [case_id, case_id_str]}}
 
     for coll_name in CASCADE_SUBCOLLECTIONS:
         try:
-            result = db[coll_name].delete_many({"case_id": case_id_str})
+            result = db[coll_name].delete_many(filter_query)
             counts[coll_name] = result.deleted_count
             if result.deleted_count > 0:
                 logger.info(
-                    f"🗑️ [Cascade V59.2] {coll_name}: "
+                    f"🗑️ [Cascade V59.3] {coll_name}: "
                     f"{result.deleted_count} dokument(e) fshirë për case={case_id_str}"
                 )
         except Exception as e:
             logger.warning(
-                f"⚠️ [Cascade V59.2] {coll_name} cleanup failed për "
+                f"⚠️ [Cascade V59.3] {coll_name} cleanup failed për "
                 f"case={case_id_str}: {e}"
             )
             counts[coll_name] = 0
@@ -454,7 +466,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
 
     cascade_total = sum(cascade_counts.values())
     logger.info(
-        f"🧹 [Case Delete V59.2] Lënda {case_id_str} u fshi me sukses. "
+        f"🧹 [Case Delete V59.3] Lënda {case_id_str} u fshi me sukses. "
         f"Sub-collections: {cascade_total} dokument(e) të fshirë "
         f"({cascade_counts})."
     )
@@ -585,7 +597,7 @@ def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, An
             )
             purged_cases_count += 1
             logger.info(
-                f"🧹 [Auto-Purge V59.2] Lënda {case_id_str} u pastrua. "
+                f"🧹 [Auto-Purge V59.3] Lënda {case_id_str} u pastrua. "
                 f"Sub-collections fshirë: {cascade_counts}"
             )
 

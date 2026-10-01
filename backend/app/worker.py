@@ -4,7 +4,7 @@
 # 2. Ensures worker connects to the correct Redis broker.
 
 import os
-from app.celery_app import celery_app, configure_celery_app
+from app.celery_app import configure_celery_app
 
 # Set an environment variable to signal this is a worker process.
 # This prevents the configuration from running twice if imported by the web server.

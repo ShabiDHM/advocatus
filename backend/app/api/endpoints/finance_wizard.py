@@ -6,8 +6,8 @@
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from typing import List, Annotated, Any
-from datetime import datetime
+from typing import List
+
 from pymongo.database import Database
 import asyncio
 

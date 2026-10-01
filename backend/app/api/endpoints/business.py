@@ -1,9 +1,9 @@
 # FILE: backend/app/api/endpoints/business.py
 # PHOENIX PROTOCOL - BUSINESS ROUTER V2.0 (GRAPH EXCISED • CLEAN PROFILE & LOGO STREAMER)
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
-from typing import Annotated, Optional
+from typing import Annotated
 from pymongo.database import Database
 import logging
 

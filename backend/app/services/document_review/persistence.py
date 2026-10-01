@@ -1,9 +1,12 @@
 # FILE: backend/app/services/document_review/persistence.py
-# PHOENIX PROTOCOL - PERSISTENCE V2.1
-# V2.1: LOAD_EXTRACTION DIAGNOSTICS — load_extraction() tani logon statusin
-#       real kur extraction != completed: "processing"/"pending"/"queued"
-#       → INFO me udhëzim; "failed" → WARNING me arsyen; mungon → INFO.
-#       Përpara: None silent → user shihte "Drafti nuk ka tekst" pa e ditur pse.
+# PHOENIX PROTOCOL - PERSISTENCE V2.2
+# V2.2: EMPTY_RESULT ENRICHED —
+#       - `empty_result` mungonte `full_report`, `document_type`, `file_name`,
+#         `readiness`, `score`, `score_breakdown`, `hallucination_report`,
+#         `section_stats`. Frontend që lexon `result.full_report` do të
+#         thyejë kur merr empty_result. Tani shape është konsistent me
+#         `verify.empty_verify_result` dhe me output-in normal të service.py.
+# V2.1: LOAD_EXTRACTION DIAGNOSTICS.
 # V2.0: Ngarkon dokumentin dhe ekstraktimin nga MongoDB; ruan rezultatin.
 
 import logging
@@ -16,10 +19,6 @@ from .prompts import DOCUMENT_REVIEW_PROMPTS
 
 logger = logging.getLogger(__name__)
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# V2.1: EXTRACTION STATUS CONSTANTS
-# ═══════════════════════════════════════════════════════════════════════════
 
 _EXTRACTION_STATUS_IN_PROGRESS = {"processing", "pending", "queued", "running"}
 
@@ -53,8 +52,6 @@ def _find_extraction_any_status(
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     V2.1: Gjen ekstraktimin e çdo statusi (jo vetëm completed).
-
-    Kthen (entry, status) ose (None, None) nëse mungon fare.
     """
     try:
         entry = db[EXTRACTION_COLLECTION].find_one({
@@ -72,14 +69,8 @@ def _find_extraction_any_status(
 def load_extraction(db, case_id: str, document_id: str) -> Optional[Dict[str, Any]]:
     """
     V2.1: Ngarko ekstraktimin (NER + Metadata) nga MongoDB.
-
-    Diagnostikon statusin kur ekstraktimi nuk është "completed":
-      - processing/pending/queued/running → INFO ("prit")
-      - failed/error → WARNING me arsyen
-      - mungon → INFO
     """
     try:
-        # 1. Provo completed direkt
         completed = db[EXTRACTION_COLLECTION].find_one({
             "case_id": str(case_id),
             "document_id": str(document_id),
@@ -88,7 +79,6 @@ def load_extraction(db, case_id: str, document_id: str) -> Optional[Dict[str, An
         if completed:
             return completed
 
-        # 2. Nuk ka "completed" — diagnostiko pse
         entry, status = _find_extraction_any_status(db, case_id, document_id)
 
         if entry is None:
@@ -116,7 +106,6 @@ def load_extraction(db, case_id: str, document_id: str) -> Optional[Dict[str, An
             )
             return None
 
-        # Status tjetër i panjohur
         logger.warning(
             f"⚠️ [load_extraction] Status i panjohur '{status}' për "
             f"case={case_id}, doc={document_id}. Fallback në document.content."
@@ -150,17 +139,23 @@ def persist(db, result: Dict[str, Any]) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EMPTY RESULT
+# EMPTY RESULT (V2.2: enriched)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def empty_result(case_id: str, document_id: str, reason: str) -> Dict[str, Any]:
-    """Rezultat bosh për raste kur nuk ka tekst."""
+    """
+    V2.2: Rezultat bosh — shape konsistent me output-in normal.
+    Garanon që frontend mund të lexojë `full_report`, `stats`, `section_stats`.
+    """
+    now = datetime.now(timezone.utc).isoformat()
     return {
         "case_id": case_id,
         "document_id": document_id,
         "scope": "document",
         "document_ids": [document_id],
-        "built_at": datetime.now(timezone.utc).isoformat(),
+        "document_type": None,
+        "file_name": None,
+        "built_at": now,
         "sections": {},
         "stats": {
             "case_id": case_id,
@@ -168,7 +163,16 @@ def empty_result(case_id: str, document_id: str, reason: str) -> Dict[str, Any]:
             "sections_generated": 0,
             "sections_total": len(DOCUMENT_REVIEW_PROMPTS),
             "duration_sec": 0.0,
+            "execution_mode": "none",
+            "hallucination_status": "not_checked",
+            "hallucination_issues": 0,
         },
+        "readiness": "UNKNOWN",
+        "score": 0,
+        "score_breakdown": {"formal": 0.0, "legal": 0.0, "readiness": 0},
+        "full_report": f"# Raport Analize\n\n⚠️ {reason}\n",
+        "section_stats": {},
+        "hallucination_report": {},
         "status": "empty",
         "warning": reason,
     }

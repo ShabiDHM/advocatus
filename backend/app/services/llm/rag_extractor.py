@@ -2,7 +2,7 @@
 # PHOENIX PROTOCOL - UNIFIED DOCUMENT EXTRACTION ENGINE (CENTRALIZED GATEWAY)
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 
 from app.services.llm.llm_client import (
     _get_api_key, 

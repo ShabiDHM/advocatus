@@ -1,9 +1,14 @@
 # FILE: backend/app/services/pillars/statutory_verification_service.py
-# PHOENIX PROTOCOL - STATUTORY & PRECEDENT VERIFIER ENGINE V2.0 (STREAM-OPTIMIZED • ZERO TRUNCATION)
-# 100% COMPLETE CODE • GJUHË E PASTËR JURIDIKE SHQIPE • SAKTËSI NENI-PËR-NEN
+# PHOENIX PROTOCOL - STATUTORY & PRECEDENT VERIFIER ENGINE V2.1 (STREAM-OPTIMIZED • ZERO TRUNCATION)
+# V2.1: ASYNC RAG INTEGRATION —
+#        - `build_prompt()` pranon `rag_context: Optional[str] = None`.
+#          Nëse kalon, përdoret direkt; nëse None, bën fallback në sync
+#          `BasePillarService.get_rag_context()` (backward compat).
+#          Callers async (albanian_rag_service.chat) mund të presin RAG-un
+#          me `get_rag_context_async()` dhe ta kalojnë si argument.
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from app.services.pillars.base_pillar_service import BasePillarService
 from app.services.pillars.role_guard_service import RoleGuardService
 
@@ -12,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class StatutoryVerificationService:
     """
-    SHËRBIMI I VERIFIKIMIT DOKTRINAR TË NENEVE DHE PRECEDENTËVE (V2.0):
+    SHËRBIMI I VERIFIKIMIT DOKTRINAR TË NENEVE DHE PRECEDENTËVE (V2.1):
     - I Optimizuar për Streaming: Pa ndërprerje dhe me përgjigje të menjëhershme.
     - Saktësi Neni-për-Nen: Analizon çdo dispozitë të aplikueshme në Republikën e Kosovës.
     - Zero Hardcoding: Përshtatet plotësisht me çdo lloj lënde gjyqësore.
@@ -30,7 +35,8 @@ class StatutoryVerificationService:
         query_text: Optional[str] = None,
         user_id: Optional[str] = None,
         case_id: Optional[str] = None,
-        db: Any = None
+        db: Any = None,
+        rag_context: Optional[str] = None,   # V2.1: async-pre-fetched
     ) -> str:
         pozicioni = (client_position or "PALË NË PROCEDURË").strip().upper()
 
@@ -41,18 +47,20 @@ class StatutoryVerificationService:
                 manifest_str=manifest_str or ""
             )
 
-        pyetja_kerkimore = query_text or f"Verifikimi i neneve dhe precedentëve të Gjykatës Supreme për lëndën {case_domain}: {case_title}."
-
-        baza_globale = ""
-        try:
-            baza_globale, _ = BasePillarService.get_rag_context(
-                user_id=user_id or "",
-                case_id=case_id or "",
-                query_text=pyetja_kerkimore,
-                n_results=8
-            )
-        except Exception as err:
-            logger.warning(f"RAG lookup warning: {err}")
+        # V2.1: Nëse rag_context u dha nga caller async, përdore direkt.
+        baza_globale = rag_context if rag_context is not None else ""
+        if rag_context is None:
+            pyetja_kerkimore = query_text or f"Verifikimi i neneve dhe precedentëve të Gjykatës Supreme për lëndën {case_domain}: {case_title}."
+            try:
+                baza_globale, _ = BasePillarService.get_rag_context(
+                    user_id=user_id or "",
+                    case_id=case_id or "",
+                    query_text=pyetja_kerkimore,
+                    n_results=8
+                )
+            except Exception as err:
+                logger.warning(f"RAG lookup warning: {err}")
+                baza_globale = ""
 
         protokolli_suprem = BasePillarService.build_supreme_jurisprudence_directive(case_domain)
         mbrojtja_rolit = RoleGuardService.build_role_guard(pozicioni, client_name)

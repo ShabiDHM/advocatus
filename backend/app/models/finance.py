@@ -4,7 +4,7 @@
 # 2. STATUS: Production Ready.
 
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Dict
+from typing import List, Optional
 from datetime import datetime
 from .common import PyObjectId
 

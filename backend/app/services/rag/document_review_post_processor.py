@@ -1,11 +1,19 @@
 # FILE: backend/app/services/rag/document_review_post_processor.py
-# PHOENIX PROTOCOL - DOCUMENT REVIEW POST-PROCESSOR V1.1
-# V1.1: (1) FIX — whitelist regex pranon format "2004/32" (4-shifror),
-#           përveç "08/L-185".
-#       (2) FIX — _find_fake_precedents flagon VETËM kur numri i lëndës
-#           shfaqet në kontekst "precedent/referuar/sipas/bazuar/ngjashëm",
-#           jo kudo në output (eliminon false-positive kur LLM citon lëndën
-#           aktuale).
+# PHOENIX PROTOCOL - DOCUMENT REVIEW POST-PROCESSOR V1.2
+# V1.2: WHITELIST REGEX FIX + DIAERESIS FIX —
+#       - `_LAW_NUMBER_WHITELIST_RE` i vjetër `^\d{2,4}(?:/[A-Z])?-?\d+$`
+#         NUK match-onte "2004/32" (V1.1 changelog pretendonte se e rregulloi
+#         por regex-i mbeti i njëjtë). Tani pranon TË DYJA format:
+#           * "08/L-185"  → \d{2,4}/[A-Z]-?\d+
+#           * "2004/32"   → \d{4}/\d{1,4}
+#         Rezultati: ligje legacy nuk hiqen më nga whitelist → LLM që i citon
+#         ato nuk flag-ohet si hallucinim.
+#       - `_ARTICLE_OUTPUT_RE` dhe `_BAD_ARTICLE_FORMAT_RE` tani match-ojnë
+#         edhe "Nenet" (pa ë) dhe "Nene" — konsistencë me context_builder
+#         V6.12 / chat_post_processor V2.5 / cross_doc_comparator V1.3.
+# V1.1: (1) FIX — whitelist regex pranon format "2004/32". (2) FIX —
+#       _find_fake_precedents flagon VETËM kur numri i lëndës shfaqet në
+#       kontekst "precedent/referuar/sipas/bazuar/ngjashëm".
 # V1.0: Krijim fillestar.
 
 import re
@@ -15,7 +23,7 @@ from typing import Dict, Any, List, Set, Tuple
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# REGEX
+# REGEX (V1.2: `[ëe]t|e` në alternativë)
 # ═══════════════════════════════════════════════════════════════════════════
 
 _LAW_NUMBER_OUTPUT_RE = re.compile(
@@ -24,12 +32,12 @@ _LAW_NUMBER_OUTPUT_RE = re.compile(
 )
 
 _ARTICLE_OUTPUT_RE = re.compile(
-    r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)',
+    r'\bNen(?:i|it|in|[ëe]t|e)\s+(\d+(?:[\.\/]\d+)*)',
     re.IGNORECASE | re.UNICODE
 )
 
 _BAD_ARTICLE_FORMAT_RE = re.compile(
-    r'\bNen(?:i|it|in|ët)\s+(\d+)\.(\d+)\b',
+    r'\bNen(?:i|it|in|[ëe]t|e)\s+(\d+)\.(\d+)\b',
     re.IGNORECASE | re.UNICODE
 )
 
@@ -43,10 +51,12 @@ _CASE_NUMBER_RE = re.compile(
     re.IGNORECASE
 )
 
-# V1.1: Regex i zgjeruar për whitelist — pranon "XX/L-NNN" dhe "YYYY/NN"
-_LAW_NUMBER_WHITELIST_RE = re.compile(r'^\d{2,4}(?:/[A-Z])?-?\d+$')
+# V1.2: Regex i rregulluar — pranon TË DYJA "08/L-185" dhe "2004/32"
+_LAW_NUMBER_WHITELIST_RE = re.compile(
+    r'^(?:\d{2,4}/[A-Z]-?\d+|\d{4}/\d{1,4})$'
+)
 
-# V1.1: Fjalë që tregojnë se numri i lëndës trajtohet si PRECEDENT
+# Fjalë që tregojnë se numri i lëndës trajtohet si PRECEDENT
 _PRECEDENT_CLAIM_WORDS = [
     "precedent", "precedenti", "precedentë",
     "referuar", "referohet", "sipas",
@@ -73,7 +83,6 @@ def _extract_case_numbers(text: str) -> Set[str]:
 
 def _find_wrong_law_numbers(output_text: str, verified_citations: Dict[str, Any]) -> List[str]:
     whitelist_numbers = set(verified_citations.get("laws", []))
-    # V1.1: Regex i zgjeruar — pranon "2004/32" dhe "08/L-185"
     whitelist_numbers = {n for n in whitelist_numbers if _LAW_NUMBER_WHITELIST_RE.match(n)}
 
     found = _LAW_NUMBER_OUTPUT_RE.findall(output_text)

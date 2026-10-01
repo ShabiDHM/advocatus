@@ -1,5 +1,16 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V38.3 (CASE-AWARE SSE + BATCH INGESTION)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V38.4 (CASE-AWARE SSE + BATCH INGESTION)
+# V38.4: ROBUSTNESS CLEANUP —
+#        - CASE_ID GUARD: `str(document.get("case_id"))` prodhonte stringun
+#          "None" kur case_id mungonte → Redis broadcast në kanalin e
+#          mbeturinave `case:None:updates` + metadata e chunks me
+#          case_id="None" (ndot RAG global). Tani përdoret string bosh,
+#          broadcast case-scoped skip-ohet. (Mirror i OWNER_ID GUARD V38.3.)
+#        - DEAD IMPORTS: hequr `List`, `Tuple` (të papërdorur).
+#        - DEAD PARAM: hequr `redis_client` nga signature — ishte i
+#          papërdorur (V38.3 kaloi në global `_get_redis()`). Callers që
+#          ende e kalojnë si keyword absorbohen nga `**kwargs`
+#          (backward-compat).
 # V38.3: FIX ALL —
 #        - STORAGE DEDUP: hequr fusha redundante `text` nga $set (mbajtur
 #          `content` + `extracted_text` — të dyja janë në zinxhirin e fallback
@@ -29,7 +40,7 @@ import asyncio
 import gc
 import time
 import re
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from bson import ObjectId
 import redis.asyncio as aioredis
@@ -176,10 +187,9 @@ async def orchestrate_document_processing_mongo(
     *args,
     db: Any = None,
     collection: str = "documents",
-    redis_client: Any = None,
     **kwargs
 ):
-    logger.info(f"⚡ [Orchestrator V38.3] Processing booted for doc: {document_id_str} in collection '{collection}'")
+    logger.info(f"⚡ [Orchestrator V38.4] Processing booted for doc: {document_id_str} in collection '{collection}'")
 
     if db is None:
         from app.core.db import get_db_instance
@@ -201,12 +211,21 @@ async def orchestrate_document_processing_mongo(
     user_id = str(owner_id_raw) if owner_id_raw else ""
     if not user_id:
         logger.warning(
-            f"⚠️ [Orchestrator V38.3] Document {document_id_str} has no "
+            f"⚠️ [Orchestrator V38.4] Document {document_id_str} has no "
             f"owner_id — Redis personal broadcast will be skipped."
         )
 
     doc_name = document.get("file_name", "Unknown Document")
-    case_id_str = str(document.get("case_id"))
+
+    # V38.4: CASE_ID GUARD — `str(None)` krijonte "None" string
+    case_id_raw = document.get("case_id")
+    case_id_str = str(case_id_raw) if case_id_raw else ""
+    if not case_id_str:
+        logger.info(
+            f"ℹ️ [Orchestrator V38.4] Document {document_id_str} has no "
+            f"case_id — case-scoped broadcast skipped, chunks will carry "
+            f"case_id=''."
+        )
 
     # Faza 1: 30% Përgatitja
     await _update_db_and_broadcast(
@@ -269,7 +288,7 @@ async def orchestrate_document_processing_mongo(
                 elif real_page_count <= 1 and len(raw_text) > 2200:
                     real_page_count = max(1, round(len(raw_text) / 2200))
 
-                logger.info(f"✅ [Orchestrator V38.3] U nxorën {len(raw_text)} karaktere nga {real_page_count} faqe reale.")
+                logger.info(f"✅ [Orchestrator V38.4] U nxorën {len(raw_text)} karaktere nga {real_page_count} faqe reale.")
         except Exception as extract_err:
             logger.warning(f"OCR warning for {doc_name} (using fallback): {extract_err}")
 
@@ -290,7 +309,7 @@ async def orchestrate_document_processing_mongo(
                     )
                 else:
                     logger.warning(
-                        "⚠️ [Summary V38.3] sterilize_legal_text / process_large_document_async "
+                        "⚠️ [Summary V38.4] sterilize_legal_text / process_large_document_async "
                         "nuk ekzistojnë — përdor fallback (800 chars)."
                     )
                     return raw_text[:800]
@@ -338,7 +357,7 @@ async def orchestrate_document_processing_mongo(
                         })
 
                 logger.info(
-                    f"📦 [Orchestrator V38.3] Duke filluar ingestion për "
+                    f"📦 [Orchestrator V38.4] Duke filluar ingestion për "
                     f"{len(chunks_to_store)} chunks (doc={document_id_str})"
                 )
 
@@ -356,7 +375,7 @@ async def orchestrate_document_processing_mongo(
 
                 if not isinstance(result, dict):
                     logger.warning(
-                        f"⚠️ [Orchestrator V38.3] Ingestion ktheu {type(result).__name__} "
+                        f"⚠️ [Orchestrator V38.4] Ingestion ktheu {type(result).__name__} "
                         f"(pritet dict). Trajtoj si {'sukses' if result else 'dështim'}."
                     )
                     result = {
@@ -375,19 +394,19 @@ async def orchestrate_document_processing_mongo(
 
                 if success:
                     logger.info(
-                        f"✅ [Orchestrator V38.3] Ingestion i plotë: "
+                        f"✅ [Orchestrator V38.4] Ingestion i plotë: "
                         f"{ingested}/{total} chunks, duration={duration}s"
                     )
                 else:
                     logger.error(
-                        f"⚠️ [Orchestrator V38.3] Ingestion i pjesshëm ose dështuar: "
+                        f"⚠️ [Orchestrator V38.4] Ingestion i pjesshëm ose dështuar: "
                         f"{ingested}/{total} chunks, errors={errors[:3]}"
                     )
 
                 return result
 
             except Exception as e:
-                logger.error(f"❌ [Orchestrator V38.3] Embedding task exception: {e}")
+                logger.error(f"❌ [Orchestrator V38.4] Embedding task exception: {e}")
                 return {
                     "success": False,
                     "total_chunks": 0,
@@ -432,7 +451,7 @@ async def orchestrate_document_processing_mongo(
                 if isinstance(r, Exception):
                     name = task_names[i] if i < len(task_names) else f"task_{i}"
                     logger.error(
-                        f"❌ [Orchestrator V38.3] Task '{name}' raised exception: {r}"
+                        f"❌ [Orchestrator V38.4] Task '{name}' raised exception: {r}"
                     )
 
             if len(results) > 0 and isinstance(results[0], str):
@@ -468,7 +487,7 @@ async def orchestrate_document_processing_mongo(
                 final_status = DocumentStatus.READY
             status_message = "Gati (me paralajmërime — disa pjesë nuk u indeksuan)"
             logger.error(
-                f"⚠️ [Orchestrator V38.3] Dokument {document_id_str} u shënua "
+                f"⚠️ [Orchestrator V38.4] Dokument {document_id_str} u shënua "
                 f"{final_status} sepse ingestion nuk ishte i plotë."
             )
 
@@ -496,7 +515,7 @@ async def orchestrate_document_processing_mongo(
                 }
             )
             logger.info(
-                f"✅ [Orchestrator V38.3] Document {document_id_str} "
+                f"✅ [Orchestrator V38.4] Document {document_id_str} "
                 f"({real_page_count} real pages) is {final_status} in {collection}. "
                 f"Ingestion: {ingestion_stats['ingested']}/{ingestion_stats['total_chunks']} chunks"
             )

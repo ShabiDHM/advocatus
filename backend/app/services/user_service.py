@@ -13,7 +13,7 @@ from pymongo.database import Database
 from bson import ObjectId
 from fastapi import HTTPException
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import logging
 import re
 

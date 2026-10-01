@@ -1,6 +1,9 @@
 # FILE: backend/app/services/document_review/verify/cited_summary.py
-# PHOENIX PROTOCOL - VERIFY CITED SUMMARY V1.0
-# Ekstraktuar nga draft_verifier.py V1.17 (pa ndryshim logjike).
+# PHOENIX PROTOCOL - VERIFY CITED SUMMARY V1.1
+# V1.1: VERSION SYNC —
+#       - Logger messages referonin "V1.17" (version i draft_verifier.py
+#         para modularizimit) ndërsa file-i është V1.0. Tani "V1.1".
+# V1.0: Ekstraktuar nga draft_verifier.py V1.17 (pa ndryshim logjike).
 
 import logging
 from typing import Any, Dict, List, Set
@@ -31,7 +34,7 @@ def extract_precedent_articles(
             found.update(_extract_articles(excerpt))
         except Exception as e:
             logger.warning(
-                f"⚠️ [VERIFY V1.17] Article extract failed for precedent "
+                f"⚠️ [VERIFY V1.1] Article extract failed for precedent "
                 f"{p.get('case_number')}: {e}"
             )
 
@@ -55,7 +58,7 @@ def extract_precedent_cases(
             found.update(_extract_cases(excerpt))
         except Exception as e:
             logger.warning(
-                f"⚠️ [VERIFY V1.17] Case extract failed for precedent "
+                f"⚠️ [VERIFY V1.1] Case extract failed for precedent "
                 f"{p.get('case_number')}: {e}"
             )
 

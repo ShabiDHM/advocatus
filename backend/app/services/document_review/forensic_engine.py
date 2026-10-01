@@ -1,5 +1,13 @@
 # FILE: backend/app/services/document_review/forensic_engine.py
-# PHOENIX PROTOCOL - FORENSIC ENGINE V1.2
+# PHOENIX PROTOCOL - FORENSIC ENGINE V1.3
+# V1.3: PROFESSIONAL LANGUAGE — Logger messages kaluan nga "flamuj" →
+#       "konstatime" për konsistencë me forensic_service.py V1.3 dhe
+#       PROFESSIONAL_LANGUAGE_RULE. Zero ndryshim funksional.
+# V1.2 (FIX P2): _detect_age_threshold() dedup — një flag për case_number
+#       unik, të gjitha dosjet mblidhen në evidence.files.
+# V1.1: Shtuar keyword_absence, multi_event_same_date, self_reference.
+# V1.0: Versioni fillestar.
+#
 # Motor detektimi me primitive GJENERIKE. Zero hardcoding rasti.
 #
 # PRIMITIVES:
@@ -10,11 +18,6 @@
 #   - multi_event_same_date  → >N evente në një datë
 #   - self_reference         → own case number citohet si i huaj (placeholder)
 #   - role_conflict          → role të ndryshme (placeholder)
-#
-# V1.2 (FIX P2): _detect_age_threshold() dedup — një flag për case_number
-#       unik, të gjitha dosjet mblidhen në evidence.files.
-# V1.1: Shtuar keyword_absence, multi_event_same_date, self_reference.
-# V1.0: Versioni fillestar.
 
 import json
 import logging
@@ -288,6 +291,7 @@ def _detect_numeric_conflict(
         if len(unique_values) <= 1:
             continue
 
+        # Vetëm konflikti i parë për unit — shmang noise kur ka shumë palë.
         for i in range(len(items)):
             for j in range(i + 1, len(items)):
                 shared = items[i]["roots"] & items[j]["roots"]
@@ -464,7 +468,7 @@ def run_forensic_detectors(
             if flags:
                 logger.info(
                     f"🔴 [FORENSIC] Rule '{rule.get('id')}' "
-                    f"(severity={rule.get('severity')}): {len(flags)} flamuj"
+                    f"(severity={rule.get('severity')}): {len(flags)} konstatime"
                 )
         except Exception as e:
             logger.error(f"❌ [FORENSIC] Rule '{rule.get('id')}' dështoi: {e}")
@@ -473,7 +477,7 @@ def run_forensic_detectors(
     all_flags.sort(key=lambda f: severity_order.get(f.severity, 99))
 
     logger.info(
-        f"✅ [FORENSIC] Total: {len(all_flags)} flamuj "
+        f"✅ [FORENSIC] Total: {len(all_flags)} konstatime "
         f"(critical={sum(1 for f in all_flags if f.severity == 'critical')}, "
         f"high={sum(1 for f in all_flags if f.severity == 'high')})"
     )

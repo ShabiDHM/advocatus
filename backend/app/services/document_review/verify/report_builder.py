@@ -1,14 +1,24 @@
 # FILE: backend/app/services/document_review/verify/report_builder.py
-# PHOENIX PROTOCOL - VERIFY REPORT BUILDER V1.1
-# V1.1: VERSION BUMP — Ndjek versionimin e përgjithshëm të paketës verify/.
-#       Asnjë ndryshim logjike ose stringu. Auditimi nuk gjeti probleme.
+# PHOENIX PROTOCOL - VERIFY REPORT BUILDER V1.2
+# V1.2: SINGLE SOURCE OF TRUTH —
+#       - Importet kalojnë nga shimi `..verify_prompts` (backward-compat
+#         external për case_analysis_router) në modulet modulare `.prompt_*`.
+#         Eliminon rrezikun e divergjencës në një sesion të ardhshëm:
+#         çdo ndryshim në modulet modulare aplikohet menjëherë, pa pritur
+#         sinkronizim manual me shimin.
+#       - `VERIFY_SECTION_PROMPTS[key]["title"]` → `.get("title", key)`.
+#         Robustness nëse një section ekziston në `sections` por mungon në
+#         `VERIFY_SECTION_PROMPTS` (defensive; nuk ndodh me kod aktual).
+# V1.1: VERSION BUMP.
 # V1.0: Ekstraktuar nga draft_verifier.py V1.17 (pa ndryshim logjike).
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from .config import READINESS_LABELS_SQ
-from ..verify_prompts import VERIFY_SECTION_PROMPTS, VERIFY_SECTION_KEYS, VERIFY_DOC_TYPES
+from .prompt_constants import VERIFY_SECTION_KEYS
+from .prompt_doc_types import VERIFY_DOC_TYPES
+from .prompt_sections import VERIFY_SECTION_PROMPTS
 
 
 def empty_verify_result(
@@ -69,7 +79,8 @@ def build_full_report(
         sec = sections.get(key)
         if not sec:
             continue
-        title = sec.get("title") or VERIFY_SECTION_PROMPTS[key]["title"]
+        # V1.2: .get() fallback për robustness
+        title = sec.get("title") or VERIFY_SECTION_PROMPTS.get(key, {}).get("title", key)
         content = sec.get("content") or "_(pa përmbajtje)_"
         lines.append(f"## {title}")
         lines.append("")

@@ -1,7 +1,10 @@
 // FILE: src/pages/SupportPage.tsx
-// PHOENIX PROTOCOL - SUPPORT PAGE V6.1 (REAL-TIME COMPACT VALIDATION)
-// 1. FIX: Added a live character counter and interactive inline warning below the text input.
-// 2. FIX: Locks the submit button on the client-side if the message length is under 10 characters to prevent server-side validation crashes.
+// PHOENIX PROTOCOL - SUPPORT PAGE V6.2
+// V6.2: DEAD FIELD FIX —
+//       - `phone` ekzistonte në state + dërgohej në backend por NUK kishte
+//         input në formë (gjithmonë ''). Shtuar input i telefonit në formë
+//         (opsional). Përpara: backend merrte `phone: ''` pa mundësi plotësimi.
+// V6.1: REAL-TIME COMPACT VALIDATION.
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -38,27 +41,24 @@ const SupportPage: React.FC = () => {
     <>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full">
         <h1 className="text-3xl font-semibold text-text-primary mb-8">{t('support.title', 'Qendra e Ndihmës')}</h1>
-        
-        {/* Main Grid: items-stretch ensures both columns have the same height */}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-          
-          {/* Left Column: Flex container ensures cards fill the vertical space */}
+
           <div className="flex flex-col gap-6 h-full">
-            
-            {/* Card 1: Contact Info */}
+
             <div className="glass-panel p-6 rounded-2xl border border-main bg-surface/30">
               <h3 className="text-xl font-semibold mb-4 text-text-primary">{t('support.contactInfo', 'Informacion Kontakti')}</h3>
               <div className="space-y-4 text-text-secondary">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary-start/10 text-primary-start border border-primary-start/20 shadow-inner">
                     <Phone size={20} />
-                  </div> 
+                  </div>
                   <span className="font-medium">+383 44 987 898</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary-start/10 text-primary-start border border-primary-start/20 shadow-inner">
                     <Mail size={20} />
-                  </div> 
+                  </div>
                   <span className="font-medium">info@juristi.tech</span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -70,7 +70,6 @@ const SupportPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Card 2: Legal Info (Expands to fill remaining height) */}
             <div className="glass-panel p-6 rounded-2xl border border-main flex-1 flex flex-col justify-center bg-surface/30">
               <div>
                 <h3 className="text-xl font-semibold mb-4 text-text-primary">{t('support.legalInfo', 'Informacione Ligjore')}</h3>
@@ -78,7 +77,7 @@ const SupportPage: React.FC = () => {
                   {t('support.legalDesc', 'Lexoni politikën tonë të privatësisë për të kuptuar se si i mbrojmë të dhënat tuaja dhe të drejtat tuaja ligjore.')}
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setIsPrivacyOpen(true)}
                 className="w-full flex justify-center items-center py-3 rounded-xl bg-primary-start/10 text-primary-start font-semibold hover:bg-primary-start/20 border border-primary-start/20 transition-all active:scale-95 focus:outline-none"
@@ -88,7 +87,6 @@ const SupportPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Form */}
           <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-main h-full flex flex-col justify-center bg-surface/30">
             <h3 className="text-xl font-semibold mb-6 text-text-primary">{t('support.sendMessage', 'Na Dërgoni Mesazh')}</h3>
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -102,21 +100,27 @@ const SupportPage: React.FC = () => {
                   <input type="text" required value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} className="glass-input w-full rounded-xl px-4 py-3 border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40 transition-all" />
                 </div>
               </div>
-              
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary ml-1">{t('auth.email', 'Email')}</label>
-                <input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="glass-input w-full rounded-xl px-4 py-3 border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40 transition-all" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary ml-1">{t('auth.email', 'Email')}</label>
+                  <input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="glass-input w-full rounded-xl px-4 py-3 border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40 transition-all" />
+                </div>
+                {/* V6.2: input telefooni i shtuar */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary ml-1">{t('support.phoneLabel', 'Telefoni')} <span className="text-text-muted font-normal">(Opsional)</span></label>
+                  <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="+383 4X XXX XXX" className="glass-input w-full rounded-xl px-4 py-3 border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40 transition-all" />
+                </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary ml-1">{t('support.messageLabel', 'Mesazhi')}</label>
                 <textarea required rows={5} value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} className="glass-input w-full rounded-xl px-4 py-3 border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40 transition-all resize-none mb-1" />
-                
-                {/* Real-time UX validation helper and character counter */}
+
                 <div className="flex justify-between items-center px-1 select-none">
                     <span className={`text-[10px] font-semibold transition-colors duration-200 ${isMessageTooShort ? 'text-status-danger' : 'text-text-muted'}`}>
-                        {isMessageTooShort 
-                            ? 'Mesazhi duhet të ketë së paktën 10 karaktere.' 
+                        {isMessageTooShort
+                            ? 'Mesazhi duhet të ketë së paktën 10 karaktere.'
                             : 'Së paktën 10 karaktere të nevojshme.'}
                     </span>
                     <span className="text-[10px] font-mono text-text-muted font-bold">
@@ -124,10 +128,10 @@ const SupportPage: React.FC = () => {
                     </span>
                 </div>
               </div>
-              
-              <button 
-                  type="submit" 
-                  disabled={isSubmitting || isFormInvalid} 
+
+              <button
+                  type="submit"
+                  disabled={isSubmitting || isFormInvalid}
                   className="btn-primary w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-primary-start/20 transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed mt-2 focus:outline-none"
               >
                 {isSubmitting ? <Loader2 className="animate-spin" /> : <><Send className="mr-2 h-4 w-4" /> {t('support.sendButton', 'Dërgo')}</>}

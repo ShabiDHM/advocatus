@@ -1,9 +1,19 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V50.0 (TIER-1 SUPREME SHOWCASE & UNIFIED KOSOVO PRICING)
+// PHOENIX PROTOCOL - LANDING PAGE V50.2
+// V50.2: ENCRYPTION CLAIM ACCURACY —
+//        - "AES-256" → "Fernet (AES-128-CBC + HMAC-SHA256)". Backend përdor
+//          Fernet me PBKDF2HMAC. Fernet spec = AES-128-CBC + HMAC-SHA256 —
+//          i fortë, por jo AES-256. Claim-i i vjetër ishte i pasaktë.
+// V50.1: AI REFERENCES SYNC —
+//        - "Claude 3.5 Sonnet" → "DeepSeek V4 Flash 0731" në bento + Solo Plan.
+//        - "DeepSeek-V3" → "DeepSeek V4 Flash 0731" (version aktual i produksionit).
+//        - "Whisper" → "Whisper Large-v3" (konsistencë me ProductShowcase).
+//        - Footer links: <a href> → <Link to> (SPA navigation, jo page reload).
+// V50.0: TIER-1 SUPREME SHOWCASE & UNIFIED KOSOVO PRICING.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Shield,
@@ -166,7 +176,7 @@ export const LandingPage: React.FC = () => {
       colSpan: 'lg:col-span-12',
       title: '⚖️ Butoni Analizë — Ish-Gjyqtari i Gjykatës Supreme në Zyrën Tuaj',
       subtitle: 'ANALIZË GJITHËPËRFSHIRËSE E TË GJITHË FASHIKULLIT',
-      desc: 'Ngarkoni të gjithë fashikullin e lëndës (Policia, QPS, Psikiatria Forenzike, Seancat, Apeli). Motori Tier-1 (Claude 3.5 Sonnet) kryqëzon të gjitha shkresat, zbulon shkeljet e fshehura me dashje (Nenet 414 & 425 KPK), vlerëson afatet e mbetura dhe ndërton Master Planin e Fitores me hapa të numëruar.',
+      desc: 'Ngarkoni të gjithë fashikullin e lëndës (Policia, QPS, Psikiatria Forenzike, Seancat, Apeli). Motori Tier-1 (DeepSeek V4 Flash 0731) kryqëzon të gjitha shkresat, zbulon shkeljet e fshehura me dashje (Nenet 414 & 425 KPK), vlerëson afatet e mbetura dhe ndërton Master Planin e Fitores me hapa të numëruar.',
       icon: FileSearch,
       gradient: 'from-amber-500/20 via-primary-start/15 to-transparent',
       borderColor: 'border-amber-500/40',
@@ -184,7 +194,7 @@ export const LandingPage: React.FC = () => {
       colSpan: 'lg:col-span-6',
       title: '🎙️ Forenzika & Transkriptimi i Provave Audio dhe Video',
       subtitle: 'VERBATIM MULTIMEDIA FORENSICS',
-      desc: 'Ngarkoni regjistrime audio dhe video. Motori Whisper nxjerr transkriptin zyrtar 100% fjalë për fjalë me sekonda [MM:SS], duke indeksuar çdo dëshmi si provë materiale të pakontestueshme për gjykatë.',
+      desc: 'Ngarkoni regjistrime audio dhe video. Motori Whisper Large-v3 nxjerr transkriptin zyrtar 100% fjalë për fjalë me sekonda [MM:SS], duke indeksuar çdo dëshmi si provë materiale të pakontestueshme për gjykatë.',
       icon: Film,
       gradient: 'from-rose-500/20 via-purple-500/10 to-transparent',
       borderColor: 'border-rose-500/40',
@@ -208,7 +218,7 @@ export const LandingPage: React.FC = () => {
     },
     {
       title: 'Enkriptim i Standardit Bankar',
-      desc: 'Çdo skedar dhe transaksion mbrohet me enkriptim ushtarak AES-256.',
+      desc: 'Çdo skedar dhe transaksion mbrohet me enkriptim ushtarak Fernet (AES-128-CBC + HMAC-SHA256).',
       icon: Shield,
     },
     {
@@ -225,7 +235,7 @@ export const LandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-canvas text-text-primary selection:bg-primary-start selection:text-white font-sans">
-      
+
       {/* NAVIGATION */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-canvas/95 backdrop-blur-xl border-b border-main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -258,18 +268,18 @@ export const LandingPage: React.FC = () => {
             <Sparkles size={14} className="animate-pulse text-amber-500" />
             <span>Platforma Supreme e Inteligjencës Ligjore në Kosovë</span>
           </motion.div>
-          
+
           <motion.h1 initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-3xl sm:text-5xl md:text-6xl font-black text-text-primary tracking-tight leading-[1.15] max-w-4xl mx-auto">
             Fuqia e Gjykatës Supreme në{' '}
             <span className="bg-gradient-to-r from-primary-start via-indigo-500 to-amber-500 bg-clip-text text-transparent">
               Zyrën Tuaj Ligjore
             </span>
           </motion.h1>
-          
+
           <motion.p initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-sm sm:text-base md:text-lg text-text-secondary leading-relaxed max-w-3xl mx-auto font-normal">
             Zbardhni të vërtetën e fashikullit me dy motorët tanë elitarë: <strong>Butoni Analizë</strong> për kryqëzimin e të gjithë historikut gjyqësor dhe <strong>Butoni Forenzikë</strong> për auditimin kirurgjikal të çdo dokumenti.
           </motion.p>
-          
+
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
             <button onClick={() => navigate('/register')} className="w-full sm:w-auto h-12 px-8 rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl shadow-primary-start/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer">
               <span>Hap Llogari & Analizo Rastin</span>
@@ -394,7 +404,7 @@ export const LandingPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
-            
+
             {/* KARTA 1: QYTETARËT (ONE-TIME PASS) */}
             <div className="p-8 rounded-3xl bg-card border border-main shadow-md flex flex-col justify-between hover:border-primary-start/40 transition-all relative">
               <div className="space-y-6">
@@ -420,7 +430,7 @@ export const LandingPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-success-start shrink-0" />
-                    <span>Analiza Supreme me Claude 3.5 Sonnet</span>
+                    <span>Analiza Supreme me DeepSeek V4 Flash 0731</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-success-start shrink-0" />
@@ -437,7 +447,7 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => navigate('/register')}
                 className="w-full h-12 mt-8 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary font-bold text-xs uppercase tracking-wider transition-all focus:outline-none cursor-pointer"
               >
@@ -482,7 +492,7 @@ export const LandingPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-primary-start shrink-0" />
-                    <span>Chati inteligjent me Sokrati AI (DeepSeek-V3)</span>
+                    <span>Chati inteligjent me Sokrati AI (DeepSeek V4 Flash 0731)</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-primary-start shrink-0" />
@@ -491,7 +501,7 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => navigate('/register')}
                 className="w-full h-12 mt-8 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 transition-all focus:outline-none cursor-pointer"
               >
@@ -541,7 +551,7 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => navigate('/register')}
                 className="w-full h-12 mt-8 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary font-bold text-xs uppercase tracking-wider transition-all focus:outline-none cursor-pointer"
               >
@@ -617,9 +627,9 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p>© {new Date().getFullYear()} Juristi AI / Advocatus. Të gjitha të drejtat të rezervuara.</p>
           <div className="flex gap-6 text-text-muted">
-            <a href="/privacy" className="hover:text-text-primary transition-colors">Privatësia</a>
-            <a href="/support" className="hover:text-text-primary transition-colors">Mbështetja</a>
-            <a href="/laws/search" className="hover:text-text-primary transition-colors">Biblioteka Ligjore</a>
+            <Link to="/privacy" className="hover:text-text-primary transition-colors">Privatësia</Link>
+            <Link to="/support" className="hover:text-text-primary transition-colors">Mbështetja</Link>
+            <Link to="/laws/search" className="hover:text-text-primary transition-colors">Biblioteka Ligjore</Link>
           </div>
         </div>
       </footer>

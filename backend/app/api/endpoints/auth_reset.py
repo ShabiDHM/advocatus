@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/auth_reset.py
 # PHOENIX PROTOCOL - PASSWORD RESET ENDPOINTS (FIXED: Removed Double Prefix)
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime, timezone, timedelta
 import uuid

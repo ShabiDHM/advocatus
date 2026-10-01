@@ -1,6 +1,15 @@
 # FILE: backend/app/services/document_review/mongo_verifier/title_matching.py
-# PHOENIX PROTOCOL - MONGO VERIFIER / TITLE MATCHING V1.0 (V2.12 modular)
-# Ekstraktuar nga mongo_verifier.py V2.11 (pa ndryshim logjike).
+# PHOENIX PROTOCOL - MONGO VERIFIER / TITLE MATCHING V1.1
+#
+# V1.1: PRIORITY FIX —
+#       - Ndërruar prioritetet e `compound_abbrev_lcs` (97→98) dhe
+#         `compound_abbrev_partial` (98→97). Ishin invertuar: partial
+#         kishte prioritet më të lartë se lcs. Kontradiktë me hierarkinë
+#         e `abbrev_generated_*` (exact > prefix > partial). Rezultati:
+#         match-e lcs (më të forta) humbnin ndaj partial (më të dobëta)
+#         gjatë `matches.sort()` në articles.py.
+#
+# V1.0 (V2.12 modular): Ekstraktuar nga mongo_verifier.py V2.11.
 
 import re
 from typing import List, Set, Tuple
@@ -82,10 +91,11 @@ def _reason_priority(reason: str) -> int:
         return 100
     if reason.startswith("compound_abbrev_exact"):
         return 99
+    # V1.1: lcs (98) > partial (97) — ishin invertuar në V1.0.
     if reason.startswith("compound_abbrev_lcs"):
-        return 97
-    if reason.startswith("compound_abbrev_partial"):
         return 98
+    if reason.startswith("compound_abbrev_partial"):
+        return 97
     if reason.startswith("full_name_match"):
         return 96
     if reason.startswith("abbrev_known"):

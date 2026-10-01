@@ -6,7 +6,7 @@
 # V10.0: GDPR COMPLIANT — soft delete + consent fields.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from typing import Optional, Dict, Any, List
+from typing import Optional, List
 from datetime import datetime, timezone
 from enum import Enum
 from .common import PyObjectId

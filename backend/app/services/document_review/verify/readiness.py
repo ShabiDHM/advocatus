@@ -1,11 +1,12 @@
 # FILE: backend/app/services/document_review/verify/readiness.py
-# PHOENIX PROTOCOL - VERIFY READINESS V1.1
-# V1.1: BODY VERDICT REPLACEMENT — Kur readiness override ndodh (nga KRITIKE
-#       ose hallucination), përveç banner-it që prepend-ohet, TANI zëvendësohet
-#       edhe verdikti origjinal në body (p.sh. "GATI" → "~~GATI~~ **KËRKON PUNË**").
-#       Arsye: përdoruesi skanon shpejt, sheh "GATI" në body dhe humbet.
-#       Konsistencë: header + banner + body tani të gjitha shprehin verdiktin
-#       e ri.
+# PHOENIX PROTOCOL - VERIFY READINESS V1.2
+# V1.2: WORD BOUNDARY FIX —
+#       - `_OLD_VERDICT_PATTERN` nuk kishte `\b`, pavarësisht se docstring-u
+#         pretendonte kontroll me word boundaries. Rezultati: "Gatishmëria"
+#         (shumë e zakonshme në raport gatishmërie) match-ohej nga "Gati"
+#         dhe korruptohej në "~~Gati~~ **KËRKON PUNË** (KORRIGJUAR NGA
+#         SISTEMI)shmëria". Tani `\b` para dhe pas alternativës.
+# V1.1: BODY VERDICT REPLACEMENT.
 # V1.0: Ekstraktuar nga draft_verifier.py V1.17.
 
 import logging
@@ -63,10 +64,6 @@ def parse_readiness(sections: Dict[str, Dict[str, Any]]) -> str:
 def count_critical_recommendations(
     sections: Dict[str, Dict[str, Any]],
 ) -> int:
-    """
-    Numëron marker-at [#K<n>] në Section 5 (concrete_recommendations).
-    Kthen 0 nëse seksioni mungon ose ka content bosh.
-    """
     sec = sections.get(CONCRETE_RECOMMENDATIONS_KEY)
     if not sec:
         return 0
@@ -78,42 +75,33 @@ def count_critical_recommendations(
 
 # ═══════════════════════════════════════════════════════════════════════════
 # V1.1: BODY VERDICT REPLACEMENT
+# V1.2: `\b` para/pas alternativës — parandalon match brenda "Gatishmëria".
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Marker-t e verdiktit origjinal që zëvendësohen
 _OLD_VERDICT_PATTERN = re.compile(
-    r'(\*{0,2})(GATI|Gati|READY|Ready)(\*{0,2})',
+    r'(\*{0,2})\b(GATI|Gati|READY|Ready)\b(\*{0,2})',
     re.UNICODE,
 )
 
 
 def _replace_body_verdict(content: str, new_label: str) -> str:
     """
-    V1.1: Zëvendëson verdiktin e vjetër (GATI/READY) në body me verdiktin e ri.
+    V1.2: Zëvendëson verdiktin e vjetër (GATI/READY) në body me verdiktin e ri.
 
-    Shembull:
-      Input:  "### A. Vlerësimi\nGATI — Gati për dorëzim, pa ndryshime kritike\n"
-      Output: "### A. Vlerësimi\n~~GATI~~ **KËRKON PUNË** (KORRIGJUAR NGA SISTEMI) — Gati për dorëzim, pa ndryshime kritike\n"
-
-    Nuk prek fjalë të tjera që përmbajnë 'GATI' si substring (p.sh. "GATISHMËRIA"
-    është tashmë në titullin e seksionit, por kontrollojmë me word boundaries
-    për emërtimin specifik të verdiktit).
+    `\\b` para/pas alternativës garanton që nuk match-ohet "Gati" brenda
+    "Gatishmëria", "Gatishmërinë", "Gati-shmëria", etj.
 
     Count=1: zëvendëso VETËM ndodhjen e parë (verdikti kryesor).
     """
     def _sub(match: re.Match) -> str:
         old = match.group(2)
-        # Ruaj formatimin origjinal (asterisks) në strikethrough
         return f'~~{old}~~ **{new_label}** (KORRIGJUAR NGA SISTEMI)'
 
-    # Kërko fjali që përmban GATI/READY si fjalë e plotë, jo substring
-    # Kontrollojmë që para/fund të jetë jo-shkronjë (ose fillim/fund i rreshtit)
-    result = _OLD_VERDICT_PATTERN.sub(_sub, content, count=1)
-    return result
+    return _OLD_VERDICT_PATTERN.sub(_sub, content, count=1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# INTERNAL BANNER BUILDER (V1.1: + body verdict replacement)
+# INTERNAL BANNER BUILDER
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _prepend_readiness_override_banner(
@@ -121,15 +109,6 @@ def _prepend_readiness_override_banner(
     new_label: str,
     reason_block: str,
 ) -> None:
-    """
-    V1.1: Prepend banner + zëvendëso verdiktin në body + sinkronizo titullin.
-    Ndryshon `sec` in-place.
-
-    Rendi i operacioneve:
-      1. Zëvendëso verdiktin e vjetër në body (para se të prependohet banner).
-      2. Sinkronizo titullin me label-in e re.
-      3. Prepend banner.
-    """
     # ── 1. Zëvendësim i verdiktit në body ──
     if sec.get("content"):
         original_content = sec["content"]
@@ -137,12 +116,12 @@ def _prepend_readiness_override_banner(
 
         if replaced_content != original_content:
             logger.info(
-                f"🔄 [VERIFY V1.1] Body verdict u zëvendësua: "
+                f"🔄 [VERIFY V1.2] Body verdict u zëvendësua: "
                 f"GATI/READY → {new_label}"
             )
         else:
             logger.info(
-                f"ℹ️ [VERIFY V1.1] Body verdict nuk u gjet për zëvendësim "
+                f"ℹ️ [VERIFY V1.2] Body verdict nuk u gjet për zëvendësim "
                 f"(ndoshta LLM shkroi formë tjetër). Banner prepend-ohet."
             )
 
@@ -165,7 +144,7 @@ def _prepend_readiness_override_banner(
         sec["content"] = override_block + sec["content"]
     else:
         logger.warning(
-            "⚠️ [VERIFY V1.1] Seksioni 'readiness' ka content bosh."
+            "⚠️ [VERIFY V1.2] Seksioni 'readiness' ka content bosh."
         )
 
 
@@ -199,14 +178,14 @@ def maybe_override_readiness(
     new_label = READINESS_LABELS_SQ.get(new_readiness, new_readiness)
 
     logger.info(
-        f"🔄 [VERIFY V1.1] Readiness override: READY → NEEDS WORK "
+        f"🔄 [VERIFY V1.2] Readiness override: READY → NEEDS WORK "
         f"(arsyeja: {reason_text})"
     )
 
     sec = sections.get("readiness")
     if not sec:
         logger.warning(
-            "⚠️ [VERIFY V1.1] Seksioni 'readiness' mungon — "
+            "⚠️ [VERIFY V1.2] Seksioni 'readiness' mungon — "
             "override u aplikua vetëm në header."
         )
         return new_readiness
@@ -235,11 +214,6 @@ def maybe_override_readiness_for_critical(
     readiness: str,
     sections: Dict[str, Dict[str, Any]],
 ) -> str:
-    """
-    Nëse readiness == READY DHE Section 5 përmban [#K] markers,
-    forco readiness → NEEDS WORK + injekto banner në Section 6
-    + zëvendëso verdiktin në body.
-    """
     if readiness != "READY":
         return readiness
 
@@ -251,14 +225,14 @@ def maybe_override_readiness_for_critical(
     new_label = READINESS_LABELS_SQ.get(new_readiness, new_readiness)
 
     logger.info(
-        f"🔄 [VERIFY V1.1] Readiness override (KRITIKE): READY → NEEDS WORK "
+        f"🔄 [VERIFY V1.2] Readiness override (KRITIKE): READY → NEEDS WORK "
         f"(arsyeja: {critical_count} rekomandime KRITIKE [#K] në Section 5)"
     )
 
     sec = sections.get("readiness")
     if not sec:
         logger.warning(
-            "⚠️ [VERIFY V1.1] Seksioni 'readiness' mungon — "
+            "⚠️ [VERIFY V1.2] Seksioni 'readiness' mungon — "
             "override u aplikua vetëm në header."
         )
         return new_readiness

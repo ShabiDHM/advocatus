@@ -1,32 +1,33 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V32.1 (ORG-AWARE ACCESS)
-# V32.1: ACCESS CHECK FIX — Zëvendësuar query inline me _build_case_access_query
-#        nga case_service. Tani respekton org (FULL) + SELECTIVE (assigned) access
-#        njësoj si get_case_by_id / get_cases_for_user.
-#        Përpara: vetëm owner_id/user_id — anëtarët e org-ut dhe SELECTIVE users
-#        merrnin "Qasja u refuzua" në chat edhe pse shihnin case-in në listë.
-# V32.0: Hequr kanali forensic (is_forensic) — feature e fshirë.
-#        Tani vetëm kanali i klientit: chat_history.
+# PHOENIX PROTOCOL - CHAT SERVICE V32.2 (ORG-AWARE ACCESS + LOGGING CONSISTENCY)
+# V32.2: LOGGING + ERROR HARDENING —
+#        - `structlog` → `logging.getLogger(__name__)` (konsistencë me
+#          pjesën tjetër të projektit; structlog nuk ishte konfiguruar
+#          globalisht → log format i ndryshëm në prod).
+#        - Hequr `import logging` i papërdorur (më parë importohej vetëm
+#          për dead reference; tani logging është aktiv).
+#        - Error message nuk leak-on më `str(e)` tek user (potencialisht
+#          sensitive). Logohet server-side, dërgohet mesazh i përgjithshëm.
+# V32.1: ACCESS CHECK FIX — _build_case_access_query.
+# V32.0: Hequr kanali forensic.
 
 from __future__ import annotations
 import logging
-import asyncio
-import structlog
 from types import SimpleNamespace
-from typing import AsyncGenerator, Optional, List, Dict, Any
+from typing import AsyncGenerator, Optional, List
 from bson import ObjectId
 from datetime import datetime, timezone
 from pymongo.database import Database
 from app.models.case import ChatMessage
 from app.services.case_service import _build_case_access_query
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 async def stream_chat_response(
-    db: Database, 
-    case_id: str, 
-    user_query: str, 
+    db: Database,
+    case_id: str,
+    user_query: str,
     user_id: str,
     document_ids: Optional[List[str]] = None,
     jurisdiction: Optional[str] = 'ks',
@@ -71,10 +72,10 @@ async def stream_chat_response(
         # 1. Ruajtja e pyetjes së përdoruesit
         if save_history:
             db.cases.update_one(
-                {"_id": oid}, 
+                {"_id": oid},
                 {"$push": {"chat_history": ChatMessage(
-                    role="user", 
-                    content=user_query, 
+                    role="user",
+                    content=user_query,
                     timestamp=datetime.now(timezone.utc)
                 ).model_dump()}}
             )
@@ -101,14 +102,15 @@ async def stream_chat_response(
         if full_response.strip() and save_history:
             clean_ai_text = full_response.strip()
             db.cases.update_one(
-                {"_id": oid}, 
+                {"_id": oid},
                 {"$push": {"chat_history": ChatMessage(
-                    role="ai", 
-                    content=clean_ai_text, 
+                    role="ai",
+                    content=clean_ai_text,
                     timestamp=datetime.now(timezone.utc)
                 ).model_dump()}}
             )
-            
+
     except Exception as e:
-        logger.error(f"Streaming Error: {e}")
-        yield f"\n\n[Gabim Teknik në Transmetim: {str(e)}]"
+        # V32.2: Log i plotë server-side, mesazh i përgjithshëm për user
+        logger.exception("[ChatService V32.2] Stream error: %s", e)
+        yield "\n\n[Gabim Teknik në Transmetim. Ju lutem rifreskoni faqen dhe provoni përsëri.]"

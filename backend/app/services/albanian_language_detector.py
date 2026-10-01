@@ -4,7 +4,7 @@
 import logging
 import re
 from typing import List
-from langdetect import detect, detect_langs, LangDetectException
+from langdetect import detect_langs, LangDetectException
 
 logger = logging.getLogger(__name__)
 

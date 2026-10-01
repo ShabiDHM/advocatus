@@ -1,7 +1,7 @@
 # FILE: backend/app/core/db.py
 # PHOENIX PROTOCOL - DATABASE CORE V5.5 (ENTERPRISE CONNECTION POOLING & RESILIENCE)
 
-import os
+
 import logging
 from typing import Generator
 from pymongo import MongoClient
@@ -9,7 +9,7 @@ from pymongo.database import Database
 import redis
 from redis.retry import Retry
 from redis.backoff import ExponentialBackoff
-from redis.exceptions import ConnectionError, TimeoutError, RedisError
+from redis.exceptions import ConnectionError, TimeoutError
 
 from .config import settings
 

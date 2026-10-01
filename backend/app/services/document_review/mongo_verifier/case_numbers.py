@@ -1,6 +1,9 @@
 # FILE: backend/app/services/document_review/mongo_verifier/case_numbers.py
-# PHOENIX PROTOCOL - MONGO VERIFIER / CASE NUMBERS V1.0 (V2.12 modular)
-# Ekstraktuar nga mongo_verifier.py V2.11 (pa ndryshim logjike).
+# PHOENIX PROTOCOL - MONGO VERIFIER / CASE NUMBERS V1.1
+# V1.1: ROBUSTNESS + VERSION SYNC —
+#       - `case["case_number"]` → `case.get("case_number", "")`; skip nëse bosh.
+#       - Log message: "V2.12" → "V1.1" (ishte mbetje e versionit të vjetër).
+# V1.0 (V2.12 modular): Ekstraktuar nga mongo_verifier.py V2.11.
 
 import logging
 import re
@@ -128,7 +131,12 @@ def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str
         search_collections.append(LEGAL_KB_COLLECTION)
 
     for case in case_numbers:
-        case_number = case["case_number"]
+        # V1.1: .get() — skip nëse mungon numri
+        case_number = (case.get("case_number") or "").strip()
+        if not case_number:
+            logger.warning("⚠️ [verify_case_numbers] Entry pa 'case_number' — skip")
+            continue
+
         result = {
             "case_number": case_number,
             "prefix": case.get("prefix", ""),
@@ -179,11 +187,11 @@ def verify_case_numbers(db, case_numbers: List[Dict[str, Any]]) -> List[Dict[str
 
         results.append(result)
 
-    precedents = sum(1 for r in results if r["is_precedent"])
-    cited = sum(1 for r in results if not r["is_likely_own"])
+    precedents = sum(1 for r in results if r.get("is_precedent"))
+    cited = sum(1 for r in results if not r.get("is_likely_own"))
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V2.12] Case numbers: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V1.1] Case numbers: {len(results)} total, "
         f"{cited} cited, {precedents} real precedents "
         f"(searched: {search_collections})"
     )

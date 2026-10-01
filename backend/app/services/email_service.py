@@ -1,10 +1,15 @@
 # FILE: backend/app/services/email_service.py
-# PHOENIX PROTOCOL - EMAIL SYSTEM V6.5 (ROBUST URL RESOLUTION & PROTOCOL COMPLIANCE)
+# PHOENIX PROTOCOL - EMAIL SYSTEM V6.6 (DYNAMIC COPYRIGHT YEAR)
+# V6.6: DYNAMIC COPYRIGHT YEAR — `&copy; 2025` ishte hardcoded në footer
+#        i `_create_html_wrapper`. Tani lexon vitin aktual nga
+#        `datetime.now(timezone.utc).year`.
+# V6.5: ROBUST URL RESOLUTION & PROTOCOL COMPLIANCE.
 
 import os
 import smtplib
 import logging
 import requests
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
@@ -22,7 +27,8 @@ def _get_clean_frontend_url() -> str:
     return url.rstrip('/')
 
 def _create_html_wrapper(title: str, body_content: str) -> str:
-    """Wraps content in a professional HTML Email Template."""
+    """Wraps content in a professional HTML Email Template (dynamic year)."""
+    current_year = datetime.now(timezone.utc).year
     return f"""
     <!DOCTYPE html>
     <html>
@@ -45,7 +51,7 @@ def _create_html_wrapper(title: str, body_content: str) -> str:
                 {body_content}
             </div>
             <div class="footer">
-                &copy; 2025 {BRAND_NAME}. Të gjitha të drejtat e rezervuara.<br>
+                &copy; {current_year} {BRAND_NAME}. Të gjitha të drejtat e rezervuara.<br>
                 Prishtinë, Republika e Kosovës
             </div>
         </div>
@@ -56,7 +62,7 @@ def _create_html_wrapper(title: str, body_content: str) -> str:
 def send_email_sync(to_email: str, subject: str, html_content: str):
     """Core function to send an email via SMTP or Resend HTTP API (Self-healing)."""
     resend_api_key = os.getenv("RESEND_API_KEY")
-    
+
     # --- PATH 1: RESEND HTTP API ---
     if resend_api_key:
         try:
@@ -65,27 +71,27 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
                 "Authorization": f"Bearer {resend_api_key}",
                 "Content-Type": "application/json"
             }
-            
+
             mail_from = os.getenv("MAIL_FROM") or "info@juristi.tech"
             if "re_" not in resend_api_key or "onboarding" in mail_from:
                 from_sender = "Juristi AI <onboarding@resend.dev>"
             else:
                 from_sender = f"Juristi AI <{mail_from}>"
-                
+
             payload = {
                 "from": from_sender,
                 "to": [to_email],
                 "subject": subject,
                 "html": html_content
             }
-            
+
             response = requests.post(url, json=payload, headers=headers, timeout=15)
             response.raise_for_status()
             logger.info(f"✅ Email sent via Resend HTTP API to {to_email}: {subject}")
             return
         except Exception as e:
             logger.error(f"❌ Resend HTTP API dispatch failed, attempting SMTP fallback: {e}")
-            
+
     # --- PATH 2: STANDARD SMTP ---
     smtp_user = os.getenv("MAIL_USERNAME") or os.getenv("SMTP_USER")
     smtp_password = os.getenv("MAIL_PASSWORD") or os.getenv("SMTP_PASSWORD")
@@ -119,7 +125,7 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
         server.login(smtp_user, smtp_password)
         server.send_message(msg)
         server.quit()
-        
+
         logger.info(f"✅ Email sent via SMTP to {to_email}: {subject}")
     except Exception as e:
         logger.error(f"❌ Failed to send email via SMTP: {e}")
@@ -133,7 +139,7 @@ def send_support_notification_sync(data: dict):
         return
 
     subject = f"🔔 Kërkesë e Re për Mbështetje: {data.get('first_name')} {data.get('last_name')}"
-    
+
     content = f"""
     <p>Përshëndetje Admin,</p>
     <p>Keni marrë një mesazh të ri nga forma e kontaktit:</p>
@@ -147,7 +153,7 @@ def send_support_notification_sync(data: dict):
         {data.get('message')}
     </blockquote>
     """
-    
+
     final_html = _create_html_wrapper("Qendra e Ndihmës", content)
     send_email_sync(admin_email, subject, final_html)
 
@@ -156,9 +162,9 @@ def send_invitation_email(to_email: str, token: str) -> bool:
     """Send invitation email with password setup link."""
     frontend_url = _get_clean_frontend_url()
     invite_link = f"{frontend_url}/accept-invite?token={token}&email={to_email}"
-    
+
     subject = "Ftesë për t'u bashkuar në Juristi.tech"
-    
+
     body_content = f"""
     <p>Përshëndetje,</p>
     <p>Ju jeni ftuar të bashkoheni në ekipin tonë në <strong>{BRAND_NAME}</strong>.</p>
@@ -174,7 +180,7 @@ def send_invitation_email(to_email: str, token: str) -> bool:
     <p>Ky link është i vlefshëm për 7 ditë.</p>
     <p>Faleminderit,<br>Ekipi {BRAND_NAME}</p>
     """
-    
+
     html_content = _create_html_wrapper("Ftesë për t'u bashkuar", body_content)
     send_email_sync(to_email, subject, html_content)
     return True
@@ -184,9 +190,9 @@ def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     """Send password reset email."""
     frontend_url = _get_clean_frontend_url()
     reset_link = f"{frontend_url}/reset-password?token={reset_token}&email={to_email}"
-    
+
     subject = "Rivendosja e Fjalëkalimit - Juristi.tech"
-    
+
     body_content = f"""
     <p>Përshëndetje,</p>
     <p>Keni kërkuar të rivendosni fjalëkalimin tuaj në <strong>{BRAND_NAME}</strong>.</p>
@@ -200,7 +206,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     <p>Ky link është i vlefshëm për 1 orë.</p>
     <p>Nëse nuk keni kërkuar rivendosje, injoroni këtë email.</p>
     """
-    
+
     html_content = _create_html_wrapper("Rivendosja e Fjalëkalimit", body_content)
     send_email_sync(to_email, subject, html_content)
     return True
@@ -210,7 +216,7 @@ def send_welcome_email(to_email: str, username: str) -> bool:
     """Send welcome email after account activation or registration."""
     frontend_url = _get_clean_frontend_url()
     subject = "Mirëseardhje në Juristi.tech!"
-    
+
     body_content = f"""
     <p>Përshëndetje <strong>{username}</strong>,</p>
     <p>Mirë se vini në <strong>{BRAND_NAME}</strong>!</p>
@@ -228,7 +234,7 @@ def send_welcome_email(to_email: str, username: str) -> bool:
     </p>
     <p>Ju urojmë punë të mbarë!</p>
     """
-    
+
     html_content = _create_html_wrapper("Mirëseardhje!", body_content)
     send_email_sync(to_email, subject, html_content)
     return True
@@ -237,7 +243,7 @@ def send_welcome_email(to_email: str, username: str) -> bool:
 def send_support_reply(to_email: str, reply_message: str, ticket_id: Optional[str] = None) -> bool:
     """Send a reply from support to user."""
     subject = f"Përgjigje nga Mbështetja e Juristi.tech" + (f" (Kërkesa #{ticket_id})" if ticket_id else "")
-    
+
     body_content = f"""
     <p>Përshëndetje,</p>
     <p>Ekipi ynë i mbështetjes ju ka dërguar një përgjigje:</p>
@@ -246,7 +252,7 @@ def send_support_reply(to_email: str, reply_message: str, ticket_id: Optional[st
     </blockquote>
     <p>Nëse keni pyetje të tjera, mos hezitoni të na kontaktoni.</p>
     """
-    
+
     html_content = _create_html_wrapper("Përgjigje nga Mbështetja", body_content)
     send_email_sync(to_email, subject, html_content)
     return True
@@ -256,7 +262,7 @@ def send_team_invite_accepted_email(owner_email: str, new_member_email: str, new
     """Notify the organization owner that someone accepted an invitation."""
     frontend_url = _get_clean_frontend_url()
     subject = f"Përdoruesi {new_member_name} iu bashkua ekipit tuaj"
-    
+
     body_content = f"""
     <p>Përshëndetje,</p>
     <p>Përdoruesi <strong>{new_member_name}</strong> ({new_member_email}) ka pranuar ftesën tuaj dhe tani është pjesë e ekipit tuaj në <strong>{BRAND_NAME}</strong>.</p>
@@ -268,7 +274,7 @@ def send_team_invite_accepted_email(owner_email: str, new_member_email: str, new
         </a>
     </p>
     """
-    
+
     html_content = _create_html_wrapper("Anëtar i ri në ekip", body_content)
     send_email_sync(owner_email, subject, html_content)
     return True

@@ -1,12 +1,16 @@
 # FILE: backend/app/services/rag/timeline_builder.py
-# PHOENIX PROTOCOL - TIMELINE BUILDER V1.1
-# V1.1: FIX — Dedup key (fname, iso, context[:80]) në vend të (fname, iso).
-#       Më parë ngjarje të shumta në të njëjtën datë brenda të njëjtit dokument
-#       humbnin. Tani ruhen të gjitha nëse konteksti ndryshon.
+# PHOENIX PROTOCOL - TIMELINE BUILDER V1.3
+# V1.3: FULL DATE VALIDATION —
+#       - Të dyja rrugët (numeric + written) tani validon me `datetime.date(y, m, d)`.
+#         Përpara: "31 Shkurt 2024" dhe "31.02.2024" prodhonin "2024-02-31"
+#         (ISO invalid) dhe hynin në kronologji. Tani refuzohen.
+# V1.2: DATE VALIDATION CONSISTENCY (ditë + vit).
+# V1.1: Dedup key (fname, iso, context[:80]).
 # V1.0: Krijim fillestar.
 
 import re
 import logging
+from datetime import date as _date
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -64,16 +68,28 @@ def _get_doc_text(doc: Dict[str, Any]) -> str:
     return max(valid, key=len)
 
 
+def _safe_iso(d: int, mo: int, y: int) -> str:
+    """
+    V1.3: Kthen ISO string nëse data është kalendarikisht e vlefshme, përndryshe
+    string bosh. Përdor datetime.date — kap automatikisht 31 Shkurt, 31 Prill,
+    vitet e brishtë, etj.
+    """
+    if not (1990 <= y <= 2050):
+        return ""
+    try:
+        dt = _date(y, mo, d)
+        return dt.isoformat()
+    except (ValueError, TypeError):
+        return ""
+
+
 def _find_all_dates(text: str) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
 
     for m in _NUMERIC_DATE_RE.finditer(text):
         d, mo, y = m.group(1), m.group(2), m.group(3)
-        d_int = int(d)
-        mo_int = int(mo)
-        y_int = int(y)
-        if 1 <= d_int <= 31 and 1 <= mo_int <= 12 and 1990 <= y_int <= 2050:
-            iso = f"{y_int:04d}-{mo_int:02d}-{d_int:02d}"
+        iso = _safe_iso(int(d), int(mo), int(y))
+        if iso:
             results.append({
                 "iso": iso,
                 "position": m.start(),
@@ -82,13 +98,16 @@ def _find_all_dates(text: str) -> List[Dict[str, Any]]:
 
     for m in _WRITTEN_DATE_RE.finditer(text):
         d, month_name, y = m.group(1), m.group(2).lower(), m.group(3)
-        mo = _MONTH_NAMES.get(month_name, "01")
-        iso = f"{y}-{mo}-{int(d):02d}"
-        results.append({
-            "iso": iso,
-            "position": m.start(),
-            "raw": m.group(0),
-        })
+        mo = _MONTH_NAMES.get(month_name)
+        if not mo:
+            continue
+        iso = _safe_iso(int(d), int(mo), int(y))
+        if iso:
+            results.append({
+                "iso": iso,
+                "position": m.start(),
+                "raw": m.group(0),
+            })
 
     return results
 
@@ -123,7 +142,6 @@ def extract_events(
             context = text[start:end].replace("\n", " ").strip()
             context = re.sub(r'\s+', ' ', context)
 
-            # V1.1: Dedup key përfshin kontekstin (jo vetëm datën)
             dedup_key = (fname, dm["iso"], context[:80])
             if dedup_key in seen:
                 continue
@@ -165,6 +183,6 @@ def build_timeline(events: List[Dict[str, Any]], max_events: int = 25) -> str:
     )
     lines.append("")
 
-    logger.info(f"📅 [Timeline V1.1] {len(events)} ngjarje të ekstraktuara")
+    logger.info(f"📅 [Timeline V1.3] {len(events)} ngjarje të ekstraktuara")
 
     return "\n".join(lines)

@@ -1,8 +1,11 @@
 // FILE: src/pages/DocumentViewPage.tsx
-// PHOENIX PROTOCOL - DOCUMENT VIEW V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
-// 1. Converted border classes to `border-border-main`.
-// 2. Download button uses `btn-primary` and `hover-lift`.
-// 3. Back link uses semantic hover effect.
+// PHOENIX PROTOCOL - DOCUMENT VIEW V6.2
+// V6.2: NULL SAFETY —
+//       - Guard `docDetails.status` përpara `.toUpperCase()` (kishte risk
+//         TypeError kur status ishte null/undefined). Tani përdor
+//         `(docDetails.status || '').toUpperCase()`.
+//       - Guard `created_at` për moment: nëse mungon → 'N/A' (jo "Invalid date").
+//       - Nxjerrë `isProcessed` në helper për konsistencë.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -13,10 +16,16 @@ import moment from 'moment';
 import { motion } from 'framer-motion';
 import { FileText, Download, Clock, Zap, ArrowLeft, Loader2 } from 'lucide-react';
 
+const _isProcessedStatus = (status: Document['status'] | undefined | null): boolean => {
+  if (!status) return false;
+  const s = String(status).toUpperCase();
+  return s === 'READY' || s === 'COMPLETED';
+};
+
 const DocumentViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { caseId, documentId } = useParams<{ caseId: string; documentId: string }>();
-  
+
   const [docDetails, setDocDetails] = useState<Document | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,10 +45,8 @@ const DocumentViewPage: React.FC = () => {
     try {
       const metadata = await apiService.getDocument(caseId, documentId);
       setDocDetails(metadata);
-      
-      const isReady = metadata.status === 'READY' || metadata.status === 'COMPLETED';
 
-      if (isReady) {
+      if (_isProcessedStatus(metadata?.status)) {
         const contentResponse = await apiService.getDocumentContent(caseId, documentId);
         setContent(contentResponse.text);
       } else {
@@ -57,7 +64,7 @@ const DocumentViewPage: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
     if (!caseId || !documentId || !docDetails) return;
     setIsDownloading(true);
     try {
@@ -75,10 +82,10 @@ const DocumentViewPage: React.FC = () => {
     } finally {
       setIsDownloading(false);
     }
-  };
-  
-  const getStatusInfo = (status: Document['status']) => {
-    const s = status ? status.toUpperCase() : 'PENDING';
+  }, [caseId, documentId, docDetails]);
+
+  const getStatusInfo = (status: Document['status'] | undefined | null) => {
+    const s = (status || 'PENDING').toString().toUpperCase();
     switch (s) {
       case 'READY':
       case 'COMPLETED':
@@ -88,7 +95,7 @@ const DocumentViewPage: React.FC = () => {
       case 'FAILED':
         return { color: 'bg-danger-start/10 text-danger-start border border-danger-start/20', icon: <Zap size={16} />, label: t('documentView.statusFailed') };
       default:
-        return { color: 'bg-surface/30 text-text-secondary border border-border-main', icon: <FileText size={16} />, label: status };
+        return { color: 'bg-surface/30 text-text-secondary border border-border-main', icon: <FileText size={16} />, label: s };
     }
   };
 
@@ -97,7 +104,7 @@ const DocumentViewPage: React.FC = () => {
       <Loader2 className="animate-spin h-12 w-12 text-primary-start" />
     </div>
   );
-  
+
   if (error || !docDetails) return (
     <div className="text-status-danger text-center py-20 card-panel rounded-2xl mx-4 border border-border-main">
       {error || t('documentView.notFound')}
@@ -105,13 +112,13 @@ const DocumentViewPage: React.FC = () => {
   );
 
   const statusInfo = getStatusInfo(docDetails.status);
-  const isProcessed = docDetails.status.toUpperCase() === 'READY' || docDetails.status.toUpperCase() === 'COMPLETED';
+  const isProcessed = _isProcessedStatus(docDetails.status);
 
   return (
-    <motion.div 
-        className="space-y-6 h-full p-1 bg-canvas" 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }} 
+    <motion.div
+        className="space-y-6 h-full p-1 bg-canvas"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
     >
       {/* Header - Glass Style */}
@@ -122,17 +129,17 @@ const DocumentViewPage: React.FC = () => {
             </Link>
             <h1 className="text-2xl sm:text-3xl font-bold text-text-primary flex items-center space-x-3 break-all">
               <div className="p-2 bg-primary-start/20 rounded-lg">
-                <FileText className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 text-primary-start" /> 
+                <FileText className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 text-primary-start" />
               </div>
               <span className="truncate">{docDetails.file_name}</span>
             </h1>
         </div>
-        
+
         <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
             <span className={`text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 ${statusInfo.color}`}>
               {statusInfo.icon} <span>{statusInfo.label}</span>
             </span>
-            <motion.button 
+            <motion.button
                 onClick={handleDownload}
                 disabled={isDownloading}
                 className="btn-primary text-white font-bold py-2.5 px-5 rounded-xl transition-all duration-300 shadow-lg disabled:opacity-50 flex items-center justify-center hover-lift"
@@ -157,7 +164,11 @@ const DocumentViewPage: React.FC = () => {
                     </p>
                     <p className="text-sm text-text-secondary flex flex-col">
                         <span className="text-xs font-bold uppercase tracking-wider text-text-muted mb-1">{t('documentView.uploadedAt')}</span>
-                        <span className="text-text-primary font-medium">{moment(docDetails.created_at).format('DD MMM YYYY, HH:mm')}</span>
+                        <span className="text-text-primary font-medium">
+                          {docDetails.created_at
+                            ? moment(docDetails.created_at).format('DD MMM YYYY, HH:mm')
+                            : 'N/A'}
+                        </span>
                     </p>
                     <p className="text-sm text-text-secondary flex flex-col">
                         <span className="text-xs font-bold uppercase tracking-wider text-text-muted mb-1">{t('documentView.fileType')}</span>
@@ -165,7 +176,7 @@ const DocumentViewPage: React.FC = () => {
                     </p>
                 </div>
             </div>
-            
+
             <div className="card-panel p-6 rounded-2xl flex-1 border border-border-main">
                 <h3 className="text-lg font-bold text-text-primary mb-4 border-b border-border-main pb-2">{t('documentView.summary')}</h3>
                 <div className="min-h-[150px] text-text-secondary text-sm sm:text-base leading-relaxed">

@@ -1,6 +1,8 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - ADMIN SERVICE V51.2 (PRICE 99.00)
-# V51.2: PRICE UPDATE — unlock_case_by_admin default amount: 9.99 → 99.00.
+# PHOENIX PROTOCOL - ADMIN SERVICE V51.3 (PRICE 99.99)
+# V51.3: PRICE ALIGNMENT — unlock_case_by_admin default amount: 99.00 → 99.99
+#        (konsistencë me mandatin).
+# V51.2: Default amount: 9.99 → 99.00.
 # V51.1: FIX — delete_user_and_data nuk perdor UserInDB.model_validate.
 # V51.0: DELEGATED USER DELETE (delegon te user_service).
 
@@ -10,19 +12,19 @@ from datetime import datetime, timezone
 from pymongo.database import Database
 from types import SimpleNamespace
 import logging
-import json
 
-from app.models.user import UserInDB
+
+
 from app.services import user_service
 
 logger = logging.getLogger(__name__)
 
-# V51.2: Çmimi default për zhbllokim (fallback)
-DEFAULT_UNLOCK_AMOUNT = 99.00
+# V51.3: Çmimi default për zhbllokim (fallback)
+DEFAULT_UNLOCK_AMOUNT = 99.99
 
 
 class AdminService:
-    
+
     def get_all_users_for_dashboard(self, db: Database) -> List[Dict[str, Any]]:
         pipeline = [
             {"$lookup": {"from": "business_profiles", "localField": "_id", "foreignField": "user_id", "as": "business_profile_data"}},
@@ -35,7 +37,7 @@ class AdminService:
             users = list(db.users.aggregate(pipeline))
             return users
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.2] Failed to fetch users: {e}")
+            logger.error(f"--- [ADMIN V51.3] Failed to fetch users: {e}")
             return []
 
     def get_all_cases_for_admin_dashboard(self, db: Database) -> List[Dict[str, Any]]:
@@ -68,16 +70,16 @@ class AdminService:
             cases = list(db.cases.aggregate(pipeline))
             return cases
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.2] Failed to fetch cases for admin: {e}")
+            logger.error(f"--- [ADMIN V51.3] Failed to fetch cases for admin: {e}")
             return []
 
     def unlock_case_by_admin(
-        self, 
-        db: Database, 
-        case_id: str, 
-        payment_method: str = "CASH", 
-        amount: float = DEFAULT_UNLOCK_AMOUNT,   # V51.2: 9.99 → 99.00
-        admin_user_id: str = "", 
+        self,
+        db: Database,
+        case_id: str,
+        payment_method: str = "CASH",
+        amount: float = DEFAULT_UNLOCK_AMOUNT,   # V51.3: 99.99
+        admin_user_id: str = "",
         note: str = "Zhbllokim me 1 klikim nga Admini"
     ) -> Dict[str, Any]:
         """
@@ -114,16 +116,16 @@ class AdminService:
             }
             db.case_orders.insert_one(order_record)
 
-            logger.info(f"✅ [Admin Unlock] Lënda {case_id} u zhbllokua nga Admini ({payment_method.upper()}, {amount}€).")
+            logger.info(f"✅ [Admin Unlock V51.3] Lënda {case_id} u zhbllokua nga Admini ({payment_method.upper()}, {amount}€).")
             return {
-                "success": True, 
+                "success": True,
                 "message": f"Lënda '{case_doc.get('title', '')}' u zhbllokua me sukses.",
                 "case_id": str(case_id),
                 "is_unlocked": True,
                 "unlocked_at": now.isoformat()
             }
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.2] Unlock error: {e}")
+            logger.error(f"--- [ADMIN V51.3] Unlock error: {e}")
             return {"success": False, "message": str(e)}
 
     def lock_case_by_admin(self, db: Database, case_id: str) -> Dict[str, Any]:
@@ -148,7 +150,7 @@ class AdminService:
                 return None
             return db.users.find_one({"_id": oid})
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.2] User update error: {e}")
+            logger.error(f"--- [ADMIN V51.3] User update error: {e}")
             return None
 
     def delete_user_and_data(self, db: Database, user_id: str) -> bool:
@@ -159,7 +161,7 @@ class AdminService:
             oid = ObjectId(user_id)
             user_doc = db.users.find_one({"_id": oid})
             if not user_doc:
-                logger.warning(f"--- [ADMIN V51.2] delete_user_and_data: user {user_id} nuk u gjet")
+                logger.warning(f"--- [ADMIN V51.3] delete_user_and_data: user {user_id} nuk u gjet")
                 return False
 
             user = SimpleNamespace(
@@ -170,11 +172,11 @@ class AdminService:
 
             user_service.delete_user_and_all_data(db, user)
 
-            logger.info(f"✅ [ADMIN V51.2] User {user_id} u fshi me sukses.")
+            logger.info(f"✅ [ADMIN V51.3] User {user_id} u fshi me sukses.")
             return True
 
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.2] User deletion error: {e}", exc_info=True)
+            logger.error(f"--- [ADMIN V51.3] User deletion error: {e}", exc_info=True)
             return False
 
 

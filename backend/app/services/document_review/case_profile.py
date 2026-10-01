@@ -1,24 +1,13 @@
 # FILE: backend/app/services/document_review/case_profile.py
-# PHOENIX PROTOCOL - CASE PROFILE V1.0
-# Ndërton një profil kompakt të fashikullit (case) për injeksion në Verifiko.
-# I përdorur kur duam "Verifiko Draftin NË KONTEKSTIN E FASHIKULLIT".
-#
-# ANTI-HALLUCINATION (niveli 1):
-#   Profili ndërtohet VETËM nga ekstraktorët Python (deterministik).
-#   Zero LLM në këtë hap.
-#
-# Arkitektura:
-#   1. Lexon të gjitha dokumentet e rastit (përveç draftit aktual).
-#   2. Për secilin, xhiron build_citation_profile + build_fact_profile.
-#   3. Agregon: subjekte, prova, data, nene, ligje, numra lëndësh, kontradikta.
-#   4. Formaton në bllok tekstual [FASHIKULLI] për injeksion.
-#   5. Kthen edhe set-et e vlerave të lejuara (dates_set, cases_set, articles_set)
-#      të cilat i shtohen extra_allowed_* në hallucination_checker.
-#
-# Fallback i butë:
-#   - Nëse rasti ka vetëm draftin → kthen dict bosh → verifier kalon në mode
-#     draft-only (V2.1 sjellja).
-#   - Nëse dokumentet nuk kanë tekst → kthen dict bosh.
+# PHOENIX PROTOCOL - CASE PROFILE V1.1
+# V1.1: DELETED FILTER + REDUNDANT OR —
+#       - Query-t i shtuar `status: {"$ne": "DELETED"}`. Përpara, dokumentet
+#         e fshira kontribuonin në dates_set/cases_set/articles_set (vlera
+#         të lejuara për anti-hallucination) dhe në bllokun [FASHIKULLI]
+#         (kontekst LLM). Konsistencë me albanian_rag_service.py.
+#       - Hequr klauzola e tretë OR `{"case_id": str(case_oid)}` — ishte
+#         gjithmonë redundant me `{"case_id": case_id}`.
+# V1.0: Ndërton profilin e fashikullit.
 
 import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -43,9 +32,8 @@ MAX_ARTICLES = 80
 MAX_LAWS = 20
 MAX_CASE_NUMBERS = 30
 MAX_CROSS_DOC_CONTRADICTIONS = 15
-MAX_PER_DOC_TEXT_CHARS = 200_000  # siguri: mos lexo doc >200k chars në profile
-
-MIN_DOC_TEXT_LENGTH = 200  # injoro doc që kanë më pak se 200 chars
+MAX_PER_DOC_TEXT_CHARS = 200_000
+MIN_DOC_TEXT_LENGTH = 200
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -222,7 +210,6 @@ def _find_cross_doc_contradictions(profiles: List[Dict[str, Any]]) -> List[Dict[
       - Të njëjtat (type, unit) por vlera të ndryshme
       - Nga dokumente të ndryshme
     """
-    # Key: (type, unit) → {value: set(file_names)}
     by_key: Dict[Tuple[str, str], Dict[str, Set[str]]] = {}
 
     for p in profiles:
@@ -241,12 +228,10 @@ def _find_cross_doc_contradictions(profiles: List[Dict[str, Any]]) -> List[Dict[
     for (ctype, unit), values_map in by_key.items():
         if len(values_map) < 2:
             continue
-        # Ka vlera të ndryshme për të njëjtin (type, unit)
         docs_involved: Set[str] = set()
         for files in values_map.values():
             docs_involved.update(files)
         if len(docs_involved) < 2:
-            # Të njëjtat vlera brenda të njëjtit doc — injoro, është intradok
             continue
         out.append({
             "type": ctype,
@@ -261,7 +246,7 @@ def _find_cross_doc_contradictions(profiles: List[Dict[str, Any]]) -> List[Dict[
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BLOCK FORMATTER (për injeksion në prompt)
+# BLOCK FORMATTER
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _format_block(profile: Dict[str, Any]) -> str:
@@ -364,7 +349,6 @@ def _empty_profile() -> Dict[str, Any]:
         "source_documents": [],
         "stats": {},
         "block": "",
-        # Për hallucination_checker
         "dates_set": set(),
         "cases_set": set(),
         "articles_set": set(),
@@ -384,21 +368,21 @@ def build_case_profile(
     Ndërton profilin e fashikullit nga të gjitha dokumentet e rastit,
     duke përjashtuar draftin aktual (exclude_doc_id).
 
-    Kthen `_empty_profile()` nëse:
-      - Rasti ka vetëm draftin aktual (pa dokumente të tjera)
-      - Asnjë dokument tjetër nuk ka tekst
+    V1.1: Filtron `status != DELETED` (konsistencë me albanian_rag_service).
     """
     if db is None:
         return _empty_profile()
 
     try:
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+
+        # V1.1: DELETED filter + hequr OR redundancy
         docs = list(db.documents.find({
             "$or": [
                 {"case_id": case_id},
                 {"case_id": case_oid},
-                {"case_id": str(case_oid)},
             ],
+            "status": {"$ne": "DELETED"},
         }))
     except Exception as e:
         logger.warning(f"⚠️ [CASE_PROFILE] Leximi i dokumenteve dështoi: {e}")
@@ -452,7 +436,6 @@ def build_case_profile(
         )
         return _empty_profile()
 
-    # Agrego
     subjects = _aggregate_subjects(profiles)
     evidences = _aggregate_evidences(profiles)
     dates = _aggregate_dates(profiles)
@@ -481,7 +464,6 @@ def build_case_profile(
             "unique_case_numbers": len(case_numbers),
             "cross_doc_contradictions": len(cross_doc_contradictions),
         },
-        # Për hallucination_checker (extra_allowed_*)
         "dates_set": {d["iso"] for d in dates},
         "cases_set": set(case_numbers),
         "articles_set": {a["number"] for a in articles},
@@ -490,7 +472,7 @@ def build_case_profile(
     profile["block"] = _format_block(profile)
 
     logger.info(
-        f"📚 [CASE_PROFILE V1.0] Rasti {case_id}: "
+        f"📚 [CASE_PROFILE V1.1] Rasti {case_id}: "
         f"docs={profile['stats']['documents_scanned']}, "
         f"subjects={profile['stats']['unique_subjects']}, "
         f"evidences={profile['stats']['unique_evidences']}, "

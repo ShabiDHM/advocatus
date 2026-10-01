@@ -1,6 +1,14 @@
 # FILE: backend/app/services/document_review/mongo_verifier/config.py
-# PHOENIX PROTOCOL - MONGO VERIFIER / CONFIG V1.0 (V2.12 modular)
-# Ekstraktuar nga mongo_verifier.py V2.11 (pa ndryshim logjike).
+# PHOENIX PROTOCOL - MONGO VERIFIER / CONFIG V1.1
+#
+# V1.1: DEAD CODE REMOVAL —
+#       - Hequr `INTERNATIONAL_TREATIES` (hardcoded dict me KEDNJ + OKB).
+#         Audit tregoi 0 konsumatorë — traktatet tani vijnë ekskluzivisht
+#         nga `external_registry.py` (JSON-loaded, shtohen pa redeploy).
+#         Hequr edhe nga `__all__`.
+#
+# V1.0 (V2.12 modular): Ekstraktuar nga mongo_verifier.py V2.11 (pa
+#       ndryshim logjike).
 
 from typing import Dict, List, Set
 
@@ -112,30 +120,6 @@ KEYWORD_MATCH_STOPWORDS: Set[str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# INTERNATIONAL TREATIES
-# ═══════════════════════════════════════════════════════════════════════════
-
-INTERNATIONAL_TREATIES: Dict[str, Dict[str, str]] = {
-    "KEDNJ": {
-        "canonical_name": "Konventa Evropiane për të Drejtat e Njeriut (KEDNJ)",
-        "constitutional_basis": "Neni 22 i Kushtetutës së Republikës së Kosovës",
-        "note": (
-            "Konventa është pjesë e rendit kushtetues të Kosovës, "
-            "me prioritet mbi ligjet vendore (Neni 22 i Kushtetutës)."
-        ),
-    },
-    "OKB_FEMIJES": {
-        "canonical_name": "Konventa e OKB-së për të Drejtat e Fëmijës",
-        "constitutional_basis": "Neni 22 i Kushtetutës së Republikës së Kosovës",
-        "note": (
-            "Konventa është pjesë e rendit kushtetues të Kosovës, "
-            "me prioritet mbi ligjet vendore (Neni 22 i Kushtetutës)."
-        ),
-    },
-}
-
-
-# ═══════════════════════════════════════════════════════════════════════════
 # LAW_SUCCESSOR_MAP — JSON-loaded (H2)
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -167,6 +151,5 @@ __all__ = [
     "KNOWN_ABBREV_KEYWORDS",
     "KNOWN_ABBREV_EXCLUDES",
     "KEYWORD_MATCH_STOPWORDS",
-    "INTERNATIONAL_TREATIES",
     "LAW_SUCCESSOR_MAP",
 ]

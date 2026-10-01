@@ -1,5 +1,15 @@
 # FILE: backend/app/services/document_review/mongo_verifier/articles.py
-# PHOENIX PROTOCOL - MONGO VERIFIER / ARTICLES V1.1
+# PHOENIX PROTOCOL - MONGO VERIFIER / ARTICLES V1.2
+#
+# V1.2: ROBUSTNESS + PERF —
+#   - HEQUR `count_documents(query, limit=1)` — ishte query e dytë e
+#     panevojshme para `find().limit(20)`. Kjo kursen 1 roundtrip për çdo
+#     nen të verifikuar (20 nene × N dokumente → 20×N roundtrips ndaj
+#     Mongo Atlas). `find()` tashmë kthen listë bosh nëse nuk ka.
+#   - `.get()` për çelësat e detyrueshëm:
+#       * `article["number"]` → skip nëse None.
+#       * `r["exists"]` → `r.get("exists")` në stats.
+#     Parandalon KeyError kur dict vjen i mangët nga citation_profile.
 #
 # V1.1: BURIMET EKSTERNE nga JSON (jo hardcoded).
 #   - Hequr `_check_if_international_treaty` (ishte hardcoded për KEDNJ + OKB)
@@ -12,10 +22,10 @@
 # V1.0 (V2.12 modular): Ekstraktuar nga mongo_verifier.py V2.11.
 
 import logging
-import re
+
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from ..helpers import normalize_albanian
+
 from .config import LEGAL_KB_COLLECTION
 from .external_registry import find_external_source
 from .title_matching import _title_matches_citation, _reason_priority
@@ -113,10 +123,8 @@ def _verify_single_article(
             "article_number": {"$in": article_variants},
         }
 
-        if collection.count_documents(query, limit=1) == 0:
-            result["match_reason"] = "article_not_in_db"
-            return result
-
+        # V1.2: Hequr `count_documents(query, limit=1)` — query e panevojshme.
+        # `find().limit(20)` më poshtë do të kthejë [] nëse nuk ka.
         candidates = list(collection.find(query, {
             "law_title": 1, "article_number": 1, "source": 1,
             "text": 1, "chunk_index": 1, "page": 1,
@@ -205,15 +213,21 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return []
     results = []
     for article in articles:
+        # V1.2: .get() — skip nëse mungon numri
+        art_num = (article.get("number") or "").strip()
+        if not art_num:
+            logger.warning("⚠️ [verify_articles] Entry pa 'number' — skip")
+            continue
         verification = _verify_single_article(
-            db, article["number"], article.get("paragraph"),
+            db, art_num, article.get("paragraph"),
             article.get("law_hint", ""),
         )
         verification["context"] = article.get("context", "")
         verification["sentence"] = article.get("sentence", "")
         results.append(verification)
 
-    verified = sum(1 for r in results if r["exists"])
+    # V1.2: .get() për robustness
+    verified = sum(1 for r in results if r.get("exists"))
     successor_matches = sum(
         1 for r in results
         if r.get("match_reason", "").startswith("found_in_successor_law")
@@ -228,7 +242,6 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         1 for r in results
         if r.get("is_external") is True
     )
-    # Vetëm ata që nuk u gjetën në DB dhe NUK janë traktate
     external_count = external_matches
     alternative_found = sum(
         1 for r in results
@@ -242,13 +255,13 @@ def verify_articles(db, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Not-found = nuk ekziston në DB, nuk është traktat
     not_found = sum(
         1 for r in results
-        if not r["exists"]
+        if not r.get("exists")
         and not r.get("is_external")
         and r.get("match_reason") != "law_hint_no_match_but_exists_elsewhere"
     )
 
     logger.info(
-        f"📚 [MONGO_VERIFIER V1.1] Articles: {len(results)} total, "
+        f"📚 [MONGO_VERIFIER V1.2] Articles: {len(results)} total, "
         f"{verified} verified "
         f"({external_count} external treaties, "
         f"{successor_matches} in successor laws, "

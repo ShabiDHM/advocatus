@@ -1,30 +1,27 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - AI VISION OCR ENGINE V31.2 (ECONOMICAL GEMINI SUITE)
-# V31.2: COMMENT CLEANUP — Hequr referencat historike ndaj Claude në komente
-#        dhe header. Funksionalisht identike me V31.1 (Gemini 2.5 Flash + 1.5).
-# V31.1: FIX — hequr google/gemini-2.0-flash-001 (deprecated nga OpenRouter,
-#        kthente 404 "No endpoints found"). Renditur google/gemini-2.5-flash
-#        si model parësor (i verifikuar punues në prodhim).
-# V31.0: 100% COMPLETE CODE • ZERO CREDIT LEAKAGE • BULLETPROOF VISION RECOGNITION
+# PHOENIX PROTOCOL - AI VISION OCR ENGINE V31.3 (ECONOMICAL GEMINI SUITE)
+# V31.3: RULE EXPANSION — `rule_based_correction` kishte vetëm 1 rregull
+#        (SPARKOSOVA). Shtuar: institucione të njohura, numra ligjesh,
+#        normalizim hapësirash. Zero kosto (pure regex post-OCR).
+# V31.2: COMMENT CLEANUP — Hequr referencat historike ndaj Claude.
+# V31.1: FIX — hequr google/gemini-2.0-flash-001 (deprecated).
 
 import os
-import json
+
 import logging
 import re
 import io
 import time
 import base64
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, Tuple, Optional, Any
 
 from app.services.llm.llm_client import _get_sync_client, _get_api_key
 
 logger = logging.getLogger(__name__)
 
-# 🛡️ HIERARKIA E VERIFIKUAR EKONOMIKE E AI VISION
-# V31.1: google/gemini-2.0-flash-001 u hoq — OpenRouter kthen 404 "No endpoints found".
 VISION_MODELS_HIERARCHY = [
-    "google/gemini-2.5-flash",         # Modeli parësor — i verifikuar punues (Shtator 2026)
-    "google/gemini-flash-1.5"          # Fallback i qëndrueshëm
+    "google/gemini-2.5-flash",
+    "google/gemini-flash-1.5"
 ]
 
 class SmartOCRResult:
@@ -33,7 +30,7 @@ class SmartOCRResult:
         self.confidence = confidence
         self.metadata = metadata if metadata is not None else {}
         self.structured_data: Dict[str, Any] = {}
-        
+
     def to_dict(self) -> Dict[str, Any]:
         return {'text': self.text, 'confidence': self.confidence, 'metadata': self.metadata, 'structured_data': self.structured_data}
 
@@ -42,7 +39,7 @@ def is_ai_refusal(text: str) -> bool:
     """Detekton nëse përgjigja e modelit është refuzim i sigurisë dhe JO tekst i vërtetë i dokumentit."""
     if not text:
         return True
-    
+
     t = text.strip().lower()
     if len(t) < 15:
         return True
@@ -60,7 +57,7 @@ def is_ai_refusal(text: str) -> bool:
     return False
 
 
-# --- 1. LOCAL PDF DIGITAL EXTRACTOR (0 KOSTO, 0 TOKENË kur teksti është dixhital) ---
+# --- 1. LOCAL PDF DIGITAL EXTRACTOR (0 KOSTO, 0 TOKENË) ---
 
 def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
     try:
@@ -80,13 +77,10 @@ def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
     return None
 
 
-# --- 2. OPENROUTER MULTIMODAL AI VISION OCR (KONSUM MINIMAL) ---
+# --- 2. OPENROUTER MULTIMODAL AI VISION OCR ---
 
 def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
-    """
-    Përdor inteligjencën vizuale ekonomike për të transkriptuar 100% të tekstit
-    nga imazhi i skanuar, pa konsumuar kredi te modelet e shtrenjta LLM.
-    """
+    """Përdor inteligjencën vizuale ekonomike për transkriptimin e plotë."""
     api_key = _get_api_key()
     if not api_key:
         logger.error("❌ Mungon OPENROUTER_API_KEY për Vision OCR.")
@@ -110,7 +104,7 @@ def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
     for model_name in VISION_MODELS_HIERARCHY:
         for attempt in range(2):
             try:
-                logger.info(f"👁️ [AI Vision OCR] Transkriptim i faqes me modelin ekonomik: {model_name} (Përpjekja {attempt + 1})...")
+                logger.info(f"👁️ [AI Vision OCR] Transkriptim i faqes me modelin: {model_name} (Përpjekja {attempt + 1})...")
                 response = client.chat.completions.create(
                     model=model_name,
                     messages=[
@@ -148,9 +142,27 @@ def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
 
 
 def rule_based_correction(text: str) -> str:
-    if not text: 
+    """
+    V31.3: Zgjeruar rregullat e korrigjimit post-OCR.
+    OCR i imazheve shpesh prodhon gabime tipike shqipe; më poshtë janë
+    rregullimet më të zakonshme. Zero kosto (pure regex).
+    """
+    if not text:
         return text
+
+    # Emra institucioneve të njohura
     text = re.sub(r'SPARKOSOVA', 'SPAR KOSOVA', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bREPUBLIKA\s+E\s+KOSOV[ËE]S\b', 'REPUBLIKA E KOSOVËS', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bGJYKATA\s+THEMELORE\b', 'GJYKATA THEMELORE', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bPROKURORIA\s+THEMELORE\b', 'PROKURORIA THEMELORE', text, flags=re.IGNORECASE)
+
+    # Numrat e ligjeve (XX/L-YYY) — hapësira të tepërta
+    text = re.sub(r'\b(\d{2})\s*/\s*L\s*-\s*(\d+)\b', r'\1/L-\2', text)
+
+    # Hapësira të tepërta rreth pikësimit
+    text = re.sub(r'\s+([.,;:])', r'\1', text)
+    text = re.sub(r'([.,;:])(?=\S)', r'\1 ', text)
+
     return text.strip()
 
 
@@ -160,7 +172,7 @@ def extract_text_from_image_bytes(image_bytes: bytes) -> str:
             local_text = extract_text_from_pdf_locally(image_bytes)
             if local_text:
                 return rule_based_correction(local_text)
-                
+
         raw_text, confidence = run_ai_vision_ocr(image_bytes)
         corrected_text = rule_based_correction(raw_text)
         return corrected_text
@@ -170,10 +182,10 @@ def extract_text_from_image_bytes(image_bytes: bytes) -> str:
 
 
 def extract_text_from_image(file_path: str) -> str:
-    if not os.path.exists(file_path): 
+    if not os.path.exists(file_path):
         return ""
     try:
-        with open(file_path, "rb") as f: 
+        with open(file_path, "rb") as f:
             image_bytes = f.read()
         return extract_text_from_image_bytes(image_bytes)
     except Exception as e:
@@ -181,11 +193,11 @@ def extract_text_from_image(file_path: str) -> str:
         return ""
 
 
-def preprocess_image_for_ocr(pil_image): 
+def preprocess_image_for_ocr(pil_image):
     return pil_image
 
 
-def clean_ocr_garbage(text): 
+def clean_ocr_garbage(text):
     return text.strip()
 
 

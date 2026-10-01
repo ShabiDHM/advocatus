@@ -1,6 +1,16 @@
 # FILE: backend/app/services/document_review/mongo_verifier/abbreviations.py
-# PHOENIX PROTOCOL - MONGO VERIFIER / ABBREVIATIONS V1.0 (V2.12 modular)
-# Ekstraktuar nga mongo_verifier.py V2.11 (pa ndryshim logjike).
+# PHOENIX PROTOCOL - MONGO VERIFIER / ABBREVIATIONS V1.1
+#
+# V1.1: DRY REFACTOR —
+#       - Bashkuar `_generate_abbreviation_from_title` dhe
+#         `_generate_full_abbreviation_from_title`: ishin identike përveç
+#         limitit `[:6]`. Tani një funksion me `max_words` parametër
+#         (default 6, `max_words=0` = pa limit). `_generate_full_...`
+#         mbetet si wrapper për backward compat.
+#       - Header sinkronizuar me logjikën e kodit (V2.6/V2.7 ishin mbetje
+#         historike nga versioni monolitik).
+#
+# V1.0 (V2.12 modular): Ekstraktuar nga mongo_verifier.py V2.11.
 
 import re
 from typing import Tuple
@@ -9,8 +19,15 @@ from ..helpers import normalize_albanian
 from .config import ABBREV_SKIP_WORDS
 
 
-def _generate_abbreviation_from_title(title: str) -> str:
-    """Ekstrakt i akronimit nga titulli (i kufizuar në 6 fjalë)."""
+def _generate_abbreviation_from_title(title: str, max_words: int = 6) -> str:
+    """
+    Ekstrakt i akronimit nga titulli.
+
+    max_words:
+        6   → default (legacy — 6 fjalë maksimum)
+        0   → pa limit (për compound match)
+        >0  → limit eksplicit
+    """
     if not title:
         return ""
     title_clean = re.sub(
@@ -22,23 +39,17 @@ def _generate_abbreviation_from_title(title: str) -> str:
     significant = [w for w in words if w not in ABBREV_SKIP_WORDS and len(w) >= 1]
     if len(significant) < 2:
         return ""
-    return "".join(w[0].upper() for w in significant[:6])
+    words_to_use = significant if max_words <= 0 else significant[:max_words]
+    return "".join(w[0].upper() for w in words_to_use)
 
 
 def _generate_full_abbreviation_from_title(title: str) -> str:
-    """V2.6: njësoj si _generate_abbreviation_from_title, POR pa [:6] limit."""
-    if not title:
-        return ""
-    title_clean = re.sub(
-        r'\b(?:Nr\.?|nr\.?)\s*\d+\s*[\/\-_\s]?\s*L\s*[\/\-_\s]?\s*\d+',
-        '', title, flags=re.IGNORECASE,
-    )
-    normalized = normalize_albanian(title_clean)
-    words = re.findall(r'\b[a-zëç]+\b', normalized)
-    significant = [w for w in words if w not in ABBREV_SKIP_WORDS and len(w) >= 1]
-    if len(significant) < 2:
-        return ""
-    return "".join(w[0].upper() for w in significant)
+    """
+    V1.1: Wrapper i hollë mbi `_generate_abbreviation_from_title` me
+    `max_words=0` — pa limit `[:6]`. Ruajtur si emër i veçantë për
+    backward compat (thirret nga `_compound_abbrev_matches`).
+    """
+    return _generate_abbreviation_from_title(title, max_words=0)
 
 
 def _extract_uppercase_sequence(s: str) -> str:

@@ -1,6 +1,13 @@
 // FILE: src/components/PrivacyModal.tsx
-// PHOENIX PROTOCOL - PRIVACY MODAL V6.2 (LINTER COMPILE FIXED)
-// 1. FIX: Removed unused 'Eye' import from 'lucide-react' to resolve the TypeScript unused variable warning.
+// PHOENIX PROTOCOL - PRIVACY MODAL V6.3
+// V6.3: ENCRYPTION CLAIM ACCURACY —
+//        - "AES-256" → "Fernet (AES-128-CBC + HMAC-SHA256)" në 2 vende.
+//          Backend (encryption_service.py) përdor Fernet me PBKDF2HMAC.
+//          Fernet = AES-128-CBC + HMAC-SHA256; jo AES-256. Claim i saktë tani.
+//        - Data e përditësimit: Korrik 2026 → Shtator 2026.
+// V6.2: LINTER COMPILE FIXED —
+//        - Removed unused 'Eye' import from 'lucide-react'.
+// V6.1: Previous iterations.
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -70,13 +77,13 @@ const PrivacyModal: React.FC<PrivacyModalProps> = ({ isOpen, onClose }) => {
           {/* Section 3: B2 Cloud Security */}
           <div className="space-y-2">
             <h3 className="text-text-primary font-bold text-base flex items-center gap-2">
-                <Database size={16} className="text-primary-start" /> 2. Ruajtja e Sigurt & Enkriptimi AES-256
+                <Database size={16} className="text-primary-start" /> 2. Ruajtja e Sigurt & Enkriptimi Fernet
             </h3>
             <p>
               Të gjitha dokumentet e ngarkuara zyrtarisht në dosjen e lëndës suaj ruhen në infrastrukturën e enkriptuar të Backblaze B2:
             </p>
             <ul className="list-disc pl-5 space-y-1.5 opacity-90 text-xs">
-                <li><strong>Enkriptimi në Transit dhe në Qetësi</strong>: Dosjet enkriptohen gjatë transmetimit përmes protokolleve të sigurta SSL/TLS dhe ruhen të enkriptuara në server me algoritmin ushtarak AES-256.</li>
+                <li><strong>Enkriptimi në Transit dhe në Qetësi</strong>: Dosjet enkriptohen gjatë transmetimit përmes protokolleve të sigurta SSL/TLS dhe ruhen të enkriptuara në server me algoritmin ushtarak Fernet (AES-128-CBC + HMAC-SHA256).</li>
                 <li><strong>Akses i Kufizuar</strong>: Vetëm ju dhe anëtarët e autorizuar të organizatës suaj posedojnë çelësat e vërtetimit (JWT) për të gjeneruar linqe të përkohshme preview të dokumenteve.</li>
             </ul>
           </div>
@@ -111,7 +118,7 @@ const PrivacyModal: React.FC<PrivacyModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="pt-4 border-t border-main/30 text-xs text-center opacity-50 select-none">
-            Përditësuar së fundmi: Korrik 2026
+            Përditësuar së fundmi: Shtator 2026
           </div>
         </div>
 

@@ -3,7 +3,7 @@
 # Ekstraktuar nga mongo_verifier.py V2.11 (pa ndryshim logjike).
 
 import re
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from ..helpers import normalize_albanian
 from .config import ALBANIAN_STOPWORDS

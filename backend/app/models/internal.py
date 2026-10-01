@@ -2,7 +2,7 @@
 # Contains Pydantic models for internal service-to-service communication.
 
 from pydantic import BaseModel
-from typing import Optional
+
 
 class ChatBroadcast(BaseModel):
     """

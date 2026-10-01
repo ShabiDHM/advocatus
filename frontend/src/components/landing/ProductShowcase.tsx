@@ -1,9 +1,18 @@
 // FILE: src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V50.1 (ZERO LINTER WARNINGS)
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V50.3
+// V50.3: WHISPER BADGE SYNC —
+//        - Badge mockup "WHISPER V3" → "WHISPER LARGE-V3" për konsistencë
+//          me desc (i njëjti model i referuar kudo në platformë).
+// V50.2: AI REFERENCES SYNC + INTERVAL RESET —
+//        - "Claude 3.5 Sonnet" → "DeepSeek V4 Flash 0731" (feature #0 + mockup).
+//        - Auto-advance interval tani reset-ohet pas çdo ndryshimi të activeTab
+//          (përfshirë klikim manual). Përpara: user klikonte tab #3 → 8s më
+//          vonë kalonte vetë në #4 pa dashje.
+// V50.1: ZERO LINTER WARNINGS.
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
     ChevronRight,
     Scale, CheckCircle2, BookOpen, AlertTriangle, Mic, Volume2,
     FileSearch, CreditCard, Banknote, Smartphone, ShieldCheck
@@ -16,7 +25,7 @@ const ProductShowcase: React.FC = () => {
         {
             id: 0,
             title: "⚖️ Butoni Analizë — Raporti Suprem i Fashikullit",
-            desc: "Një klik — Motori Tier-1 (Claude 3.5 Sonnet) lexon të gjithë fashikullin (174+ faqe), ndjek Protokollin e Gjykatës Supreme dhe zbardh shkeljet e fshehura me dashje (Nenet 414 & 425 KPK).",
+            desc: "Një klik — Motori Tier-1 (DeepSeek V4 Flash 0731) lexon të gjithë fashikullin (174+ faqe), ndjek Protokollin e Gjykatës Supreme dhe zbardh shkeljet e fshehura me dashje (Nenet 414 & 425 KPK).",
             icon: <FileSearch className="w-5 h-5 text-amber-400" />,
             badge: "ANALIZË SUPREME ME 1 KLIK",
             color: "from-amber-600 via-orange-600 to-primary-start",
@@ -60,19 +69,20 @@ const ProductShowcase: React.FC = () => {
         }
     ];
 
+    // V50.2: Reset interval pas çdo ndryshimi — user klikimi manual merr 8s të plota
     useEffect(() => {
         const timer = setInterval(() => {
             setActiveTab((prev) => (prev + 1) % features.length);
         }, 8000);
         return () => clearInterval(timer);
-    }, [features.length]);
+    }, [activeTab, features.length]);
 
     return (
         <div className="py-20 lg:py-28 bg-canvas relative overflow-hidden border-y border-main font-sans">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-primary-start/5 rounded-full blur-[140px] pointer-events-none" />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                
+
                 <div className="text-center mb-12 lg:mb-16 space-y-4">
                     <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 border border-primary-start/20 text-primary-start text-xs font-bold uppercase tracking-widest">
                         <Scale size={13} className="text-amber-500" />
@@ -93,8 +103,8 @@ const ProductShowcase: React.FC = () => {
                             key={feature.id}
                             onClick={() => setActiveTab(index)}
                             className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all text-xs font-bold uppercase tracking-wider ${
-                                activeTab === index 
-                                ? 'bg-primary-start text-white border-primary-start shadow-md' 
+                                activeTab === index
+                                ? 'bg-primary-start text-white border-primary-start shadow-md'
                                 : 'bg-surface border-main text-text-muted hover:text-text-primary'
                             }`}
                         >
@@ -105,7 +115,7 @@ const ProductShowcase: React.FC = () => {
 
                 {/* Stage Grid Layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
-                    
+
                     {/* Desktop Control Buttons List */}
                     <div className="hidden lg:flex lg:col-span-5 flex-col justify-between space-y-2.5">
                         {features.map((feature, index) => {
@@ -115,8 +125,8 @@ const ProductShowcase: React.FC = () => {
                                     key={feature.id}
                                     onClick={() => setActiveTab(index)}
                                     className={`w-full text-left p-4 rounded-2xl transition-all duration-300 border flex items-center justify-between group cursor-pointer ${
-                                        isActive 
-                                        ? 'bg-surface border-primary-start/60 shadow-xl ring-1 ring-primary-start/30 scale-[1.02]' 
+                                        isActive
+                                        ? 'bg-surface border-primary-start/60 shadow-xl ring-1 ring-primary-start/30 scale-[1.02]'
                                         : 'bg-surface/40 hover:bg-surface/80 border-main'
                                     }`}
                                 >
@@ -172,7 +182,7 @@ const ProductShowcase: React.FC = () => {
                                             DOKTRINË E GJYKATËS SUPREME
                                         </span>
                                     </div>
-                                    
+
                                     <div className="p-5 lg:p-7 flex-1 bg-[radial-gradient(var(--mockup-dot)_1px,transparent_1px)] [background-size:16px_16px] relative overflow-hidden flex flex-col justify-center">
                                         {features[activeTab].mockup}
                                     </div>
@@ -221,7 +231,7 @@ const ComprehensiveAnalysisMockup = () => (
 
         <div className="p-2.5 bg-emerald-950/40 border border-emerald-800/50 rounded-xl">
             <p className="text-[10px] text-emerald-200 font-bold text-center">
-                ⚡ Analizë e Nivelit Suprem — Pa Limit Token-ash me Claude 3.5 Sonnet
+                ⚡ Analizë e Nivelit Suprem — Pa Limit Token-ash me DeepSeek V4 Flash 0731
             </p>
         </div>
     </div>
@@ -262,7 +272,7 @@ const MediaTranscriptMockup = () => (
     <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
         <div className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center justify-between mb-1">
             <span className="flex items-center gap-2"><Volume2 size={16} /> Transkriptim Verbatim me Sekonda</span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">WHISPER V3</span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">WHISPER LARGE-V3</span>
         </div>
 
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">

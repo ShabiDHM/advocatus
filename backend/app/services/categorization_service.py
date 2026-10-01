@@ -4,8 +4,8 @@
 # Backward compatible: categorize_document() returns primary category (str).
 
 import logging
-import re
-from typing import Dict, List, Any, Optional
+
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 

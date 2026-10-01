@@ -1,9 +1,12 @@
 # FILE: backend/app/services/rag/cross_doc_comparator.py
-# PHOENIX PROTOCOL - CROSS-DOCUMENT COMPARATOR V1.2
-# V1.2: FIX — sort_key kthen gjithmonë tuple me 3 elemente (0/1, int, str).
-#       Më parë tuple me 2 elemente vs 3 → TypeError në përzierje.
-# V1.1: (1) Normalizim "Neni 1.2" → "1" (bazë), për të shmangur duplikim.
-#       (2) Dedup i neneve pas normalizimit.
+# PHOENIX PROTOCOL - CROSS-DOCUMENT COMPARATOR V1.3
+# V1.3: REGEX DIAERESIS FIX —
+#       - `_ARTICLE_RE` tani match-on edhe "Nenet" (pa ë) dhe "Nene"
+#         (plural i pacaktuar). Konsistencë me context_builder.py V6.12.
+#         Përpara: OCR pa diakritikë → tabela e krahasimit bosh, edhe pse
+#         dokumentet i kishin nenet.
+# V1.2: FIX — sort_key kthen gjithmonë tuple me 3 elemente.
+# V1.1: (1) Normalizim "Neni 1.2" → "1" (bazë). (2) Dedup pas normalizimit.
 # V1.0: Krijim fillestar.
 
 import re
@@ -13,7 +16,7 @@ from typing import Dict, List, Any
 logger = logging.getLogger(__name__)
 
 _ARTICLE_RE = re.compile(
-    r'\bNen(?:i|it|in|ët)\s+(\d+(?:[\.\/]\d+)*)',
+    r'\bNen(?:i|it|in|[ëe]t|e)\s+(\d+(?:[\.\/]\d+)*)',
     re.IGNORECASE | re.UNICODE,
 )
 
@@ -93,7 +96,6 @@ def build_comparison_table(documents: List[Dict[str, Any]]) -> str:
         return ""
 
     def sort_key(x: str):
-        # V1.2: Tuple uniforme me 3 elemente gjithmonë
         try:
             return (0, int(x), "")
         except (ValueError, TypeError):
@@ -141,7 +143,7 @@ def build_comparison_table(documents: List[Dict[str, Any]]) -> str:
     lines.append("")
 
     logger.info(
-        f"📊 [Comparator V1.2] Tabelë e krijuar: "
+        f"📊 [Comparator V1.3] Tabelë e krijuar: "
         f"{len(sorted_articles)} nene × {len(doc_names)} dokumente"
     )
 

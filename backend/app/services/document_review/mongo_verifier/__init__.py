@@ -1,5 +1,11 @@
 # FILE: backend/app/services/document_review/mongo_verifier/__init__.py
-# PHOENIX PROTOCOL - MONGO VERIFIER PACKAGE V1.1 (V2.12 modular)
+# PHOENIX PROTOCOL - MONGO VERIFIER PACKAGE V1.2
+#
+# V1.2: VERSION RECONCILIATION —
+#       - Header dhe `__version__` të njëjtë. Më parë header thoshte
+#         "V1.1 (V2.12 modular)" ndërsa `__version__ = "2.13.0"` — 3 numra
+#         kontradiktorë. Tani të gjithë modulet brenda paketës janë V1.x,
+#         paketa deklaron V1.2.
 #
 # V1.1: Shtuar `external_registry` — burimet ndërkombëtare nga JSON.
 #
@@ -33,7 +39,7 @@ from .laws import verify_law_numbers
 from .case_numbers import verify_case_numbers
 from .orchestrator import verify_all
 
-__version__ = "2.13.0"
+__version__ = "1.2.0"
 
 __all__ = [
     # Public API

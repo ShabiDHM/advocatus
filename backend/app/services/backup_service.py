@@ -7,11 +7,11 @@
 import os
 import json
 import shutil
-import zipfile
+
 import boto3
 import structlog
 from datetime import datetime
-from bson import ObjectId, json_util
+from bson import json_util
 from pymongo import MongoClient
 from .graph_service import graph_service
 

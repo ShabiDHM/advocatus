@@ -19,7 +19,7 @@ from ...core.db import get_db
 from ...services import user_service
 from ...models.token import Token
 from ...models.user import UserInDB, UserCreate, UserOut, UserLogin
-from .dependencies import get_current_user
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

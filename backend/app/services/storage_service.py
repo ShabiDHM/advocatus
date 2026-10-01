@@ -17,12 +17,12 @@ import datetime
 import unicodedata
 from botocore.client import Config
 from boto3.s3.transfer import TransferConfig
-from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import UploadFile, status
 from fastapi.exceptions import HTTPException
 import logging
-import tempfile
-from typing import Any, Optional, IO, Tuple
+
+from typing import Any, Optional, Tuple
 
 from app.core.config import settings
 

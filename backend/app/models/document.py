@@ -5,7 +5,7 @@
 # V6.0: Hequr latest_forensic_audit + litigation_analysis (të vdekura).
 
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 

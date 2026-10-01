@@ -1,17 +1,19 @@
 # FILE: backend/app/services/document_review/verify/section_builders.py
-# PHOENIX PROTOCOL - VERIFY SECTION BUILDERS V1.1
-# V1.1: LOG PREFIX FIX — logger.warning në post_process_precedents_section
-#       kaloi nga "[V1.17]" (version i vjetër i draft_verifier) në "[V1.1]"
-#       (version aktual i file-it).
+# PHOENIX PROTOCOL - VERIFY SECTION BUILDERS V1.2
+# V1.2: SINGLE SOURCE OF TRUTH —
+#       - `from ..verify_prompts import MIN_PRECEDENT_SIMILARITY` →
+#         `from .prompt_constants import MIN_PRECEDENT_SIMILARITY`.
+#         Hiqet varësia nga shimi legacy; importi vjen direkt nga moduli
+#         modular që është burimi i vërtetë i konstantës.
+# V1.1: LOG PREFIX FIX — "[V1.17]" → "[V1.1]".
 # V1.0: Ekstraktuar nga draft_verifier.py V1.17 (pa ndryshim logjike).
-# Ndërton pjesët Python të seksioneve (A për legal_quality, 3.A për precedents).
 
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from .config import INTERNATIONAL_LAW_KEYWORDS
-from ..verify_prompts import MIN_PRECEDENT_SIMILARITY
+from .prompt_constants import MIN_PRECEDENT_SIMILARITY
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +151,6 @@ def build_precedents_facts_skeleton(
         lines.append("")
         lines.append(f"**Niveli i relevancës:** {level}")
         lines.append("")
-        # Rule 19 — burimi i deklaruar (gjenerohet në Python).
         lines.append("**Sipas bazës së Gjykatës Supreme**")
 
         if topic:
@@ -236,7 +237,7 @@ def post_process_precedents_section(
 
     if not pse_map:
         logger.warning(
-            f"⚠️ [V1.1] Nuk u nxorën Pse relevant për {count} precedentë. "
+            f"⚠️ [V1.2] Nuk u nxorën Pse relevant për {count} precedentë. "
             f"Output LLM fillon: {text[:200]}"
         )
 

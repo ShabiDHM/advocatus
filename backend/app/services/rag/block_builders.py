@@ -1,14 +1,15 @@
 # FILE: backend/app/services/rag/block_builders.py
-# PHOENIX PROTOCOL - RAG BLOCK BUILDERS V1.3
+# PHOENIX PROTOCOL - RAG BLOCK BUILDERS V1.4
+# V1.4: TYPO FIX + SYNTAX WARNING FIX —
+#       - "mosputhje" → "mospërputhje" në _build_contradictions_block.
+#       - `_build_tolerant_regex` docstring prefixuar me `r` → eliminohet
+#         SyntaxWarning "invalid escape sequence '\.'" në Python 3.12+.
 # V1.3: VERIFIKIM NË GLOBAL KB —
 #       - Funksion i ri _batch_check_in_legal_kb: kontrollon nëse një numër
 #         lënde ekziston në legal_knowledge_base (një query me $or).
 #       - _build_cited_precedents_block tani ndan në DY kategori:
 #         1. TË VERIFIKUAR (ekzistojnë në bazën e Gjykatës Supreme)
 #         2. VETËM TË CITUAR (nuk ekzistojnë në bazë)
-#       - Arsye: kontrolli me scripts/check_precedent.py zbuloi që 7/13
-#         precedentë të cituar në kallëzim EKZISTOJNË në legal_knowledge_base.
-#         V1.2 i trajtonte të gjithë si "të pabesueshëm".
 # V1.2: FORCE-SOURCE REMINDER.
 # V1.1: FORCE-FULL SUSPECTS LIST.
 
@@ -52,7 +53,7 @@ def _build_contradictions_block(
         parts.append("⚠️ KONTRADIKTA TË BRENDSHME TË DOKUMENTEVE (zbuluar automatikisht)")
         parts.append("═══════════════════════════════════════════════════════════════════════════")
         parts.append("")
-        parts.append("⚠️ Këto janë mosputhje FAKTIKE brenda TË NJËJTIT dokument. DUHET PËRMENDUR.")
+        parts.append("⚠️ Këto janë mospërputhje FAKTIKE brenda TË NJËJTIT dokument. DUHET PËRMENDUR.")
         parts.append("")
         for c in internal:
             values = " vs ".join(str(v) for v in c.get("values", []))
@@ -130,8 +131,10 @@ def _build_suspects_block(
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_tolerant_regex(case_number: str) -> str:
-    """
+    r"""
     PML.Nr.185/2025 → PML[\.\s\-/]*Nr[\.\s\-/]*185[\.\s\-/]*2025
+
+    V1.4: Docstring prefixuar me `r` — eliminohet SyntaxWarning në Python 3.12+.
     """
     tokens = re.findall(r'[A-Za-z]+|\d+', case_number)
     if not tokens:
@@ -245,7 +248,7 @@ def _build_cited_precedents_block(
     total_unverified = sum(len(v) for v in unverified_by_doc.values())
 
     logger.info(
-        f"[CITED_PRECEDENTS V1.3] Total: {len(all_cited)} | "
+        f"[CITED_PRECEDENTS V1.4] Total: {len(all_cited)} | "
         f"Verified in KB: {total_verified} | "
         f"Only cited: {total_unverified}"
     )

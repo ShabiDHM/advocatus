@@ -1,10 +1,21 @@
 # FILE: backend/app/services/document_review/hallucination/checker.py
-# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.27
+# PHOENIX PROTOCOL - HALLUCINATION CHECKER V1.28
+# V1.28: ROBUSTNESS + DRY + PERF —
+#        (1) DRY: shtuar VALID_STANDARD_ABBREVS si konstante moduli.
+#            Ishte e përsëritur identikisht në _check_abbreviation_replacement
+#            dhe _check_abbrev_multiple_laws.
+#        (2) PERF: check_section thirrej extract_* 2× (një herë direkt për
+#            counts, një herë brenda _check_*). Tani thirret një herë dhe
+#            rezultati kalohet si parametër optional `found`. Përfitim:
+#            ~2× më pak regex për raporte të mëdha.
+#        (3) ROBUSTNESS: `i["severity"]` → `i.get("severity")` në logger-a
+#            dhe count-e. Parandalon KeyError nëse ndonjë shtesë e ardhshme
+#            shton issue pa fushën `severity`.
+#
 # V1.27: HALLUCINATION MODE + FP WHITELIST —
 #        (1) HALLUCINATION_MODE (strict/balanced/lenient) nga env/config.
 #            Default: balanced (vetëm HIGH bllokon).
 #        (2) Integrim i is_whitelisted_fp() para shtimit të issue.
-#            Nëse vlera përputhet whitelist → filtrohet automatikisht.
 #        (3) Audit logging i zgjeruar për çdo block.
 # V1.25: DYNAMIC KNOWN LAWS + DB LAWS.
 # V1.24: ROLE-AWARE (drafting_quality).
@@ -48,6 +59,16 @@ from .extract import (
 from .successors import collect_successor_laws
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V1.28: STANDARD ABBREVIATIONS (DRY — ishin dublikatë në 2 metoda)
+# ═══════════════════════════════════════════════════════════════════════════
+
+VALID_STANDARD_ABBREVS: Set[str] = {
+    "KPRK", "KPPRK", "LPK", "LMD", "LMDHF",
+    "LFK", "LSHT", "PSRK", "KRK", "LPTS",
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -97,7 +118,7 @@ def _filter_whitelisted(
             kept.add(v)
     if removed:
         logger.info(
-            f"[HALLUCINATION V1.27] Whitelist filtered ({kind}): {removed[:10]}"
+            f"[HALLUCINATION V1.28] Whitelist filtered ({kind}): {removed[:10]}"
         )
     return kept
 
@@ -127,7 +148,7 @@ class HallucinationChecker:
             extra_allowed_laws=extra_allowed_laws,
         )
         logger.info(
-            f"[HALLUCINATION V1.27] Mode={HALLUCINATION_MODE}, "
+            f"[HALLUCINATION V1.28] Mode={HALLUCINATION_MODE}, "
             f"Allowed values: "
             f"dates={len(self.allowed['dates_iso'])}, "
             f"laws={len(self.allowed['laws'])}, "
@@ -180,7 +201,7 @@ class HallucinationChecker:
         laws.update(globally_allowed)
         if new_globals:
             logger.info(
-                f"[HALLUCINATION V1.27] Globally allowed laws (JSON): "
+                f"[HALLUCINATION V1.28] Globally allowed laws (JSON): "
                 f"+{len(new_globals)} → {sorted(new_globals)}"
             )
 
@@ -189,12 +210,12 @@ class HallucinationChecker:
             laws.update(extra_allowed_laws)
             if new_db:
                 logger.info(
-                    f"[HALLUCINATION V1.27] DB allowed laws: "
+                    f"[HALLUCINATION V1.28] DB allowed laws: "
                     f"+{len(new_db)} → {sorted(new_db)}"
                 )
 
         logger.info(
-            f"[HALLUCINATION V1.27] Laws: base={len(base_laws)}, "
+            f"[HALLUCINATION V1.28] Laws: base={len(base_laws)}, "
             f"successors={len(successors)}, "
             f"global={len(globally_allowed)}, total={len(laws)}"
         )
@@ -212,15 +233,17 @@ class HallucinationChecker:
             added = len(articles) - before
             if added > 0:
                 logger.info(
-                    f"[HALLUCINATION V1.27] Extra allowed articles "
+                    f"[HALLUCINATION V1.28] Extra allowed articles "
                     f"(from precedents): +{added}"
                 )
 
         cases: Set[str] = set()
         for c in citation_profile.get("case_numbers", []) or []:
-            if c.get("case_number"):
+            # V1.28: .get() një herë, jo dy herë
+            cn = c.get("case_number")
+            if cn:
                 from ..helpers import normalize_case_number
-                n = normalize_case_number(c["case_number"]) or c["case_number"]
+                n = normalize_case_number(cn) or cn
                 cases.add(n)
 
         if extra_allowed_cases:
@@ -235,7 +258,7 @@ class HallucinationChecker:
             added = len(cases) - before
             if added > 0:
                 logger.info(
-                    f"[HALLUCINATION V1.27] Extra allowed cases "
+                    f"[HALLUCINATION V1.28] Extra allowed cases "
                     f"(from precedents): +{added}"
                 )
 
@@ -306,10 +329,8 @@ class HallucinationChecker:
             return issues
 
         allowed_abbrevs = self.allowed.get("abbrevs", set())
-        valid_std = {
-            "KPRK", "KPPRK", "LPK", "LMD", "LMDHF",
-            "LFK", "LSHT", "PSRK", "KRK", "LPTS",
-        }
+        # V1.28: përdor konstante moduli
+        valid_std = VALID_STANDARD_ABBREVS
 
         for m in ABBREV_REPLACEMENT_RE.finditer(content):
             groups = m.groups()
@@ -354,11 +375,8 @@ class HallucinationChecker:
             return issues
 
         allowed_abbrevs = self.allowed.get("abbrevs", set())
-        valid_std = {
-            "KPRK", "KPPRK", "LPK", "LMD", "LMDHF",
-            "LFK", "LSHT", "PSRK", "KRK", "LPTS",
-        }
-        known_abbrevs = valid_std | set(allowed_abbrevs)
+        # V1.28: përdor konstante moduli
+        known_abbrevs = VALID_STANDARD_ABBREVS | set(allowed_abbrevs)
 
         abbr_to_nums: Dict[str, Set[str]] = {}
         for m in ABBREV_WITH_LAW_NUMBER_RE.finditer(content):
@@ -385,19 +403,21 @@ class HallucinationChecker:
         return issues
 
     # ────────────────────────────────────────────────────────────────────
-    # STANDARD CHECKS
+    # STANDARD CHECKS (V1.28: pranojnë `found` për të shmangur ekstraksion 2×)
     # ────────────────────────────────────────────────────────────────────
 
-    def _check_dates(self, content: str) -> List[Dict[str, Any]]:
-        found = extract_dates_iso(content)
+    def _check_dates(
+        self, content: str, found: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        if found is None:
+            found = extract_dates_iso(content)
         unknown = found - self.allowed["dates_iso"]
-        # V1.27: whitelist filter
         unknown = _filter_whitelisted("date", unknown, content)
         issues = []
         for d in sorted(unknown):
             if not has_real_citation_context(content, d, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.27] Skip date '{d}' — "
+                    f"[HALLUCINATION V1.28] Skip date '{d}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -412,16 +432,18 @@ class HallucinationChecker:
             })
         return issues
 
-    def _check_articles(self, content: str) -> List[Dict[str, Any]]:
-        found = extract_articles(content)
+    def _check_articles(
+        self, content: str, found: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        if found is None:
+            found = extract_articles(content)
         unknown = found - self.allowed["articles"]
-        # V1.27: whitelist filter
         unknown = _filter_whitelisted("article", unknown, content)
         issues = []
         for a in sorted(unknown):
             if not has_real_article_context(content, a):
                 logger.info(
-                    f"[HALLUCINATION V1.27] Skip article '{a}' — "
+                    f"[HALLUCINATION V1.28] Skip article '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -436,16 +458,18 @@ class HallucinationChecker:
             })
         return issues
 
-    def _check_laws(self, content: str) -> List[Dict[str, Any]]:
-        found = extract_laws(content)
+    def _check_laws(
+        self, content: str, found: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        if found is None:
+            found = extract_laws(content)
         unknown = found - self.allowed["laws"]
-        # V1.27: whitelist filter
         unknown = _filter_whitelisted("law", unknown, content)
         issues = []
         for l in sorted(unknown):
             if not has_real_citation_context(content, l, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.27] Skip law '{l}' — "
+                    f"[HALLUCINATION V1.28] Skip law '{l}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -457,16 +481,18 @@ class HallucinationChecker:
             })
         return issues
 
-    def _check_cases(self, content: str) -> List[Dict[str, Any]]:
-        found = extract_cases(content)
+    def _check_cases(
+        self, content: str, found: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        if found is None:
+            found = extract_cases(content)
         unknown = found - self.allowed["cases"]
-        # V1.27: whitelist filter
         unknown = _filter_whitelisted("case", unknown, content)
         issues = []
         for c in sorted(unknown):
             if not has_real_citation_context(content, c, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.27] Skip case '{c}' — "
+                    f"[HALLUCINATION V1.28] Skip case '{c}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -478,16 +504,18 @@ class HallucinationChecker:
             })
         return issues
 
-    def _check_abbrevs(self, content: str) -> List[Dict[str, Any]]:
-        found = extract_abbrevs(content)
+    def _check_abbrevs(
+        self, content: str, found: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        if found is None:
+            found = extract_abbrevs(content)
         unknown = found - self.allowed["abbrevs"]
-        # V1.27: whitelist filter
         unknown = _filter_whitelisted("abbreviation", unknown, content)
         issues = []
         for a in sorted(unknown):
             if not has_real_citation_context(content, a, prefixes=("",)):
                 logger.info(
-                    f"[HALLUCINATION V1.27] Skip abbrev '{a}' — "
+                    f"[HALLUCINATION V1.28] Skip abbrev '{a}' — "
                     f"shfaqet vetëm në kontekst sugjerimi."
                 )
                 continue
@@ -529,6 +557,7 @@ class HallucinationChecker:
                 },
             }
 
+        # V1.28: ekstrakto NJË herë, kalo rezultatet te _check_*
         found_dates = extract_dates_iso(content)
         found_articles = extract_articles(content)
         found_laws = extract_laws(content)
@@ -536,27 +565,26 @@ class HallucinationChecker:
         found_abbrevs = extract_abbrevs(content)
 
         issues: List[Dict[str, Any]] = []
-        issues.extend(self._check_dates(content))
-        issues.extend(self._check_articles(content))
-        issues.extend(self._check_laws(content))
-        issues.extend(self._check_cases(content))
-        issues.extend(self._check_abbrevs(content))
+        issues.extend(self._check_dates(content, found_dates))
+        issues.extend(self._check_articles(content, found_articles))
+        issues.extend(self._check_laws(content, found_laws))
+        issues.extend(self._check_cases(content, found_cases))
+        issues.extend(self._check_abbrevs(content, found_abbrevs))
         issues.extend(self._check_law_name_number_consistency(content))
         issues.extend(self._check_abbreviation_replacement(content))
         issues.extend(self._check_abbrev_multiple_laws(content))
 
-        high = sum(1 for i in issues if i["severity"] == "high")
-        medium = sum(1 for i in issues if i["severity"] == "medium")
-        low = sum(1 for i in issues if i["severity"] == "low")
+        # V1.28: .get() për robustness
+        high = sum(1 for i in issues if i.get("severity") == "high")
+        medium = sum(1 for i in issues if i.get("severity") == "medium")
+        low = sum(1 for i in issues if i.get("severity") == "low")
 
         # ═══════════════════════════════════════════════════════════════════
         # V1.27: MODE-BASED + ROLE-AWARE
         # ═══════════════════════════════════════════════════════════════════
         if HALLUCINATION_MODE == "lenient":
-            # Lenient: asgjë nuk bllokon
             effective_status = "clean_low" if (high + medium + low) > 0 else "clean"
         elif HALLUCINATION_MODE == "strict":
-            # Strict: sjellje e vjetër
             if section_key in ROLE_AWARE_SECTIONS:
                 if high > 0:
                     effective_status = "suspect"
@@ -577,17 +605,17 @@ class HallucinationChecker:
             else:
                 effective_status = "clean"
 
-        # Audit log nëse u bllokua
         if effective_status == "suspect":
             logger.warning(
-                f"🛡️ [HALLUCINATION V1.27 AUDIT] section={section_key} "
+                f"🛡️ [HALLUCINATION V1.28 AUDIT] section={section_key} "
                 f"BLOCKED — high={high}, medium={medium}, low={low}, "
                 f"mode={HALLUCINATION_MODE}, role_aware="
                 f"{section_key in ROLE_AWARE_SECTIONS}"
             )
+            # V1.28: .get() për robustness
             for i in issues[:5]:
                 logger.warning(
-                    f"   → {i['severity']}: {i['type']} = {i['value']}"
+                    f"   → {i.get('severity')}: {i.get('type')} = {i.get('value')}"
                 )
 
         return {
@@ -625,7 +653,7 @@ def check_all_sections(
     extra_allowed_laws: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """
-    V1.27: Kontrollon të gjitha section-t. Mode-based (strict/balanced/lenient),
+    V1.28: Kontrollon të gjitha section-t. Mode-based (strict/balanced/lenient),
     role-aware, whitelist-filter, DB laws, successor laws, globally allowed.
     """
     checker = HallucinationChecker(
@@ -657,12 +685,12 @@ def check_all_sections(
             imsg = issue.get("message", "")
             isnip = (issue.get("snippet", "") or "")[:160]
             logger.info(
-                f"[HALLUCINATION V1.27] 📌 section={key} severity={sev} "
+                f"[HALLUCINATION V1.28] 📌 section={key} severity={sev} "
                 f"type={itype} value='{ival}'"
             )
-            logger.info(f"[HALLUCINATION V1.27]    message: {imsg}")
+            logger.info(f"[HALLUCINATION V1.28]    message: {imsg}")
             if isnip:
-                logger.info(f"[HALLUCINATION V1.27]    snippet: {isnip}")
+                logger.info(f"[HALLUCINATION V1.28]    snippet: {isnip}")
 
         if report["status"] == "suspect":
             suspicious.append(key)
@@ -677,12 +705,12 @@ def check_all_sections(
     if global_status == "suspect" and not suspicious:
         global_status = "clean_low"
         logger.info(
-            "[HALLUCINATION V1.27] Global status downgraded to 'clean_low' "
+            "[HALLUCINATION V1.28] Global status downgraded to 'clean_low' "
             "— medium/low vetëm në role-aware sections."
         )
 
     logger.info(
-        f"[HALLUCINATION V1.27] Status={global_status}, "
+        f"[HALLUCINATION V1.28] Status={global_status}, "
         f"mode={HALLUCINATION_MODE}, "
         f"total_issues={total_issues} "
         f"(high={sev_totals['high']}, medium={sev_totals['medium']}, "

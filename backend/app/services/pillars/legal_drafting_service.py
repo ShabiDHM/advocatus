@@ -1,9 +1,15 @@
 # FILE: backend/app/services/pillars/legal_drafting_service.py
-# PHOENIX PROTOCOL - UNIVERSAL SUPREME COURT LEGAL DRAFTING V51.0 (DYNAMIC MULTI-DOMAIN • ZERO HARDCODING)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • COURT-READY ACT GENERATOR
+# PHOENIX PROTOCOL - UNIVERSAL SUPREME COURT LEGAL DRAFTING V51.1 (DYNAMIC MULTI-DOMAIN • ZERO HARDCODING)
+# V51.1: ASYNC RAG INTEGRATION —
+#        - `build_prompt()` pranon `rag_context: Optional[str] = None`.
+#          Nëse kalon, përdoret direkt; nëse None, bën fallback në sync
+#          `BasePillarService.get_rag_context()` (backward compat).
+#          Callers async (albanian_rag_service.chat) tani mund të presin
+#          RAG-un me `get_rag_context_async()` dhe ta kalojnë si argument,
+#          duke shmangur bllokimin e event loop.
 
 import logging
-import re
+
 from typing import Dict, Any, Optional
 from app.services.pillars.base_pillar_service import BasePillarService
 from app.services.pillars.role_guard_service import RoleGuardService
@@ -13,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class LegalDraftingService:
     """
-    MODUL UNIVERSAL I HARTIMIT GJYQËSOR TË REPUBLIKËS SË KOSOVËS (V51.0):
+    MODUL UNIVERSAL I HARTIMIT GJYQËSOR TË REPUBLIKËS SË KOSOVËS (V51.1):
     - 100% Dinamik: Përshtatet automatikisht për çdo lëmi (Penale, Civile, Komerciale, Familjare, Pronësore, Administrative, Punës).
     - Zero Hardcoding: Asnjë referencë fikse lëndësh apo numrash arbitrarë.
     - Strukturë Solemne Gjyqësore: Organi, Palët, Baza Ligjore, Arsyetimi dhe Petitum-i (Kërkesa).
@@ -107,7 +113,8 @@ class LegalDraftingService:
         query_text: Optional[str] = None,
         user_id: Optional[str] = None,
         case_id: Optional[str] = None,
-        db: Any = None
+        db: Any = None,
+        rag_context: Optional[str] = None,   # V51.1: async-pre-fetched
     ) -> str:
         pos = (client_position or "PARASHTRUES").strip().upper()
         domain = case_domain or "CIVILE"
@@ -117,13 +124,16 @@ class LegalDraftingService:
         statutes = target_info["statutes"]
         precedent_type = target_info["precedent_type"]
 
-        search_query = query_text or f"Hartimi i {doc_title} Nenet e ligjit të Kosovës Precedentët e Gjykatës Supreme"
-        rag_context, _ = BasePillarService.get_rag_context(
-            user_id=user_id or "",
-            case_id=case_id or "",
-            query_text=search_query,
-            n_results=8
-        )
+        # V51.1: Nëse rag_context u dha nga caller async, përdore direkt.
+        # Përndryshe, fallback në sync (backward compat për callers jo-async).
+        if rag_context is None:
+            search_query = query_text or f"Hartimi i {doc_title} Nenet e ligjit të Kosovës Precedentët e Gjykatës Supreme"
+            rag_context, _ = BasePillarService.get_rag_context(
+                user_id=user_id or "",
+                case_id=case_id or "",
+                query_text=search_query,
+                n_results=8
+            )
 
         role_guard = RoleGuardService.build_role_guard(pos, client_name)
         role_tone = RoleGuardService.get_role_specific_tone(pos)

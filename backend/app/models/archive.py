@@ -5,10 +5,10 @@
 # 3. STATUS: 100% Validation Stable.
 
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Any
+from typing import Optional
 from datetime import datetime
 from .common import PyObjectId
-from bson import ObjectId
+
 
 class ArchiveItemBase(BaseModel):
     title: str

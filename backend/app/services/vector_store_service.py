@@ -1,14 +1,13 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - BULLETPROOF DUAL-LAYER VECTOR RETRIEVER V68.6
-# V68.6: N_RESULTS RESPECTED —
-#        - query_global_knowledge_base tani RESPEKTON n_results.
-#        - Buxheti ndarë: 60% statut + 40% caselaw.
-#        - Kufijtë e ndërmjetëm (article_matches, case_matches, $vectorSearch)
-#          reduktohen proporcionalisht me buxhetin.
-#        - Skip $vectorSearch nëse direct hit (case_matches/article_matches)
-#          ka mbuluar buxhetin përkatës.
-#        - Arsye: V68.5 gjithmonë kthente ~24 docs pavarësisht n_results,
-#          duke injoruar thirrësin (V282.33 n_results=5 → ktheu 20 chunks).
+# PHOENIX PROTOCOL - BULLETPROOF DUAL-LAYER VECTOR RETRIEVER V68.7
+# V68.7: N_RESULTS FULLY RESPECTED + DEAD CODE REMOVAL —
+#        - Hardcoded cap `min(..., 20)` në statute_fetch_limit / caselaw_fetch_limit
+#          limitonte n_results për vlera të mëdha (n_results=100 → max 40 kthyer).
+#          Tani cap është `max(20, n_results)` → fleksibël për kërkesa të mëdha.
+#        - Hequr `_cosine_similarity` (dead code — 0 thirrje).
+#        - `copy_document_embeddings`: insert_many me `ordered=False`
+#          (nëse ndonjë chunk është duplicate, të tjerat vazhdojnë).
+# V68.6: N_RESULTS RESPECTED.
 # V68.5: EMPTY EMBEDDING HARDENING.
 # V68.4: ORG-AWARE.
 # V68.3: Skip embedding fetch për case të vegjël (<500 chunks).
@@ -17,14 +16,11 @@
 # V68.0: Skip $vectorSearch për case të vegjël.
 # V67.0: delete_document_embeddings — ORG-AWARE.
 # V66.0: BATCH + RETRY + TIMEOUT.
-# V65.0: Optional document filter.
 
 import os
 import time
 import logging
-import json
 import re
-import math
 from typing import List, Dict, Any, Sequence, Optional
 from pymongo import MongoClient
 from pymongo.errors import (
@@ -71,18 +67,6 @@ ALBANIAN_STOP_WORDS = {
 }
 
 
-def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
-    """Llogaritje me shpejtësi të lartë e ngjashmërisë kosinusike."""
-    if not vec1 or not vec2 or len(vec1) != len(vec2):
-        return 0.0
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    norm_a = math.sqrt(sum(a * a for a, b in zip(vec1, vec2)))
-    norm_b = math.sqrt(sum(b * b for a, b in zip(vec1, vec2)))
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 0.0
-    return dot_product / (norm_a * norm_b)
-
-
 def _get_db():
     global _CACHED_DB
     if _CACHED_DB is not None:
@@ -103,16 +87,16 @@ def _get_db():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V68.6: QUERY GLOBAL — N_RESULTS RESPECTED
+# V68.7: QUERY GLOBAL — N_RESULTS FULLY RESPECTED
 # ═══════════════════════════════════════════════════════════════════════════
 
 def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) -> List[Dict[str, Any]]:
     """
     MOTORI I GARANTUAR VEKTORIAL DHE STATUTOR I KOSOVËS.
 
-    V68.6: RESPEKTON n_results —
+    V68.7: RESPEKTON n_results (pa cap 20 hardcoded) —
       - Buxheti ndarë: 60% statut + 40% caselaw.
-      - Kufijtë e ndërmjetëm reduktohen proporcionalisht.
+      - Kufijtë e ndërmjetëm: `max(20, n_results)` (jo min(.., 20)).
       - Skip $vectorSearch kur direct hit e mbulon buxhetin përkatës.
     """
     from . import embedding_service
@@ -123,14 +107,14 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
     if not clean_query:
         return []
 
-    # V68.6: Buxheti dinamik
     n_results = max(1, int(n_results))
     statute_budget = max(2, n_results * 6 // 10)   # 60% statut
     caselaw_budget = max(1, n_results - statute_budget)   # 40% caselaw
 
-    # Kufijtë e fetch-ut me tolerancë (+3 për filtrim)
-    statute_fetch_limit = min(statute_budget + 3, 20)
-    caselaw_fetch_limit = min(caselaw_budget + 3, 20)
+    # V68.7: cap dinamik — respekton n_results për kërkesa të mëdha
+    dynamic_cap = max(20, n_results)
+    statute_fetch_limit = min(statute_budget + 3, dynamic_cap)
+    caselaw_fetch_limit = min(caselaw_budget + 3, dynamic_cap)
 
     statute_results = []
     caselaw_results = []
@@ -176,7 +160,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
         except Exception as ex:
             logger.warning(f"Case number direct query error: {ex}")
 
-    # V68.6: Kontrollo nëse direct hits mbulojnë buxhetin → skip vector search
     have_enough_statutes = len(statute_results) >= statute_budget
     have_enough_caselaw = len(caselaw_results) >= caselaw_budget
 
@@ -252,7 +235,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
         except Exception as ex:
             logger.warning(f"Text statute query error: {ex}")
 
-    # ─── V68.6: Final split — respekton buxhetin ───
+    # ─── Final split — respekton buxhetin ───
     combined_docs = statute_results[:statute_budget] + caselaw_results[:caselaw_budget]
     formatted_results = []
 
@@ -287,7 +270,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
         })
 
     logger.info(
-        f"✅ [Bulletproof Retrieval V68.6] Tërhequr: "
+        f"✅ [Bulletproof Retrieval V68.7] Tërhequr: "
         f"{len(statute_results)} Nene (budget {statute_budget}) + "
         f"{len(caselaw_results)} Precedentë (budget {caselaw_budget}) → "
         f"{len(formatted_results)} chunks për: '{clean_query[:80]}'"
@@ -328,7 +311,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
         case_chunk_count = 9999
 
     logger.info(
-        f"⚡ [V68.6] Direct mode për case (n={case_chunk_count} chunks) — "
+        f"⚡ [V68.7] Direct mode për case (n={case_chunk_count} chunks) — "
         f"fetch text-only, PA owner filter (org-aware)"
     )
 
@@ -367,20 +350,20 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
                     break
 
         logger.info(
-            f"✅ [V68.6] Fetch OK: {len(results)} chunks (nga {case_chunk_count} total, "
+            f"✅ [V68.7] Fetch OK: {len(results)} chunks (nga {case_chunk_count} total, "
             f"limit={fetch_limit})"
         )
 
     except ExecutionTimeout as e:
         logger.warning(
-            f"⏱️ [V68.6] Fetch timeout (5s) — shard i ngadaltë. "
+            f"⏱️ [V68.7] Fetch timeout (5s) — shard i ngadaltë. "
             f"Kthim rezultat i pjesshëm: {len(results)} chunks. Err: {e}"
         )
     except Exception as e:
-        logger.warning(f"⚠️ [V68.6] Fetch error: {e}")
+        logger.warning(f"⚠️ [V68.7] Fetch error: {e}")
 
     if not results and case_chunk_count > 0:
-        logger.warning("⚠️ [V68.6] Fetch kryesor dështoi — provo minimal fallback...")
+        logger.warning("⚠️ [V68.7] Fetch kryesor dështoi — provo minimal fallback...")
         try:
             minimal_filter = {"case_id": {"$in": case_id_variants}}
             for r in coll.find(minimal_filter, {"text": 1, "file_name": 1, "page": 1, "_id": 1}).limit(50).max_time_ms(3000):
@@ -390,9 +373,9 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
                     results.append(r)
                     if len(results) >= min(n_results, 20):
                         break
-            logger.info(f"✅ [V68.6] Minimal fallback: {len(results)} chunks")
+            logger.info(f"✅ [V68.7] Minimal fallback: {len(results)} chunks")
         except Exception as e2:
-            logger.warning(f"⚠️ [V68.6] Minimal fallback dështoi: {e2}")
+            logger.warning(f"⚠️ [V68.7] Minimal fallback dështoi: {e2}")
 
     results.sort(key=lambda x: (int(x.get("page", 1)) if str(x.get("page", 1)).isdigit() else 1))
 
@@ -484,7 +467,7 @@ def create_and_store_embeddings_from_chunks(
     start = time.time()
 
     if not chunks:
-        logger.warning(f"⚠️ [VectorStore V68.6] 0 chunks provided for document {document_id}")
+        logger.warning(f"⚠️ [VectorStore V68.7] 0 chunks provided for document {document_id}")
         return {"success": False, "total_chunks": 0, "ingested": 0, "failed": 0, "batches": 0, "errors": ["No chunks provided"], "duration_sec": 0.0}
 
     try:
@@ -492,9 +475,9 @@ def create_and_store_embeddings_from_chunks(
         t_emb = time.time()
         vectors = embedding_service.generate_embeddings_batch(chunks)
         emb_duration = round(time.time() - t_emb, 2)
-        logger.info(f"🔢 [VectorStore V68.6] Embeddings u gjeneruan për {len(chunks)} chunks në {emb_duration}s")
+        logger.info(f"🔢 [VectorStore V68.7] Embeddings u gjeneruan për {len(chunks)} chunks në {emb_duration}s")
     except Exception as e:
-        logger.error(f"❌ [VectorStore V68.6] Embedding generation failed: {e}")
+        logger.error(f"❌ [VectorStore V68.7] Embedding generation failed: {e}")
         return {"success": False, "total_chunks": len(chunks), "ingested": 0, "failed": len(chunks), "batches": 0, "errors": [f"Embedding generation failed: {e}"], "duration_sec": round(time.time() - start, 2)}
 
     docs: List[Dict[str, Any]] = []
@@ -529,13 +512,13 @@ def create_and_store_embeddings_from_chunks(
 
     if skipped_empty > 0:
         logger.warning(
-            f"⚠️ [VectorStore V68.6] Skip {skipped_empty}/{len(chunks)} chunks "
+            f"⚠️ [VectorStore V68.7] Skip {skipped_empty}/{len(chunks)} chunks "
             f"— embedding bosh (dështim i API-t). Dokument={document_id}"
         )
 
     if not docs:
         logger.error(
-            f"❌ [VectorStore V68.6] Të gjitha {len(chunks)} chunks kanë embedding bosh "
+            f"❌ [VectorStore V68.7] Të gjitha {len(chunks)} chunks kanë embedding bosh "
             f"— nuk ruhen në Mongo. Dokument={document_id}, kontrollo API key."
         )
         return {
@@ -555,7 +538,7 @@ def create_and_store_embeddings_from_chunks(
     total_failed = 0
     all_errors: List[str] = []
 
-    logger.info(f"📦 [VectorStore V68.6] Duke insertuar {len(docs)} chunks në {total_batches} batches (size={INGESTION_BATCH_SIZE}) për doc={document_id}")
+    logger.info(f"📦 [VectorStore V68.7] Duke insertuar {len(docs)} chunks në {total_batches} batches (size={INGESTION_BATCH_SIZE}) për doc={document_id}")
 
     for batch_idx in range(total_batches):
         start_i = batch_idx * INGESTION_BATCH_SIZE
@@ -573,9 +556,9 @@ def create_and_store_embeddings_from_chunks(
     duration = round(time.time() - start, 2)
 
     if is_success:
-        logger.info(f"✅ [VectorStore V68.6] Ingestion i plotë: {total_success}/{len(docs)} chunks në {total_batches} batches, {duration}s (skip_empty={skipped_empty})")
+        logger.info(f"✅ [VectorStore V68.7] Ingestion i plotë: {total_success}/{len(docs)} chunks në {total_batches} batches, {duration}s (skip_empty={skipped_empty})")
     else:
-        logger.error(f"❌ [VectorStore V68.6] Ingestion i pjesshëm: {total_success}/{len(docs)} chunks (success_rate={success_rate:.1%}), errors={len(all_errors)}, {duration}s")
+        logger.error(f"❌ [VectorStore V68.7] Ingestion i pjesshëm: {total_success}/{len(docs)} chunks (success_rate={success_rate:.1%}), errors={len(all_errors)}, {duration}s")
 
     return {
         "success": is_success,
@@ -607,16 +590,20 @@ def delete_document_embeddings(user_id: str, document_id: str, case_id: Optional
             total_deleted += fallback.deleted_count
 
         if total_deleted == 0:
-            logger.warning(f"⚠️ [VectorStore V68.6] 0 embeddings për document_id={doc_id_str} (case={case_id}, caller={user_id})")
+            logger.warning(f"⚠️ [VectorStore V68.7] 0 embeddings për document_id={doc_id_str} (case={case_id}, caller={user_id})")
         else:
-            logger.info(f"✅ [VectorStore V68.6] {total_deleted} embeddings u fshinë për document_id={doc_id_str} (case={case_id})")
+            logger.info(f"✅ [VectorStore V68.7] {total_deleted} embeddings u fshinë për document_id={doc_id_str} (case={case_id})")
         return total_deleted
     except Exception as e:
-        logger.error(f"❌ [VectorStore V68.6] Delete error për {doc_id_str}: {e}")
+        logger.error(f"❌ [VectorStore V68.7] Delete error për {doc_id_str}: {e}")
         return total_deleted
 
 
 def copy_document_embeddings(source_document_id: str, target_document_id: str, target_user_id: str, target_case_id: str):
+    """
+    V68.7: `insert_many` me `ordered=False` — nëse ndonjë chunk është
+    duplicate (unique index), të tjerat vazhdojnë.
+    """
     try:
         db = _get_db()
         existing = list(db["user_vectors"].find({"document_id": str(source_document_id)}))
@@ -631,6 +618,6 @@ def copy_document_embeddings(source_document_id: str, target_document_id: str, t
                 "case_id": str(target_case_id)
             })
 
-        db["user_vectors"].insert_many(existing)
+        db["user_vectors"].insert_many(existing, ordered=False)
     except Exception as e:
         logger.error(f"❌ Failed to copy document embeddings: {e}")

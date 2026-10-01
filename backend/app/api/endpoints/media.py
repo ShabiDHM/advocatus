@@ -16,10 +16,10 @@ import asyncio
 import logging
 import tempfile
 import os
-import shutil
+
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from jose import jwt, JWTError
+from jose import jwt
 import redis.asyncio as aioredis
 import json
 
@@ -28,7 +28,7 @@ from app.models.user import UserInDB
 from app.services import storage_service
 from app.services.video_service import compress_video_for_storage, video_service
 from app.services.pillars.role_guard_service import RoleGuardService
-from app.services.vector_store_service import delete_document_embeddings, create_and_store_embeddings_from_chunks
+from app.services.vector_store_service import create_and_store_embeddings_from_chunks
 from app.services.case_service import _build_case_access_query
 from app.core.config import settings
 

@@ -1,14 +1,26 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V110.7
-// V110.7: SYNTHESIS/CROSS_REF REMOVED — Hequr kontrollat dead-code që
-//         kontrollonin 'synthesis' dhe 'cross_reference' nga AnalysisPhase
-//         (u hoqën në caseAnalysisService V1.11). Fix për TS2367:
-//         "types 'AnalysisPhase' and '"synthesis"' have no overlap".
+// PHOENIX PROTOCOL - CASE VIEW PAGE V110.9
+// V110.9: TYPEWRITER LIFECYCLE FIX + ABORT —
+//         - typewriter setInterval ruhet në ref → pastrohet në catch/finally
+//           dhe në unmount. Përpara: nëse stream dështonte mes-përpunimit,
+//           typewriter vazhdonte dhe mbishkruante error message me chunks
+//           e deritanishme (bug UX i dukshëm).
+//         - AbortController në handleChatSubmit — nëse user largohet nga
+//           komponenti gjatë streaming-ut, for-loop ndalon konsumimin.
+//         - Cleanup në unmount parandalon setState on unmounted component.
+// V110.8: CRITICAL POLLING FIX + isPro REAL —
+//         - Auto-sync polling effect: hequr `liveDocuments` nga dependency-t
+//           (bug: interval rikrijohej çdo 2.5s → nuk shkrep kurrë). Tani
+//           përdor `hasProcessingDocsRef` për të ndaluar polling kur nuk
+//           ka docs në proces, pa i rikrijuar intervalin në çdo update.
+//         - `isPro` real: `user?.subscription_tier === 'PRO' || user?.role === 'ADMIN'`
+//           (V110.7 kishte `isPro = true` hardcoded → bypass i plotë).
+// V110.7: SYNTHESIS/CROSS_REF REMOVED.
 // V110.6: VERIFY DRAFT PROGRESS.
-// V110.5: VERIFY DRAFT — integrim i DraftVerificationModal.
+// V110.5: VERIFY DRAFT — DraftVerificationModal.
 // V110.4: force_reprocess=true.
-// V110.3: Modal lexon raportin E BLLOKUAR nga DB pas analizës.
-// V110.2: META-EVENTS IZOLUAR — step_started handler.
+// V110.3: Modal lexon raportin E BLLOKUAR nga DB.
+// V110.2: META-EVENTS IZOLUAR.
 // V110.0: REPORT SHARING.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -86,7 +98,7 @@ const CaseViewPage: React.FC = () => {
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [minimizedDocument, setMinimizedDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
-  const [viewingInitialPage, setViewingInitialPage] = useState<number>(1);
+  const [viewingInitialPage] = useState<number>(1);
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -110,7 +122,7 @@ const CaseViewPage: React.FC = () => {
   const [verifyModalOpen, setVerifyModalOpen] = useState<boolean>(false);
   const [verifyDocType, setVerifyDocType] = useState<string>('kallzim_penal');
 
-  // V110.6: Verify Draft progress (lifted from modal)
+  // V110.6: Verify Draft progress
   const [isVerifyGenerating, setIsVerifyGenerating] = useState<boolean>(false);
   const [verifyProgressPercent, setVerifyProgressPercent] = useState<number>(0);
   const [verifyPhaseLabel, setVerifyPhaseLabel] = useState<string>('');
@@ -118,14 +130,29 @@ const CaseViewPage: React.FC = () => {
 
   const loadedCaseIdRef = useRef<string | null>(null);
 
-  const isPro = true;
+  // V110.9: Refs për cleanup
+  const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortChatRef = useRef<AbortController | null>(null);
+
+  // V110.8: isPro real (jo hardcoded true)
+  const isPro = useMemo(
+    () => user?.subscription_tier === 'PRO' || user?.role === 'ADMIN',
+    [user],
+  );
+
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
   const userSalutation = useMemo(() => getUserSalutation(user), [user]);
-  const clientName = useMemo(() => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti', [caseData.details]);
-  const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
+  const clientName = useMemo(
+    () => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti',
+    [caseData.details],
+  );
+  const clientPosition = useMemo(
+    () => (caseData.details as any)?.client_position || 'DEFENDANT',
+    [caseData.details],
+  );
 
   const selectedDocObj = useMemo(() => {
     if (selectedDocumentIds.length > 0) {
@@ -193,18 +220,41 @@ const CaseViewPage: React.FC = () => {
     if (loadedCaseIdRef.current === caseId) return;
 
     loadedCaseIdRef.current = caseId;
-    console.debug('[CaseViewPage V110.7] Initial fetch for caseId:', caseId);
+    console.debug('[CaseViewPage V110.9] Initial fetch for caseId:', caseId);
     fetchCaseData(true);
   }, [isReadyForData, caseId, fetchCaseData]);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // V110.9: UNMOUNT CLEANUP — typewriter + abort
+  // ═══════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    const hasProcessingDocs = liveDocuments.some(
+    return () => {
+      if (typewriterRef.current) {
+        clearInterval(typewriterRef.current);
+        typewriterRef.current = null;
+      }
+      if (abortChatRef.current) {
+        abortChatRef.current.abort();
+        abortChatRef.current = null;
+      }
+    };
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // V110.8: AUTO-SYNC POLLING — BUG FIX
+  // ═══════════════════════════════════════════════════════════════════════
+  const hasProcessingDocsRef = useRef(false);
+  useEffect(() => {
+    hasProcessingDocsRef.current = liveDocuments.some(
       (doc) => doc.status === 'PROCESSING' || doc.status === 'PENDING'
     );
+  }, [liveDocuments]);
 
-    if (!hasProcessingDocs || !caseId) return;
+  useEffect(() => {
+    if (!caseId) return;
 
     const interval = setInterval(async () => {
+      if (!hasProcessingDocsRef.current) return;
       try {
         const latestDocs = await apiService.getDocuments(caseId);
         if (Array.isArray(latestDocs)) {
@@ -216,13 +266,18 @@ const CaseViewPage: React.FC = () => {
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [liveDocuments, caseId, setLiveDocuments]);
+  }, [caseId, setLiveDocuments]);
 
-  const handleDocumentUploaded = (newDoc: Document) => setLiveDocuments((p) => [sanitizeDocument(newDoc), ...p]);
-  const handleDocumentDeleted = (res: DeletedDocumentResponse) => setLiveDocuments((p) => p.filter((d) => String(d.id) !== String(res.documentId)));
+  const handleDocumentUploaded = useCallback(
+    (newDoc: Document) => setLiveDocuments((p) => [sanitizeDocument(newDoc), ...p]),
+    [setLiveDocuments],
+  );
+  const handleDocumentDeleted = useCallback(
+    (res: DeletedDocumentResponse) => setLiveDocuments((p) => p.filter((d) => String(d.id) !== String(res.documentId))),
+    [setLiveDocuments],
+  );
 
   const handleViewOriginal = useCallback((doc: Document) => {
-    setViewingInitialPage(1);
     setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`);
     setViewingDocument(doc);
     setMinimizedDocument(null);
@@ -266,13 +321,13 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_document_preview', handleOpenDocPreview);
   }, [liveDocuments, handleViewOriginal]);
 
-  const handleClearChat = async () => {
+  const handleClearChat = useCallback(async () => {
     if (!caseId) return;
     try {
       await apiService.clearChatHistory(caseId);
       try {
         await apiService.updateChatHistory(caseId, []);
-      } catch {}
+      } catch { /* best-effort */ }
 
       localStorage.removeItem(`chat_${caseId}`);
       setChatMessages([]);
@@ -288,7 +343,7 @@ const CaseViewPage: React.FC = () => {
       console.error("Dështoi pastrimi i bisedës në server:", err);
       alert(t('error.generic', 'Ndodhi një gabim gjatë pastrimit të bisedës.'));
     }
-  };
+  }, [caseId, t]);
 
   const handleChatSubmit = useCallback(async (
     text: string,
@@ -299,11 +354,27 @@ const CaseViewPage: React.FC = () => {
     jurisdiction?: Jurisdiction
   ) => {
     if (!caseId) return;
+
+    // V110.9: Nëse ka stream aktiv, anuloje përpara se të nisësh të re
+    if (abortChatRef.current) {
+      abortChatRef.current.abort();
+      abortChatRef.current = null;
+    }
+
     const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
     const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
 
     setChatMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setIsSendingMessage(true);
+
+    // V110.9: Pastro typewriter-in e mëparshëm (nëse ekziston)
+    if (typewriterRef.current) {
+      clearInterval(typewriterRef.current);
+      typewriterRef.current = null;
+    }
+
+    const controller = new AbortController();
+    abortChatRef.current = controller;
 
     try {
       let fullContent = '';
@@ -315,11 +386,13 @@ const CaseViewPage: React.FC = () => {
       const FAST_FORWARD_CHARS = 400;
       const FAST_FORWARD_TICK = 20;
 
-      const typewriter = setInterval(() => {
+      // V110.9: Ruaj interval-in në ref për pastrim të garantuar
+      typewriterRef.current = setInterval(() => {
         const remaining = fullContent.length - typedLength;
         if (remaining <= 0) {
-          if (streamDone) {
-            clearInterval(typewriter);
+          if (streamDone && typewriterRef.current) {
+            clearInterval(typewriterRef.current);
+            typewriterRef.current = null;
           }
           return;
         }
@@ -348,10 +421,20 @@ const CaseViewPage: React.FC = () => {
       );
 
       for await (const chunk of stream) {
+        if (controller.signal.aborted) break;
         fullContent += chunk;
       }
 
       streamDone = true;
+
+      // V110.9: Nëse u abort, pastro typewriter dhe dale
+      if (controller.signal.aborted) {
+        if (typewriterRef.current) {
+          clearInterval(typewriterRef.current);
+          typewriterRef.current = null;
+        }
+        return;
+      }
 
       await new Promise<void>((resolve) => {
         const waitInterval = setInterval(() => {
@@ -367,22 +450,32 @@ const CaseViewPage: React.FC = () => {
         }, 10_000);
       });
 
+      // V110.9: Pastro typewriter përpara se të finalizosh content
+      if (typewriterRef.current) {
+        clearInterval(typewriterRef.current);
+        typewriterRef.current = null;
+      }
+
       const finalContent = fullContent;
       setChatMessages((prev) => {
         const updated = [...prev];
         if (updated.length > 0) {
           updated[updated.length - 1] = { ...updated[updated.length - 1], content: finalContent };
         }
+        persistChatHistory(updated);
         return updated;
       });
 
-      setChatMessages((prev) => {
-        const finalMessages = [...prev];
-        persistChatHistory(finalMessages);
-        return finalMessages;
-      });
-
     } catch (err: any) {
+      // V110.9: Nëse ishte abort, mos shfaq error
+      if (controller.signal.aborted) return;
+
+      // V110.9: Pastro typewriter PËRPARA se të shkruajmë error message
+      if (typewriterRef.current) {
+        clearInterval(typewriterRef.current);
+        typewriterRef.current = null;
+      }
+
       console.error("[Chat Stream Error]:", err);
       const errorDetail = err?.message || 'Nuk u arrit komunikimi me shërbimin AI.';
       setChatMessages((prev) => {
@@ -398,6 +491,9 @@ const CaseViewPage: React.FC = () => {
       });
     } finally {
       setIsSendingMessage(false);
+      if (abortChatRef.current === controller) {
+        abortChatRef.current = null;
+      }
     }
   }, [caseId, persistChatHistory]);
 
@@ -449,7 +545,6 @@ const CaseViewPage: React.FC = () => {
 
         if (evtType === 'phase_started') {
           currentPhase = evt.phase || '';
-          // V110.7: Vetëm 'extraction' dhe 'document_review' — synthesis u hoq.
           const phaseLabels: Record<string, string> = {
             extraction: isDocMode ? 'Ekstraktimi i dokumentit' : 'Ekstraktimi i shkresave',
             document_review: 'Verifikimi ligjor',
@@ -465,7 +560,6 @@ const CaseViewPage: React.FC = () => {
         }
 
         if (evtType === 'phase_skipped') {
-          // V110.7: Vetëm 'document_review' — synthesis u hoq.
           if (evt.phase === 'document_review') {
             detectedSource = 'cache';
           }
@@ -535,7 +629,6 @@ const CaseViewPage: React.FC = () => {
 
         if (evtType === 'section_completed') {
           sectionsCompleted++;
-          // V110.7: Vetëm 'document_review' — synthesis u hoq.
           if (currentPhase === 'document_review') {
             const pct = 35 + (sectionsCompleted / SECTIONS_TOTAL) * 60;
             setAuditProgressPercent(Math.round(pct));
@@ -577,7 +670,7 @@ const CaseViewPage: React.FC = () => {
 
       const finalReport = accumulated.trim();
       if (!finalReport) {
-        console.error('[Background Audit V110.7] Accumulated content is empty!', {
+        console.error('[Background Audit V110.9] Accumulated content is empty!', {
           isDocMode, docsTotal, sectionsStarted, sectionsCompleted,
           chunksReceived, sectionOrderLength: sectionOrder.length,
           currentPhase, detectedSource
@@ -601,7 +694,7 @@ const CaseViewPage: React.FC = () => {
       setIsDossierAuditModalOpen(true);
 
     } catch (err: any) {
-      console.error('[Background Audit Error V110.7]', err);
+      console.error('[Background Audit Error V110.9]', err);
       alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të raportit.');
     } finally {
       setTimeout(() => {
@@ -650,7 +743,7 @@ const CaseViewPage: React.FC = () => {
     setTimeout(() => _runBackgroundAudit(docIds), 150);
   }, [pendingAuditDocIds, _runBackgroundAudit]);
 
-  const handleRenameAction = async (newName: string) => {
+  const handleRenameAction = useCallback(async (newName: string) => {
     if (!caseId || !documentToRename) return;
     try {
       await apiService.renameDocument(caseId, documentToRename.id, newName);
@@ -658,9 +751,8 @@ const CaseViewPage: React.FC = () => {
     } catch {
       alert(t('error.generic', 'Ndodhi një gabim.'));
     }
-  };
+  }, [caseId, documentToRename, setLiveDocuments, t]);
 
-  // V110.5: Hap modal-in e verifikimit
   const handleVerifyDraft = useCallback((docType: string) => {
     if (!selectedDocObj) {
       alert('Zgjidhni një dokument për verifikim.');
@@ -674,7 +766,6 @@ const CaseViewPage: React.FC = () => {
     setVerifyModalOpen(false);
   }, []);
 
-  // V110.6: Callback nga modal → përditëso progres në ChatHeader
   const handleVerifyProgress = useCallback((progress: VerifyProgress) => {
     setIsVerifyGenerating(progress.isGenerating);
     setVerifyProgressPercent(progress.percent);

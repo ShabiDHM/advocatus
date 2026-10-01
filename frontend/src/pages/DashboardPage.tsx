@@ -1,18 +1,24 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V14.1 (ZERO HARDCODED COLORS + MIC REMOVED)
-// V14.0: Të gjitha ngjyrat kaluar në semantike — role-*, status-info, danger-start, etj.
-// V14.1: Hequr butoni "Regjistro" (mikrofon). Krijimi i ngjarjeve me zë ekziston
-//        vetëm në CalendarPage — Single Source of Truth (SSOT).
+// PHOENIX PROTOCOL - DASHBOARD V14.2
+// V14.2: SPA NAVIGATION + USE_CALLBACK —
+//        - Hequr 2× `window.location.href = '/calendar'` → `navigate('/calendar')`.
+//          Përpara: klienti humbte state-in e React + re-fetch i plotë.
+//        - `loadData` mbështjellë në `useCallback` (perf + parandalon bugs
+//          nëse dikush shton deps në të ardhmen).
+//        - `useEffect` deps: `[loadData]` (jo `[]`) për konsistencë.
+// V14.1: Hequr butoni "Regjistro" (mikrofon).
+// V14.0: Të gjitha ngjyrat kaluar në semantike.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
+import { useNavigate } from 'react-router-dom';
+import {
+  Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert,
   PartyPopper, Coffee, Timer, Trash2, Calendar, Search, X,
   Shield, Swords, Scale
 } from 'lucide-react';
 import { apiService } from '../services/api';
-import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
+import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types';
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
 import { isSameDay, parseISO } from 'date-fns';
@@ -23,6 +29,7 @@ type ClientPositionType = 'PLAINTIFF' | 'DEFENDANT' | 'NEUTRAL';
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();  // V14.2
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -31,21 +38,21 @@ const DashboardPage: React.FC = () => {
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [briefing, setBriefing] = useState<BriefingResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
+
   const [clientPosition, setClientPosition] = useState<ClientPositionType>('PLAINTIFF');
-  const [newCaseData, setNewCaseData] = useState({ 
-    title: '', 
-    clientName: '', 
-    clientEmail: '', 
-    clientPhone: '' 
+  const [newCaseData, setNewCaseData] = useState({
+    title: '',
+    clientName: '',
+    clientEmail: '',
+    clientPhone: ''
   });
-  
+
   const [now, setNow] = useState<number>(Date.now());
   const [fetchTimestamp, setFetchTimestamp] = useState<number>(Date.now());
 
   const [caseToDeleteId, setCaseToDeleteId] = useState<string | null>(null);
   const [isDeletingCase, setIsDeletingCase] = useState(false);
-  
+
   const [searchTerm, setSearchTerm] = useState('');
 
   const holidayBriefing = useMemo(() => {
@@ -84,7 +91,6 @@ const DashboardPage: React.FC = () => {
     return briefing;
   }, [holidayBriefing, briefing]);
 
-  // Ngjyra e kartës tregon nivelin e rrezikut — semantic tokens
   const theme = useMemo(() => {
     const status = effectiveBriefing?.status || 'OPTIMAL';
     switch (status) {
@@ -121,7 +127,8 @@ const DashboardPage: React.FC = () => {
     }
   }, [effectiveBriefing?.status]);
 
-  const loadData = async (silent: boolean = false) => {
+  // V14.2: useCallback për konsistencë + stabilitet
+  const loadData = useCallback(async (silent: boolean = false) => {
     if (!silent) setIsLoading(true);
     setLoadError(null);
     try {
@@ -147,37 +154,37 @@ const DashboardPage: React.FC = () => {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     loadData(false);
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       loadData(true);
     }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     const handler = () => loadData(true);
     window.addEventListener('calendar:event-changed', handler);
     return () => window.removeEventListener('calendar:event-changed', handler);
-  }, []);
+  }, [loadData]);
 
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
     try {
-      const payload: CreateCaseRequest = { 
-        case_number: `R-${Date.now().toString().slice(-6)}`, 
-        title: newCaseData.title, 
-        clientName: newCaseData.clientName, 
-        clientEmail: newCaseData.clientEmail, 
+      const payload: CreateCaseRequest = {
+        case_number: `R-${Date.now().toString().slice(-6)}`,
+        title: newCaseData.title,
+        clientName: newCaseData.clientName,
+        clientEmail: newCaseData.clientEmail,
         clientPhone: newCaseData.clientPhone,
         status: 'open',
-        ...({ 
+        ...({
           client_position: clientPosition
         } as any)
       };
@@ -243,9 +250,9 @@ const DashboardPage: React.FC = () => {
       return holidayBriefing.greeting || '';
     }
     if (effectiveBriefing) {
-      const raw = t(`briefing.messages.${effectiveBriefing.message_key}`, { 
-        ...(effectiveBriefing.data || {}), 
-        holiday_name: effectiveBriefing.data?.holiday ? t(`holidays.${effectiveBriefing.data.holiday}`) : '' 
+      const raw = t(`briefing.messages.${effectiveBriefing.message_key}`, {
+        ...(effectiveBriefing.data || {}),
+        holiday_name: effectiveBriefing.data?.holiday ? t(`holidays.${effectiveBriefing.data.holiday}`) : ''
       });
       return typeof raw === 'string' ? raw : (raw ? String(raw) : '');
     }
@@ -361,9 +368,9 @@ const DashboardPage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-auto lg:h-[calc(100dvh-64px)] lg:overflow-hidden flex flex-col relative bg-canvas">
       <AnimatePresence mode="wait">
         {effectiveBriefing && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }} 
-            animate={{ opacity: 1, y: 0 }} 
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
             className={`shrink-0 mb-6 rounded-[1.75rem] border overflow-hidden bg-surface transition-colors duration-500 ${theme.border}`}
           >
             <div className={`p-5 sm:p-7 bg-gradient-to-br transition-colors duration-500 ${theme.bg}`}>
@@ -393,9 +400,9 @@ const DashboardPage: React.FC = () => {
                 </div>
 
                 <div className="shrink-0 w-full md:w-auto">
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => window.location.href = '/calendar'} 
+                    onClick={() => navigate('/calendar')}
                     className="h-10 w-full md:w-auto px-5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 bg-primary-start hover:bg-primary-start/90 text-white shadow-md shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none cursor-pointer"
                   >
                     <Calendar size={14} />
@@ -420,13 +427,13 @@ const DashboardPage: React.FC = () => {
           />
         </div>
 
-        <button 
+        <button
             type="button"
-            onClick={() => setShowCreateModal(true)} 
+            onClick={() => setShowCreateModal(true)}
             className="h-11 px-4 sm:px-6 bg-primary-start hover:bg-primary-start/90 text-white flex items-center justify-center gap-2 rounded-xl font-bold text-xs uppercase tracking-wider shrink-0 shadow-lg shadow-primary-start/15 focus:outline-none cursor-pointer"
             title={t('dashboard.newCase', 'Rast i Ri')}
         >
-          <Plus size={16} strokeWidth={3} /> 
+          <Plus size={16} strokeWidth={3} />
           <span className="hidden sm:inline">{t('dashboard.newCase', 'Rast i Ri')}</span>
         </button>
       </div>
@@ -455,17 +462,17 @@ const DashboardPage: React.FC = () => {
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4 overflow-y-auto custom-finance-scroll">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 15 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.95 }} 
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-card text-text-primary"
             >
               <div className="flex justify-between items-center mb-6 border-b border-main pb-3">
                 <h2 className="text-lg sm:text-xl font-bold tracking-tight uppercase text-text-primary">
                   {t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}
                 </h2>
-                <button 
+                <button
                   onClick={() => setShowCreateModal(false)}
                   className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
                   aria-label="Mbyll"
@@ -521,60 +528,60 @@ const DashboardPage: React.FC = () => {
 
                 <div className="space-y-1.5">
                   <label className={labelClasses}>Titulli i Lëndës</label>
-                  <input 
-                    required 
-                    placeholder={t('dashboard.caseTitle', 'p.sh. Padi Civile / Kallëzim Penal')} 
-                    value={newCaseData.title} 
-                    onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} 
-                    className={inputClasses} 
+                  <input
+                    required
+                    placeholder={t('dashboard.caseTitle', 'p.sh. Padi Civile / Kallëzim Penal')}
+                    value={newCaseData.title}
+                    onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))}
+                    className={inputClasses}
                   />
                 </div>
 
                 <div className="pt-3 border-t border-main space-y-3">
                   <div>
                     <label className={labelClasses}>{getClientFieldLabel()}</label>
-                    <input 
-                      required 
-                      placeholder="Emri dhe Mbiemri i Klientit" 
-                      value={newCaseData.clientName} 
-                      onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} 
-                      className={inputClasses} 
+                    <input
+                      required
+                      placeholder="Emri dhe Mbiemri i Klientit"
+                      value={newCaseData.clientName}
+                      onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))}
+                      className={inputClasses}
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className={labelClasses}>Email (Opsionale)</label>
-                      <input 
-                        placeholder="klienti@email.com" 
-                        value={newCaseData.clientEmail} 
-                        onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))} 
-                        className={inputClasses} 
+                      <input
+                        placeholder="klienti@email.com"
+                        value={newCaseData.clientEmail}
+                        onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))}
+                        className={inputClasses}
                       />
                     </div>
                     <div>
                       <label className={labelClasses}>Telefoni (Opsionale)</label>
-                      <input 
-                        placeholder="+383 4X XXX XXX" 
-                        value={newCaseData.clientPhone} 
-                        onChange={(e) => setNewCaseData(p => ({...p, clientPhone: e.target.value}))} 
-                        className={inputClasses} 
+                      <input
+                        placeholder="+383 4X XXX XXX"
+                        value={newCaseData.clientPhone}
+                        onChange={(e) => setNewCaseData(p => ({...p, clientPhone: e.target.value}))}
+                        className={inputClasses}
                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-5 border-t border-main">
-                  <button 
-                    type="button" 
-                    onClick={() => setShowCreateModal(false)} 
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
                     className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:bg-hover border border-main transition-all focus:outline-none cursor-pointer"
                   >
                     {t('general.cancel', 'Anulo')}
                   </button>
-                  <button 
-                    type="submit" 
-                    disabled={isCreating} 
+                  <button
+                    type="submit"
+                    disabled={isCreating}
                     className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-bold bg-primary-start hover:bg-primary-start/90 text-white flex items-center justify-center gap-2 focus:outline-none shadow-lg shadow-primary-start/20 cursor-pointer"
                   >
                     {isCreating ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.create', 'Krijo')}
@@ -627,7 +634,7 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <DayEventsModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} date={new Date()} events={todaysEvents} t={t} onAddEvent={() => { setIsBriefingOpen(false); window.location.href = '/calendar'; }} />
+      <DayEventsModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} date={new Date()} events={todaysEvents} t={t} onAddEvent={() => { setIsBriefingOpen(false); navigate('/calendar'); }} />
     </div>
   );
 };
