@@ -1,7 +1,12 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - ADMIN ROUTER V50.3 (PRICE 99.99)
-# V50.3: PRICE ALIGNMENT — Default unlock price: 99.00 → 99.99 (konsistencë
-#        me mandatin: One-Time Pass 19.99 / Solo 49.99 / Team 99.99).
+# PHOENIX PROTOCOL - ADMIN ROUTER V50.4 (ONE-TIME PASS REMOVED)
+# V50.4: ONE-TIME PASS REMOVED —
+#        - Hequr `/cases/{case_id}/unlock` dhe `/cases/{case_id}/lock`.
+#        - Hequr `UnlockActionRequest` model.
+#        - Hequr `DEFAULT_CASE_UNLOCK_PRICE_EUR`.
+#        - `/cases` mbetet (listim), `/users` mbetet, `/organizations` mbetet.
+#        - Modeli: vetëm abonim mujor (Solo 49.99€ / Team 99.99€).
+# V50.3: PRICE ALIGNMENT — Default unlock price: 99.00 → 99.99.
 # V50.2: Default unlock price: 9.99 → 99.00.
 # V50.1: `{org_id}` → `{organization_id}` në URL/parametrin e upgrade_organization_tier.
 # V50.0: 1-CLICK CASE UNLOCK & INSTANT ACTIVATION.
@@ -25,22 +30,14 @@ from .dependencies import get_current_admin_user, get_db
 
 router = APIRouter(tags=["Administrator"])
 
-# --- CONSTANTS ---
-DEFAULT_CASE_UNLOCK_PRICE_EUR = 99.99   # V50.3: 99.00 → 99.99
-
 # --- MODELS ---
 
 class TierUpdateRequest(BaseModel):
     tier: str
 
-class UnlockActionRequest(BaseModel):
-    payment_method: str = Field("CASH", description="CASH, MBANKING, ose CARD")
-    amount: float = Field(DEFAULT_CASE_UNLOCK_PRICE_EUR)   # V50.3
-    note: Optional[str] = "Zhbllokuar nga Paneli i Adminit"
-
 
 # =========================================================================
-# 💰 MENAXHIMI ME 1 KLIKIM I LËNDËVE & PAGESAVE
+# 📋 LISTIMI I LËNDËVE PËR ADMININ
 # =========================================================================
 
 @router.get("/cases")
@@ -48,48 +45,8 @@ async def get_all_cases_admin(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
     db: Database = Depends(get_db)
 ):
-    """Kthen listën e të gjitha lëndëve me statusin e bllokimit dhe pagesës."""
+    """V50.4: Kthen listën e të gjitha lëndëve (pa fusha unlock)."""
     return await asyncio.to_thread(admin_service.get_all_cases_for_admin_dashboard, db)
-
-
-@router.post("/cases/{case_id}/unlock")
-async def unlock_case_1click(
-    case_id: str,
-    body: Optional[UnlockActionRequest] = Body(default=None),
-    current_admin: Annotated[UserInDB, Depends(get_current_admin_user)] = None,
-    db: Database = Depends(get_db)
-):
-    """ZHBLLOKON LËNDËN ME 1 KLIKIM."""
-    p_method = body.payment_method if body else "CASH"
-    p_amount = body.amount if body else DEFAULT_CASE_UNLOCK_PRICE_EUR
-    p_note = body.note if body else "Zhbllokim me 1 klikim nga Admini"
-    admin_id = str(current_admin.id) if current_admin else "ADMIN"
-
-    result = await asyncio.to_thread(
-        admin_service.unlock_case_by_admin,
-        db=db,
-        case_id=case_id,
-        payment_method=p_method,
-        amount=p_amount,
-        admin_user_id=admin_id,
-        note=p_note
-    )
-
-    if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("message", "Zhbllokimi dështoi."))
-
-    return result
-
-
-@router.post("/cases/{case_id}/lock")
-async def lock_case_1click(
-    case_id: str,
-    current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
-    db: Database = Depends(get_db)
-):
-    """E kthen lëndën në gjendje të bllokuar."""
-    result = await asyncio.to_thread(admin_service.lock_case_by_admin, db, case_id)
-    return result
 
 
 # =========================================================================
@@ -124,7 +81,6 @@ async def update_user(
     return updated_user
 
 
-# V50.1: vetëm `organization_id` në URL + parametër
 @router.put("/organizations/{organization_id}/tier")
 async def upgrade_organization_tier(
     organization_id: str,

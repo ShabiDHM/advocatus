@@ -1,9 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V74.0
+// PHOENIX PROTOCOL - MASTER API FACADE V75.0
+// V75.0: ONE-TIME PASS REMOVED —
+//        - Hequr bindings `unlockCase`, `lockCase` (të deleguar nga adminService).
 // V74.0: PER-DOCUMENT AUDIT — 3 metodat e dossier audit pranojnë documentIds?
-//        - getCaseDossierAudit(caseId, documentIds?)
-//        - saveCaseDossierAudit(caseId, content, documentIds?)
-//        - clearCaseDossierAudit(caseId, documentIds?)
 // V73.0: + getCaseDossierAudit + saveCaseDossierAudit me documentIds.
 
 export * from './apiClient';
@@ -206,8 +205,6 @@ class ApiService {
   public updateSubscription = adminService.updateSubscription.bind(adminService);
   public promoteToFirm = adminService.promoteToFirm.bind(adminService);
   public getAdminCases = adminService.getAdminCases.bind(adminService);
-  public unlockCase = adminService.unlockCase.bind(adminService);
-  public lockCase = adminService.lockCase.bind(adminService);
   public getSupportMessages = adminService.getSupportMessages.bind(adminService);
   public sendSupportReply = adminService.sendSupportReply.bind(adminService);
   public sendContactForm = adminService.sendContactForm.bind(adminService);

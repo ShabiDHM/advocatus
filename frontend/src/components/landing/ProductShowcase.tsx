@@ -1,21 +1,19 @@
 // FILE: src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V50.3
-// V50.3: WHISPER BADGE SYNC —
-//        - Badge mockup "WHISPER V3" → "WHISPER LARGE-V3" për konsistencë
-//          me desc (i njëjti model i referuar kudo në platformë).
-// V50.2: AI REFERENCES SYNC + INTERVAL RESET —
-//        - "Claude 3.5 Sonnet" → "DeepSeek V4 Flash 0731" (feature #0 + mockup).
-//        - Auto-advance interval tani reset-ohet pas çdo ndryshimi të activeTab
-//          (përfshirë klikim manual). Përpara: user klikonte tab #3 → 8s më
-//          vonë kalonte vetë në #4 pa dashje.
-// V50.1: ZERO LINTER WARNINGS.
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V51.0
+// V51.0: ONE-TIME PASS REMOVED —
+//        - Hequr feature #3 "One-Time Pass (19.99€)".
+//        - Hequr komponenti PaymentMockup.
+//        - Hequr importet e paperdorura (CreditCard, Banknote, Smartphone, ShieldCheck).
+//        - Features: 5 → 4.
+// V50.3: WHISPER BADGE SYNC.
+// V50.2: AI REFERENCES SYNC + INTERVAL RESET.
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronRight,
     Scale, CheckCircle2, BookOpen, AlertTriangle, Mic, Volume2,
-    FileSearch, CreditCard, Banknote, Smartphone, ShieldCheck
+    FileSearch
 } from 'lucide-react';
 
 const ProductShowcase: React.FC = () => {
@@ -51,15 +49,6 @@ const ProductShowcase: React.FC = () => {
         },
         {
             id: 3,
-            title: "💳 One-Time Pass (19.99€) & Pagesat në Kosovë",
-            desc: "Zhbllokim i menjëhershëm i lëndës për qytetarët dhe avokatët me Visa, Mastercard, Raiffeisen Bank (m-Banking me IBAN) ose Para në dorë (Cash në Zyrë).",
-            icon: <CreditCard className="w-5 h-5 text-emerald-400" />,
-            badge: "PAGESA PA ABONIM MUJOR",
-            color: "from-emerald-600 to-teal-600",
-            mockup: <PaymentMockup />
-        },
-        {
-            id: 4,
             title: "📚 Baza Statutore e Kosovës (5,024 Nene)",
             desc: "Qasje e drejtpërdrejtë në Kodin e ri të Procedurës Penale (Nr. 08/L-032), Kodin Penal, LPK, LMD dhe vendimet parimore të Gjykatës Supreme të Kosovës.",
             icon: <BookOpen className="w-5 h-5 text-purple-400" />,
@@ -286,33 +275,6 @@ const MediaTranscriptMockup = () => (
                 <p><span className="text-primary-start font-bold">[00:14 - 00:22]</span> Dëshmitari: &quot;Fëmija nuk e refuzon prindin...&quot;</p>
                 <p><span className="text-primary-start font-bold">[01:15 - 01:25]</span> Zyrtari: &quot;Raporti u plotësua mbi thëniet gojore...&quot;</p>
             </div>
-        </div>
-    </div>
-);
-
-const PaymentMockup = () => (
-    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
-        <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between mb-1">
-            <span className="flex items-center gap-2"><CreditCard size={16} /> Pagesat në Kosovë (One-Time Pass)</span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">19.99 €</span>
-        </div>
-
-        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-            <div className="flex items-center justify-between text-xs border-b border-slate-800 pb-2">
-                <span className="font-bold text-slate-200 flex items-center gap-1.5">
-                    <Smartphone className="w-4 h-4 text-amber-400" /> Raiffeisen Bank Kosova
-                </span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold">m-Banking Aktiv</span>
-            </div>
-            <div className="text-[11px] text-slate-300 space-y-1 font-mono">
-                <p className="text-slate-400">Përfituesi: <span className="text-slate-200 font-bold">Juristi AI SH.P.K.</span></p>
-                <p className="text-slate-400">Kodi i Referencës: <span className="text-amber-400 font-bold">JUR-8F92A1</span></p>
-            </div>
-        </div>
-
-        <div className="p-2.5 bg-emerald-950/40 border border-emerald-800/50 rounded-xl flex items-center justify-between text-[10px] text-emerald-200">
-            <span className="flex items-center gap-1"><ShieldCheck size={14} /> Zhbllokim i Menjëhershëm</span>
-            <span className="font-bold flex items-center gap-1"><Banknote size={14} /> Ose Para në Dorë (Cash)</span>
         </div>
     </div>
 );

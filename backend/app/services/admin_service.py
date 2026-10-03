@@ -1,7 +1,12 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - ADMIN SERVICE V51.3 (PRICE 99.99)
-# V51.3: PRICE ALIGNMENT — unlock_case_by_admin default amount: 99.00 → 99.99
-#        (konsistencë me mandatin).
+# PHOENIX PROTOCOL - ADMIN SERVICE V51.4 (ONE-TIME PASS REMOVED)
+# V51.4: ONE-TIME PASS REMOVED —
+#        - Hequr `unlock_case_by_admin` + `lock_case_by_admin`.
+#        - Hequr `DEFAULT_UNLOCK_AMOUNT`.
+#        - `get_all_cases_for_admin_dashboard`: hequr fushat is_unlocked,
+#          unlocked_at, unlock_payment_method, unlock_amount.
+#        - Modeli: vetëm abonim mujor (Solo 49.99€ / Team 99.99€).
+# V51.3: PRICE ALIGNMENT (bazë historike).
 # V51.2: Default amount: 9.99 → 99.00.
 # V51.1: FIX — delete_user_and_data nuk perdor UserInDB.model_validate.
 # V51.0: DELEGATED USER DELETE (delegon te user_service).
@@ -14,13 +19,9 @@ from types import SimpleNamespace
 import logging
 
 
-
 from app.services import user_service
 
 logger = logging.getLogger(__name__)
-
-# V51.3: Çmimi default për zhbllokim (fallback)
-DEFAULT_UNLOCK_AMOUNT = 99.99
 
 
 class AdminService:
@@ -37,12 +38,13 @@ class AdminService:
             users = list(db.users.aggregate(pipeline))
             return users
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.3] Failed to fetch users: {e}")
+            logger.error(f"--- [ADMIN V51.4] Failed to fetch users: {e}")
             return []
 
     def get_all_cases_for_admin_dashboard(self, db: Database) -> List[Dict[str, Any]]:
         """
-        Kthen të gjitha lëndët me statusin e tyre të pagesës për panelin e Adminit.
+        V51.4: Kthen të gjitha lëndët për panelin e Adminit.
+        Hequr fushat e lidhura me One-Time Pass (is_unlocked, unlock_*).
         """
         pipeline = [
             {"$lookup": {"from": "users", "localField": "owner_id", "foreignField": "_id", "as": "owner_data"}},
@@ -53,10 +55,6 @@ class AdminService:
                 "title": {"$ifNull": ["$title", "$name", "Lëndë e Pa-emërtuar"]},
                 "client_name": {"$ifNull": ["$client_name", "$client.name", "Pala"]},
                 "client_position": {"$ifNull": ["$client_position", "$client_role", "DEFENDANT"]},
-                "is_unlocked": {"$ifNull": ["$is_unlocked", False]},
-                "unlocked_at": "$unlocked_at",
-                "unlock_payment_method": "$unlock_payment_method",
-                "unlock_amount": "$unlock_amount",
                 "owner_email": "$owner_data.email",
                 "owner_name": {"$ifNull": ["$owner_data.full_name", "$owner_data.name", "Përdorues"]},
                 "owner_role": "$owner_data.role",
@@ -70,74 +68,8 @@ class AdminService:
             cases = list(db.cases.aggregate(pipeline))
             return cases
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.3] Failed to fetch cases for admin: {e}")
+            logger.error(f"--- [ADMIN V51.4] Failed to fetch cases for admin: {e}")
             return []
-
-    def unlock_case_by_admin(
-        self,
-        db: Database,
-        case_id: str,
-        payment_method: str = "CASH",
-        amount: float = DEFAULT_UNLOCK_AMOUNT,   # V51.3: 99.99
-        admin_user_id: str = "",
-        note: str = "Zhbllokim me 1 klikim nga Admini"
-    ) -> Dict[str, Any]:
-        """
-        Zhbllokon lëndën me 1 klikim nga paneli i adminit.
-        """
-        try:
-            c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
-            case_doc = db.cases.find_one({"_id": c_oid})
-            if not case_doc:
-                return {"success": False, "message": "Lënda nuk u gjet."}
-
-            now = datetime.now(timezone.utc)
-            db.cases.update_one(
-                {"_id": c_oid},
-                {"$set": {
-                    "is_unlocked": True,
-                    "unlocked_at": now,
-                    "unlock_payment_method": payment_method.upper(),
-                    "unlock_amount": amount,
-                    "updated_at": now
-                }}
-            )
-
-            order_record = {
-                "case_id": c_oid,
-                "owner_id": case_doc.get("owner_id"),
-                "approved_by": admin_user_id,
-                "amount": amount,
-                "currency": "EUR",
-                "payment_method": payment_method.upper(),
-                "status": "COMPLETED",
-                "note": note,
-                "created_at": now
-            }
-            db.case_orders.insert_one(order_record)
-
-            logger.info(f"✅ [Admin Unlock V51.3] Lënda {case_id} u zhbllokua nga Admini ({payment_method.upper()}, {amount}€).")
-            return {
-                "success": True,
-                "message": f"Lënda '{case_doc.get('title', '')}' u zhbllokua me sukses.",
-                "case_id": str(case_id),
-                "is_unlocked": True,
-                "unlocked_at": now.isoformat()
-            }
-        except Exception as e:
-            logger.error(f"--- [ADMIN V51.3] Unlock error: {e}")
-            return {"success": False, "message": str(e)}
-
-    def lock_case_by_admin(self, db: Database, case_id: str) -> Dict[str, Any]:
-        try:
-            c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
-            db.cases.update_one(
-                {"_id": c_oid},
-                {"$set": {"is_unlocked": False, "updated_at": datetime.now(timezone.utc)}}
-            )
-            return {"success": True, "message": "Lënda u bllokua përsëri.", "is_unlocked": False}
-        except Exception as e:
-            return {"success": False, "message": str(e)}
 
     def update_user_and_subscription(self, db: Database, user_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
@@ -150,7 +82,7 @@ class AdminService:
                 return None
             return db.users.find_one({"_id": oid})
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.3] User update error: {e}")
+            logger.error(f"--- [ADMIN V51.4] User update error: {e}")
             return None
 
     def delete_user_and_data(self, db: Database, user_id: str) -> bool:
@@ -161,7 +93,7 @@ class AdminService:
             oid = ObjectId(user_id)
             user_doc = db.users.find_one({"_id": oid})
             if not user_doc:
-                logger.warning(f"--- [ADMIN V51.3] delete_user_and_data: user {user_id} nuk u gjet")
+                logger.warning(f"--- [ADMIN V51.4] delete_user_and_data: user {user_id} nuk u gjet")
                 return False
 
             user = SimpleNamespace(
@@ -172,11 +104,11 @@ class AdminService:
 
             user_service.delete_user_and_all_data(db, user)
 
-            logger.info(f"✅ [ADMIN V51.3] User {user_id} u fshi me sukses.")
+            logger.info(f"✅ [ADMIN V51.4] User {user_id} u fshi me sukses.")
             return True
 
         except Exception as e:
-            logger.error(f"--- [ADMIN V51.3] User deletion error: {e}", exc_info=True)
+            logger.error(f"--- [ADMIN V51.4] User deletion error: {e}", exc_info=True)
             return False
 
 

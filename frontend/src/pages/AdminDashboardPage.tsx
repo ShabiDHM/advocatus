@@ -1,17 +1,17 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V51.4
-// V51.4: SUBSCRIPTION_TIER HARDCODING FIX —
-//        - `handleUpdateUser`: `subscription_tier: 'PRO' as any` ishte HARDCODED
-//          → çdo admin update e bënte userin PRO. Meqë tier PRO është hequr
-//          nga sistemi, kjo ishte bypass i plotë i aksesit (nga CaseViewPage:
-//          `isPro = user?.subscription_tier === 'PRO' || user?.role === 'ADMIN'`).
-//          Tani: ruan vlerën ekzistuese të userit nga `editForm.subscription_tier`.
-// V51.3: PRICE ALIGNMENT —
-//        - DEFAULT_UNLOCK_PRICE_EUR: 99.00 → 19.99. Përputhet me çmimin
-//          user-facing (LandingPage/ProductShowcase: One-Time Pass 19.99€).
-// V51.2: ERROR HANDLING + REVENUE FIX —
-//        - `handleLockCase`: shtuar kontroll `res.ok`.
-//        - `totalRevenueEst`: nullish coalescing (0 mbahet si 0).
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V52.0
+// V52.0: ONE-TIME PASS REMOVED —
+//        - Hequr tab-i "Lëndët & Pagesat" me zhbllokim → tani "Lëndët".
+//        - Hequr butonat "Zhblloko (Cash 99€)" dhe "Blloko".
+//        - Hequr kolona "Statusi i Pagesës" + "Veprimi me 1 Klikim".
+//        - Hequr stat "Të Zhbllokuara" + "Në Pritje Pagese" + "Fitimi Total".
+//        - Hequr filter pills LOCKED/UNLOCKED.
+//        - Hequr `handleUnlockCase`, `handleLockCase`, `DEFAULT_UNLOCK_PRICE_EUR`,
+//          `actionLoadingId`, `caseFilter`, `totalRevenueEst`.
+//        - Modeli: vetëm abonim mujor (Solo 49.99€ / Team 99.99€).
+// V51.4: SUBSCRIPTION_TIER HARDCODING FIX.
+// V51.3: PRICE ALIGNMENT.
+// V51.2: ERROR HANDLING + REVENUE FIX.
 // V51.1: PRICE UPDATE.
 // V51.0: FIX — 3 URL fetch u korrigjuan. Token helper.
 
@@ -20,8 +20,7 @@ import { useTranslation } from 'react-i18next';
 import {
     Search, Edit2, Trash2, CheckCircle, Loader2, Clock,
     Briefcase, AlertTriangle, Building2, User as UserIcon, Star, Mail, Key, ShieldAlert, Filter,
-    Unlock, Lock, CreditCard, Banknote, RefreshCw, DollarSign, FolderGit2
-} from 'lucide-react';
+    RefreshCw, FolderGit2} from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -42,10 +41,6 @@ type AdminCaseView = {
     title: string;
     client_name: string;
     client_position: string;
-    is_unlocked: boolean;
-    unlocked_at?: string;
-    unlock_payment_method?: string;
-    unlock_amount?: number;
     owner_email?: string;
     owner_name?: string;
     owner_role?: string;
@@ -53,13 +48,9 @@ type AdminCaseView = {
     created_at?: string;
 };
 
-type MainTab = 'CASES_PAYMENTS' | 'USERS';
+type MainTab = 'CASES' | 'USERS';
 type UserRole = 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
 type StatusFilter = 'ALL' | 'ACTIVE' | 'PENDING' | 'INACTIVE_EXPIRED' | 'TEAM';
-type CaseStatusFilter = 'ALL' | 'LOCKED' | 'UNLOCKED';
-
-// V51.3: Çmimi i konfigurueshëm — përputhet me LandingPage/ProductShowcase (19.99€).
-const DEFAULT_UNLOCK_PRICE_EUR = 19.99;
 
 // V51.0: Helper që provon disa keys + cookie fallback
 const _getAuthToken = (): string => {
@@ -81,7 +72,7 @@ const _getAuthToken = (): string => {
 
 const AdminDashboardPage: React.FC = () => {
     const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState<MainTab>('CASES_PAYMENTS');
+    const [activeTab, setActiveTab] = useState<MainTab>('CASES');
 
     // Users State
     const [users, setUsers] = useState<UnifiedAdminUser[]>([]);
@@ -91,12 +82,10 @@ const AdminDashboardPage: React.FC = () => {
     const [editingUser, setEditingUser] = useState<UnifiedAdminUser | null>(null);
     const [editForm, setEditForm] = useState<Partial<UnifiedAdminUser> & { expiry_date?: Date | null }>({});
 
-    // Cases & Payments State
+    // Cases State
     const [cases, setCases] = useState<AdminCaseView[]>([]);
     const [isLoadingCases, setIsLoadingCases] = useState(false);
     const [caseSearchQuery, setCaseSearchQuery] = useState('');
-    const [caseFilter, setCaseFilter] = useState<CaseStatusFilter>('ALL');
-    const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
     useLockBodyScroll(!!editingUser);
 
@@ -153,77 +142,6 @@ const AdminDashboardPage: React.FC = () => {
         return 2;
     };
 
-    // =========================================================================
-    // 🔓 VEPRIMET ME 1 KLIKIM PËR ZHBLLOKIMIN E LËNDËVE (CASH / MBANKING)
-    // =========================================================================
-    const handleUnlockCase = async (
-        caseId: string,
-        paymentMethod: 'CASH' | 'MBANKING' | 'CARD' = 'CASH',
-        amount: number = DEFAULT_UNLOCK_PRICE_EUR,
-    ) => {
-        setActionLoadingId(caseId);
-        try {
-            const token = _getAuthToken();
-            const res = await fetch(`/api/v1/admin/cases/${caseId}/unlock`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    payment_method: paymentMethod,
-                    amount: amount,
-                    note: `Zhbllokuar me ${paymentMethod} nga Paneli i Adminit`
-                })
-            });
-
-            if (res.ok) {
-                setCases(prev => prev.map(c => c._id === caseId ? {
-                    ...c,
-                    is_unlocked: true,
-                    unlock_payment_method: paymentMethod,
-                    unlock_amount: amount,
-                    unlocked_at: new Date().toISOString()
-                } : c));
-            } else {
-                const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Dështoi zhbllokimi i lëndës.");
-            }
-        } catch (error) {
-            console.error("Unlock error:", error);
-            alert("Ndodhi një gabim gjatë zhbllokimit.");
-        } finally {
-            setActionLoadingId(null);
-        }
-    };
-
-    const handleLockCase = async (caseId: string) => {
-        if (!window.confirm("A jeni të sigurt që dëshironi ta bllokoni përsëri këtë lëndë?")) return;
-        setActionLoadingId(caseId);
-        try {
-            const token = _getAuthToken();
-            const res = await fetch(`/api/v1/admin/cases/${caseId}/lock`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (res.ok) {
-                setCases(prev => prev.map(c => c._id === caseId ? { ...c, is_unlocked: false } : c));
-            } else {
-                const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Dështoi bllokimi i lëndës.");
-            }
-        } catch (error) {
-            console.error("Lock error:", error);
-            alert("Ndodhi një gabim gjatë bllokimit.");
-        } finally {
-            setActionLoadingId(null);
-        }
-    };
-
     const handleEditClick = (user: UnifiedAdminUser) => {
         setEditingUser(user);
         setEditForm({
@@ -237,7 +155,6 @@ const AdminDashboardPage: React.FC = () => {
         if (!editingUser?.id) return;
 
         try {
-            // V51.4: subscription_tier ruhet nga user-i ekzistues (jo hardcoded 'PRO').
             const userUpdatePayload: UpdateUserRequest = {
                 username: editForm.username,
                 email: editForm.email,
@@ -318,22 +235,13 @@ const AdminDashboardPage: React.FC = () => {
     };
 
     const filteredCases = cases.filter(c => {
-        const matchesSearch =
-            c.title?.toLowerCase().includes(caseSearchQuery.toLowerCase()) ||
-            c.client_name?.toLowerCase().includes(caseSearchQuery.toLowerCase()) ||
-            c.owner_email?.toLowerCase().includes(caseSearchQuery.toLowerCase());
-
-        if (!matchesSearch) return false;
-
-        if (caseFilter === 'LOCKED') return !c.is_unlocked;
-        if (caseFilter === 'UNLOCKED') return c.is_unlocked;
-        return true;
+        const q = caseSearchQuery.toLowerCase();
+        return (
+            c.title?.toLowerCase().includes(q) ||
+            c.client_name?.toLowerCase().includes(q) ||
+            c.owner_email?.toLowerCase().includes(q)
+        );
     });
-
-    const totalRevenueEst = cases.reduce(
-        (acc, c) => acc + (c.is_unlocked ? (c.unlock_amount ?? DEFAULT_UNLOCK_PRICE_EUR) : 0),
-        0
-    );
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-canvas">
@@ -343,7 +251,7 @@ const AdminDashboardPage: React.FC = () => {
             <div className="mb-6 select-none flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-text-primary mb-1">Paneli i Super Adminit</h1>
-                    <p className="text-text-secondary text-sm">Menaxhimi i Pagesave, Zhbllokimi me 1 Klikim dhe Kontrolli i Përdoruesve</p>
+                    <p className="text-text-secondary text-sm">Menaxhimi i Lëndëve dhe Kontrolli i Përdoruesve</p>
                 </div>
                 <button
                     onClick={() => { loadCasesData(); loadAdminData(); }}
@@ -356,14 +264,14 @@ const AdminDashboardPage: React.FC = () => {
             {/* Main Tabs Navigation */}
             <div className="flex items-center gap-3 mb-6 border-b border-main pb-2">
                 <button
-                    onClick={() => setActiveTab('CASES_PAYMENTS')}
+                    onClick={() => setActiveTab('CASES')}
                     className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all ${
-                        activeTab === 'CASES_PAYMENTS'
+                        activeTab === 'CASES'
                             ? 'bg-primary-start text-white shadow-lg shadow-primary-start/20'
                             : 'bg-surface text-text-secondary hover:text-text-primary border border-main'
                     }`}
                 >
-                    <DollarSign className="w-4 h-4" /> 💰 Lëndët & Pagesat (Zhbllokim me 1 Klikim)
+                    <FolderGit2 className="w-4 h-4" /> 📁 Lëndët ({cases.length})
                 </button>
                 <button
                     onClick={() => setActiveTab('USERS')}
@@ -377,33 +285,41 @@ const AdminDashboardPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* TAB 1: 💰 LËNDËT DHE PAGESAT ME 1 KLIKIM */}
-            {activeTab === 'CASES_PAYMENTS' && (
+            {/* TAB 1: 📁 LËNDËT */}
+            {activeTab === 'CASES' && (
                 <div className="space-y-6">
+                    {/* Quick Stats Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="glass-panel p-4 rounded-2xl border border-main bg-surface/40">
                             <div className="text-text-muted text-xs font-bold uppercase mb-1">Gjithsej Lëndë</div>
                             <div className="text-2xl font-black text-text-primary">{cases.length}</div>
                         </div>
-                        <div className="glass-panel p-4 rounded-2xl border border-success-start/20 bg-success-start/5">
-                            <div className="text-success-start text-xs font-bold uppercase mb-1">Të Zhbllokuara</div>
-                            <div className="text-2xl font-black text-success-start">{cases.filter(c => c.is_unlocked).length}</div>
+                        <div className="glass-panel p-4 rounded-2xl border border-primary-start/20 bg-primary-start/5">
+                            <div className="text-primary-start text-xs font-bold uppercase mb-1">Përdorues Aktivë</div>
+                            <div className="text-2xl font-black text-primary-start">
+                                {users.filter(u => u.subscription_status === 'ACTIVE').length}
+                            </div>
+                        </div>
+                        <div className="glass-panel p-4 rounded-2xl border border-main bg-surface/40">
+                            <div className="text-text-muted text-xs font-bold uppercase mb-1">Plane Solo</div>
+                            <div className="text-2xl font-black text-text-primary">
+                                {users.filter(u => u.product_plan === ProductPlan.SOLO_PLAN).length}
+                            </div>
                         </div>
                         <div className="glass-panel p-4 rounded-2xl border border-warning-start/20 bg-warning-start/5">
-                            <div className="text-warning-start text-xs font-bold uppercase mb-1">Në Pritje Pagese</div>
-                            <div className="text-2xl font-black text-warning-start">{cases.filter(c => !c.is_unlocked).length}</div>
-                        </div>
-                        <div className="glass-panel p-4 rounded-2xl border border-primary-start/20 bg-primary-start/5">
-                            <div className="text-primary-start text-xs font-bold uppercase mb-1">Fitimi Total i Vlerësuar</div>
-                            <div className="text-2xl font-black text-primary-start">{totalRevenueEst.toFixed(2)} €</div>
+                            <div className="text-warning-start text-xs font-bold uppercase mb-1">Plane Team</div>
+                            <div className="text-2xl font-black text-warning-start">
+                                {users.filter(u => u.product_plan === ProductPlan.TEAM_PLAN).length}
+                            </div>
                         </div>
                     </div>
 
+                    {/* Table Container */}
                     <div className="glass-panel rounded-2xl border border-main overflow-hidden bg-canvas">
                         <div className="p-4 border-b border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-surface">
                             <div className="flex items-center gap-2 select-none">
                                 <FolderGit2 className="w-5 h-5 text-primary-start" />
-                                <h3 className="text-base font-bold text-text-primary">Menaxhimi i Zhbllokimit të Lëndëve</h3>
+                                <h3 className="text-base font-bold text-text-primary">Të Gjitha Lëndët</h3>
                             </div>
                             <div className="relative w-full sm:w-72 flex items-center">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
@@ -417,33 +333,6 @@ const AdminDashboardPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="p-3 border-b border-main bg-canvas/40 flex flex-wrap items-center gap-2 select-none">
-                            <button
-                                onClick={() => setCaseFilter('ALL')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    caseFilter === 'ALL' ? 'bg-primary-start text-white' : 'bg-surface text-text-secondary border border-main'
-                                }`}
-                            >
-                                Të Gjitha ({cases.length})
-                            </button>
-                            <button
-                                onClick={() => setCaseFilter('LOCKED')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                    caseFilter === 'LOCKED' ? 'bg-warning-start text-white' : 'bg-surface text-text-secondary border border-main'
-                                }`}
-                            >
-                                <Lock className="w-3 h-3" /> Të Bllokuara ({cases.filter(c => !c.is_unlocked).length})
-                            </button>
-                            <button
-                                onClick={() => setCaseFilter('UNLOCKED')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                    caseFilter === 'UNLOCKED' ? 'bg-success-start text-white' : 'bg-surface text-text-secondary border border-main'
-                                }`}
-                            >
-                                <Unlock className="w-3 h-3" /> Të Zhbllokuara ({cases.filter(c => c.is_unlocked).length})
-                            </button>
-                        </div>
-
                         <div className="w-full overflow-x-auto">
                             <table className="w-full text-left text-sm text-text-secondary">
                                 <thead className="bg-surface text-text-primary uppercase text-xs font-bold border-b border-main select-none">
@@ -451,20 +340,19 @@ const AdminDashboardPage: React.FC = () => {
                                         <th className="px-6 py-4">Titulli i Lëndës & Klienti</th>
                                         <th className="px-6 py-4">Përdoruesi (Pronari)</th>
                                         <th className="px-6 py-4 text-center">Dokumente</th>
-                                        <th className="px-6 py-4">Statusi i Pagesës</th>
-                                        <th className="px-6 py-4 text-right">Veprimi me 1 Klikim</th>
+                                        <th className="px-6 py-4 font-mono">Krijuar</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-main">
                                     {isLoadingCases ? (
                                         <tr>
-                                            <td colSpan={5} className="py-12 text-center text-text-secondary">
+                                            <td colSpan={4} className="py-12 text-center text-text-secondary">
                                                 <Loader2 className="animate-spin h-6 w-6 text-primary-start mx-auto" />
                                             </td>
                                         </tr>
                                     ) : filteredCases.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="py-12 text-center text-text-secondary italic text-sm font-medium">
+                                            <td colSpan={4} className="py-12 text-center text-text-secondary italic text-sm font-medium">
                                                 Asnjë lëndë nuk u gjet.
                                             </td>
                                         </tr>
@@ -486,60 +374,8 @@ const AdminDashboardPage: React.FC = () => {
                                                         {c.document_count || 0} Faqe/Akte
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    {c.is_unlocked ? (
-                                                        <div className="space-y-0.5">
-                                                            <span className="inline-flex items-center gap-1 text-success-start bg-success-start/10 px-2.5 py-1 rounded-lg text-xs font-bold border border-success-start/20 shadow-sm">
-                                                                <CheckCircle className="w-3.5 h-3.5" /> E ZHBLLOKUAR (AKTIVE)
-                                                            </span>
-                                                            <div className="text-[11px] text-text-muted font-mono">
-                                                                {c.unlock_payment_method || 'CASH'} • {c.unlock_amount ?? DEFAULT_UNLOCK_PRICE_EUR}€
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 text-warning-start bg-warning-start/10 px-2.5 py-1 rounded-lg text-xs font-bold border border-warning-start/20 shadow-sm">
-                                                            <Lock className="w-3.5 h-3.5" /> E BLLOKUAR (PRET PAGESË)
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    {c.is_unlocked ? (
-                                                        <button
-                                                            onClick={() => handleLockCase(c._id)}
-                                                            disabled={actionLoadingId === c._id}
-                                                            className="px-3 py-1.5 bg-danger-start/10 text-danger-start hover:bg-danger-start/20 border border-danger-start/20 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5 focus:outline-none disabled:opacity-50"
-                                                        >
-                                                            {actionLoadingId === c._id ? (
-                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                            ) : (
-                                                                <Lock className="w-3.5 h-3.5" />
-                                                            )}
-                                                            Blloko
-                                                        </button>
-                                                    ) : (
-                                                        <div className="inline-flex items-center gap-2">
-                                                            <button
-                                                                onClick={() => handleUnlockCase(c._id, 'CASH', DEFAULT_UNLOCK_PRICE_EUR)}
-                                                                disabled={actionLoadingId === c._id}
-                                                                className="px-3 py-1.5 bg-success-start text-white hover:bg-opacity-90 rounded-lg text-xs font-bold shadow-md shadow-success-start/20 transition-all inline-flex items-center gap-1.5 focus:outline-none disabled:opacity-50"
-                                                            >
-                                                                {actionLoadingId === c._id ? (
-                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                ) : (
-                                                                    <Banknote className="w-3.5 h-3.5" />
-                                                                )}
-                                                                🔓 Zhblloko (Cash {DEFAULT_UNLOCK_PRICE_EUR}€)
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleUnlockCase(c._id, 'MBANKING', DEFAULT_UNLOCK_PRICE_EUR)}
-                                                                disabled={actionLoadingId === c._id}
-                                                                className="px-2.5 py-1.5 bg-surface text-primary-start hover:bg-hover border border-primary-start/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 focus:outline-none disabled:opacity-50"
-                                                                title="Zhblloko si m-Banking"
-                                                            >
-                                                                <CreditCard className="w-3.5 h-3.5" /> m-Bank
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                <td className="px-6 py-4 font-mono text-xs select-none text-text-muted">
+                                                    {c.created_at ? new Date(c.created_at).toLocaleDateString() : 'N/A'}
                                                 </td>
                                             </tr>
                                         ))

@@ -1,15 +1,12 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V50.2
-// V50.2: ENCRYPTION CLAIM ACCURACY —
-//        - "AES-256" → "Fernet (AES-128-CBC + HMAC-SHA256)". Backend përdor
-//          Fernet me PBKDF2HMAC. Fernet spec = AES-128-CBC + HMAC-SHA256 —
-//          i fortë, por jo AES-256. Claim-i i vjetër ishte i pasaktë.
-// V50.1: AI REFERENCES SYNC —
-//        - "Claude 3.5 Sonnet" → "DeepSeek V4 Flash 0731" në bento + Solo Plan.
-//        - "DeepSeek-V3" → "DeepSeek V4 Flash 0731" (version aktual i produksionit).
-//        - "Whisper" → "Whisper Large-v3" (konsistencë me ProductShowcase).
-//        - Footer links: <a href> → <Link to> (SPA navigation, jo page reload).
-// V50.0: TIER-1 SUPREME SHOWCASE & UNIFIED KOSOVO PRICING.
+// PHOENIX PROTOCOL - LANDING PAGE V51.0
+// V51.0: ONE-TIME PASS REMOVED —
+//        - Hequr karta "One-Time Pass (19.99€)".
+//        - Grid 3 kolona → 2 kolona (Solo + Team).
+//        - Përditësuar tekstet: vetëm abonim mujor.
+//        - Payment badges mbeten (Visa/Mastercard/Raiffeisen).
+// V50.2: ENCRYPTION CLAIM ACCURACY.
+// V50.1: AI REFERENCES SYNC.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,7 +29,6 @@ import {
   Sparkles,
   CreditCard,
   Building2,
-  User as UserIcon,
   Banknote,
   Smartphone
 } from 'lucide-react';
@@ -228,7 +224,7 @@ export const LandingPage: React.FC = () => {
     },
     {
       title: 'Përputhshmëri me Ligjin e Kosovës',
-      desc: 'Ndërtuar në përputhje me Ligjin Nr. 06/L-082 për Mbrojtjen e të Dhënave Personale.',
+      desc: 'Ndërtuar në përputhje me Ligjin Nr. 06/L-082 për Mbrojtjen e Të Dhënave Personale.',
       icon: CheckCircle2,
     },
   ];
@@ -393,70 +389,20 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ========================================================================= */}
-      {/* 💰 ÇMIMET DHE PLANET E REJA */}
+      {/* 💰 ÇMIMET — VETËM ABONIM MUJOR */}
       {/* ========================================================================= */}
       <section id="pricing" className="py-24 border-t border-main bg-canvas relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary-start">PLANET & ÇMIMET TRANZPARENTE</span>
-            <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">Zgjidhni Zgjidhjen Tuaj Ligjore</h2>
-            <p className="text-xs sm:text-sm text-text-secondary">Nga qytetarët që kërkojnë analizën e një rasti të vetëm, deri te zyrat e mëdha të avokatisë.</p>
+            <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">Zgjidhni Planin Tuaj</h2>
+            <p className="text-xs sm:text-sm text-text-secondary">Abonim mujor me akses të plotë në të gjitha veçoritë e platformës.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 max-w-4xl mx-auto">
 
-            {/* KARTA 1: QYTETARËT (ONE-TIME PASS) */}
-            <div className="p-8 rounded-3xl bg-card border border-main shadow-md flex flex-col justify-between hover:border-primary-start/40 transition-all relative">
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted bg-surface px-3 py-1 rounded-lg border border-main">
-                    Për Qytetarët
-                  </span>
-                  <UserIcon className="w-5 h-5 text-text-muted" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-text-primary">One-Time Pass</h3>
-                  <p className="text-xs text-text-secondary mt-1">Zgjidhje e plotë për 1 lëndë të vetme gjyqësore.</p>
-                </div>
-                <div className="flex items-baseline gap-1 pt-2">
-                  <span className="text-4xl font-black text-text-primary">19.99 €</span>
-                  <span className="text-xs text-text-muted font-bold">/ pagesë njëherëshe</span>
-                </div>
-
-                <div className="space-y-3 pt-4 border-t border-main text-xs text-text-secondary">
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-success-start shrink-0" />
-                    <span><strong>1 Lëndë e Plotë</strong> (E vlefshme përgjithmonë)</span>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-success-start shrink-0" />
-                    <span>Analiza Supreme me DeepSeek V4 Flash 0731</span>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-success-start shrink-0" />
-                    <span>Zbulimi i shkeljeve <strong>Contra Legem</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-success-start shrink-0" />
-                    <span>Skanim deri në 200 faqe & Audio me sekonda</span>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-success-start shrink-0" />
-                    <span>Raporti zyrtar në PDF i gatshëm për gjykatë</span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => navigate('/register')}
-                className="w-full h-12 mt-8 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary font-bold text-xs uppercase tracking-wider transition-all focus:outline-none cursor-pointer"
-              >
-                Zhblloko 1 Lëndë Tani
-              </button>
-            </div>
-
-            {/* KARTA 2: AVOKAT SOLO (MË I POPULLARIZUARI) */}
-            <div className="p-8 rounded-3xl bg-gradient-to-b from-primary-start/10 via-card to-card border-2 border-primary-start shadow-xl flex flex-col justify-between relative transform lg:-translate-y-2">
+            {/* KARTA 1: AVOKAT SOLO */}
+            <div className="p-8 rounded-3xl bg-gradient-to-b from-primary-start/10 via-card to-card border-2 border-primary-start shadow-xl flex flex-col justify-between relative">
               <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-primary-start text-white text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-md">
                 ⭐ Zgjedhja e Avokatëve
               </div>
@@ -509,7 +455,7 @@ export const LandingPage: React.FC = () => {
               </button>
             </div>
 
-            {/* KARTA 3: ZYRA AVOKATIE (TEAM PLAN) */}
+            {/* KARTA 2: ZYRA AVOKATIE (TEAM PLAN) */}
             <div className="p-8 rounded-3xl bg-card border border-main shadow-md flex flex-col justify-between hover:border-primary-start/40 transition-all relative">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -562,7 +508,7 @@ export const LandingPage: React.FC = () => {
           </div>
 
           {/* PAYMENT BADGES BANNER */}
-          <div className="p-6 rounded-2xl bg-surface/60 border border-main flex flex-wrap items-center justify-between gap-4 select-none">
+          <div className="p-6 rounded-2xl bg-surface/60 border border-main flex flex-wrap items-center justify-between gap-4 select-none max-w-4xl mx-auto">
             <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
               <CreditCard className="w-4 h-4 text-primary-start" />
               <span>Mënyrat e Pagesës në Kosovë:</span>
@@ -613,7 +559,7 @@ export const LandingPage: React.FC = () => {
       <section className="py-20 border-t border-main bg-gradient-to-b from-surface/50 to-canvas text-center relative overflow-hidden">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 relative z-10">
           <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">Gati për të Fituar Çështjen Tuaj?</h2>
-          <p className="text-xs sm:text-sm text-text-secondary max-w-xl mx-auto leading-relaxed">Ngarkoni fashikullin dhe merrni menjëherë Analizën e plotë të Gjykatës Supreme.</p>
+          <p className="text-xs sm:text-sm text-text-secondary max-w-xl mx-auto leading-relaxed">Aktivizoni abonimin dhe merrni menjëherë Analizën e plotë të Gjykatës Supreme.</p>
           <div className="pt-2">
             <button onClick={() => navigate('/register')} className="h-12 px-9 rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-primary-start/30 transition-all hover:scale-105 active:scale-95 cursor-pointer">
               Fillo Tani

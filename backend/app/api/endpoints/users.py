@@ -1,36 +1,37 @@
+# FILE: backend/app/api/endpoints/users.py
+# PHOENIX PROTOCOL - USERS V2.1 (WHITELIST — IDENTITY ONLY)
+# V2.1: `get_current_user` → `get_current_user_identity` — useri mund të
+#       shohë/fshijë profilin edhe pa abonim aktiv (UX: shoh statusin "në shqyrtim").
 from fastapi import APIRouter, Depends, status
 from typing import Annotated
 from pymongo.database import Database
 
 from ...models.user import UserOut, UserInDB
-# PHOENIX PROTOCOL CURE: Corrected the import statements to resolve the Pylance error.
-# Each dependency is now imported from its correct source module.
-from .dependencies import get_current_user
+from .dependencies import get_current_user_identity
 from ...core.db import get_db
 from ...services import user_service
 
 router = APIRouter()
 
+
 @router.get("/me", response_model=UserOut)
 def get_current_user_profile(
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
+    current_user: Annotated[UserInDB, Depends(get_current_user_identity)]
 ):
     """
     Retrieves the profile for the currently authenticated user.
+    V2.1: Lëre të hapur për user me INACTIVE — shoh statusin e abonimit.
     """
-    # PHOENIX FIX: Explicitly construct the UserOut model from the UserInDB object.
-    # This ensures correct serialization and that all fields, including 'role', are included in the response.
     return UserOut.model_validate(current_user)
 
-# PHOENIX FIX: Corrected the invalid status code to resolve the container startup crash.
+
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_own_account(
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    current_user: Annotated[UserInDB, Depends(get_current_user_identity)],
     db: Database = Depends(get_db)
 ):
     """
     Permanently deletes the current user and all their associated data.
-    This is an irreversible action.
+    V2.1: Lëre të hapur — user mund të fshijë llogarinë pa abonim.
     """
     user_service.delete_user_and_all_data(user=current_user, db=db)
-    # On success, a 204 No Content response is returned automatically.

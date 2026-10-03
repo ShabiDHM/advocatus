@@ -1,6 +1,9 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V67.1 (PRICE 99.00)
-# V67.1: PRICE UPDATE — Fallback CASE_UNLOCK_PRICE_EUR: "9.99" → "99.00".
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V67.2 (ONE-TIME PASS REMOVED)
+# V67.2: ONE-TIME PASS REMOVED —
+#        - Hequr `DEFAULT_CASE_UNLOCK_PRICE_EUR`.
+#        - Mesazhi 402 tani i drejtuar te abonimi (jo pagesë njëherëshe).
+# V67.1: PRICE UPDATE (bazë historike).
 # V67.0: AUDIT FIXES — B1 (security), B2 (destructive default),
 #        B4 (N+1 query), B5 (owner_id type).
 # V66.0: ORG-AWARE — user me org mund të shikojë/modifikojë/fshijë dokumentet e org-ut.
@@ -37,9 +40,6 @@ logger = logging.getLogger(__name__)
 
 # LIMITI MAKSIMAL I SKEDARIT (50 MB)
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
-
-# V67.1: Çmimi default për zhbllokim (fallback nëse env mungon)
-DEFAULT_CASE_UNLOCK_PRICE_EUR = "99.00"
 
 
 def _require_case_access(db: Database, case_id: str, current_user: UserInDB) -> ObjectId:
@@ -112,7 +112,7 @@ def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
         algorithm = getattr(settings, "ALGORITHM", "HS256")
         return jwt.decode(token_str, secret, algorithms=[algorithm])
     except Exception as e:
-        logger.debug(f"[V67.1] JWT verification failed: {e}")
+        logger.debug(f"[V67.2] JWT verification failed: {e}")
         return None
 
 
@@ -172,7 +172,7 @@ async def get_documents_for_case(
                 if p_int > pages_by_doc.get(did, 0):
                     pages_by_doc[did] = p_int
         except Exception as e:
-            logger.debug(f"[V67.1] user_vectors batch query failed: {e}")
+            logger.debug(f"[V67.2] user_vectors batch query failed: {e}")
 
     validated_docs = []
     for d in docs:
@@ -434,11 +434,9 @@ async def upload_document_for_case(
     is_case_unlocked = bool(case_doc.get("is_unlocked", False))
 
     if not is_admin and not has_sub and not is_case_unlocked:
-        # V67.1: Default i re = 99.00
-        price = os.getenv("CASE_UNLOCK_PRICE_EUR", DEFAULT_CASE_UNLOCK_PRICE_EUR)
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Kërkohet pagesë paraprake: Për të ngarkuar shkresat e fashikullit dhe për të kryer Analizën Ligjore të kësaj lënde, ju lutem bëni zhbllokimin e lëndës (Pagesë njëherëshme prej {price}€ me Kartelë Bankare, m-Banking ose Para në dorë në zyrë)."
+            detail="Kërkohet abonim aktiv: Për të ngarkuar shkresat e fashikullit dhe për të kryer Analizën Ligjore të kësaj lënde, ju lutem aktivizoni abonimin tuaj (Solo 49.99€/muaj ose Team 99.99€/muaj)."
         )
 
     pdf_bytes = await file.read()

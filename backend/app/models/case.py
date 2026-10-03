@@ -1,6 +1,10 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V18.0
-# V18.0: REFACTOR — `org_id` → `organization_id` (heq legacy). Canonical: organization_id.
+# PHOENIX PROTOCOL - CASE MODEL V18.1
+# V18.1: CLARIFY is_unlocked — tani vetëm abonim (jo One-Time Pass).
+#        - Fusha `is_unlocked` + `unlocked_at` MBETEN (të lidhura me abonim).
+#        - User me abonim aktiv → `is_unlocked=True` automatikisht (case_service).
+#        - Përdoret për purge logic për user jo-avokat.
+# V18.0: REFACTOR — `org_id` → `organization_id` (heq legacy).
 # V17.0: Hequr latest_forensic_audit (fushë e vdekur).
 # V16.0: DOSSIER-LEVEL AUDIT PERSISTENCE.
 
@@ -28,7 +32,6 @@ class CaseBase(BaseModel):
     description: Optional[str] = None
     status: str = "OPEN"
     client_id: Optional[PyObjectId] = None
-    # V18.0: Vetëm `organization_id` — canonical
     organization_id: Optional[PyObjectId] = None
     owner_id: Optional[Union[PyObjectId, str]] = None
     client_position: Optional[str] = "DEFENDANT"
@@ -42,8 +45,10 @@ class CaseBase(BaseModel):
     opponent_name: Optional[str] = None
     disputed_amount: Optional[float] = 0.0
 
-    # PHOENIX STATE: Statusi i Lëndës dhe Mbrojtja Anti-Abuzim
+    # PHOENIX STATE: Statusi i Lëndës dhe Anti-Abuzim
     analysis_dirty: Optional[bool] = False
+    # V18.1: is_unlocked = "user has active subscription" (legacy name).
+    # Nuk është më One-Time Pass. Gjendet përmes case_service (bool(has_active_sub)).
     is_unlocked: Optional[bool] = False
 
 # Modeli për Krijim Lënde
@@ -68,7 +73,6 @@ class CaseUpdate(BaseModel):
     opponent_name: Optional[str] = None
     disputed_amount: Optional[float] = None
     client: Optional[ClientData] = None
-    # V18.0: Vetëm `organization_id` — canonical
     organization_id: Optional[PyObjectId] = None
     analysis_dirty: Optional[bool] = None
 
@@ -81,7 +85,7 @@ class CaseInDB(CaseBase):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
 
-    # PHOENIX PERSISTENCE: Shtjellat dhe Pasqyra e Shpejtë e Klientit
+    # PHOENIX PERSISTENCE
     standard_summary: Optional[Union[str, Dict[str, Any]]] = None
     pillars: Optional[Dict[str, Any]] = None
     latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
@@ -89,7 +93,7 @@ class CaseInDB(CaseBase):
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
 
-    # PHOENIX DOSSIER: Doktrina e Fashikullit të Plotë
+    # PHOENIX DOSSIER
     latest_dossier_analysis: Optional[str] = None
     last_dossier_audited_at: Optional[Union[datetime, str]] = None
 
@@ -111,7 +115,6 @@ class CaseOut(CaseBase):
     client: Optional[ClientData] = None
     chat_history: Optional[List[ChatMessage]] = []
 
-    # PHOENIX SYNC: Lejon daljen e të gjitha analizave te Frontendi
     standard_summary: Optional[Union[str, Dict[str, Any]]] = None
     pillars: Optional[Dict[str, Any]] = None
     latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
@@ -119,14 +122,12 @@ class CaseOut(CaseBase):
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
 
-    # PHOENIX DOSSIER: Doktrina e Fashikullit të Plotë
     latest_dossier_analysis: Optional[str] = None
     last_dossier_audited_at: Optional[Union[datetime, str]] = None
 
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: Optional[List[str]] = []
 
-    # Numëruesit e ekspozuar
     document_count: int = 0
     alert_count: int = 0
     event_count: int = 0
@@ -137,3 +138,4 @@ class CaseOut(CaseBase):
         from_attributes=True,
         arbitrary_types_allowed=True,
     )
+    

@@ -1,10 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V53.1 (PARAM ORDER FIX)
-# V53.1: PARAM ORDER — Non-default arguments tani vijnë PARA atyre me default
-#        (Python rule). FastAPI i pranon parametrat në çdo rend, por Python
-#        kërkon që parametrat me default të vijnë të fundit. Rregulluar 5
-#        funksione: download_invoice_pdf, archive_invoice, analyze_receipt,
-#        upload_expense_receipt, get_analytics_dashboard.
+# PHOENIX PROTOCOL - FINANCE ROUTER V53.2 (ONE-TIME PASS REMOVED)
+# V53.2: Hequr `DEFAULT_UNLOCK_PRICE_EUR` (dead constant — nuk përdorej
+#        askund pas heqjes së One-Time Pass).
+# V53.1: PARAM ORDER — Non-default arguments tani vijnë PARA atyre me default.
 # V53.0: FULL RESTORATION (endpoints /finance/* u rikthyen).
 
 import os
@@ -36,7 +34,6 @@ from app.api.endpoints.dependencies import get_current_user, get_db
 router = APIRouter(tags=["Finance"])
 logger = logging.getLogger(__name__)
 
-DEFAULT_UNLOCK_PRICE_EUR = float(os.getenv("CASE_UNLOCK_PRICE_EUR", "99.99"))
 BANK_NAME = os.getenv("COMPANY_BANK_NAME", "Raiffeisen Bank Kosova")
 BANK_ACCOUNT_HOLDER = os.getenv("COMPANY_ACCOUNT_HOLDER", "Juristi AI / Advocatus SH.P.K.")
 BANK_IBAN = os.getenv("RAIFFEISEN_IBAN", "XK051501001000000000")
@@ -122,7 +119,6 @@ async def delete_invoice_endpoint(
     return None
 
 
-# V53.1: current_user PARA lang (Python rule: no-default first)
 @router.get("/invoices/{invoice_id}/pdf")
 async def download_invoice_pdf_endpoint(
     invoice_id: str,
@@ -147,7 +143,6 @@ async def download_invoice_pdf_endpoint(
     )
 
 
-# V53.1: current_user PARA case_id
 @router.post("/invoices/{invoice_id}/archive", response_model=ArchiveItemOut)
 async def archive_invoice_endpoint(
     invoice_id: str,
@@ -193,7 +188,6 @@ async def list_expenses(
     return await asyncio.to_thread(service.get_expenses, str(current_user.id))
 
 
-# V53.1: current_user PARA file
 @router.post("/expenses/analyze-receipt")
 async def analyze_receipt_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
@@ -278,7 +272,6 @@ async def delete_expense_endpoint(
     return None
 
 
-# V53.1: current_user PARA file
 @router.put("/expenses/{expense_id}/receipt")
 async def upload_expense_receipt_endpoint(
     expense_id: str,
@@ -388,7 +381,6 @@ def _build_analytics(db: Database, user_id: str, days: int) -> AnalyticsDashboar
     )
 
 
-# V53.1: current_user PARA days
 @router.get("/analytics/dashboard", response_model=AnalyticsDashboardData)
 async def get_analytics_dashboard_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
