@@ -1,13 +1,17 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.7 (PARAM NAME + DEAD IMPORTS)
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.8 (INVITE STATUS FIX)
+# V3.8: INVITE STATUS FIX —
+#       - `invite_member`: `subscription_status: "ACTIVE"` → `"INACTIVE"`.
+#         Përpara, useri i ftuar aktivizohej automatikisht në DB (dhe shfaqej
+#         si "Aktiv" në Team Tab) përpara se të pranonte ftesën. Tani
+#         aktivizimi ndodh VETËM pas `accept_invitation`.
+#       - `accept_invitation`: konfirmon `subscription_status: "ACTIVE"` —
+#         tani është i vetmi vend ku bëhet aktivizimi.
 # V3.7: CLEANUP —
 #       - Rename `org_id` → `organization_id` në 3 funksione
 #         (`update_organization_plan`, `increment_active_users`,
-#         `decrement_active_users`). Konsistencë me `organization_id`
-#         që përdoret kudo tjetër. Të gjithë callers ekzistues janë
-#         POSITIONAL (admin.py) — zero risk breaking.
-#       - Hequr 3 dead imports: `timedelta`, `settings`, `PLAN_LIMITS`
-#         (0 përdorime në file).
+#         `decrement_active_users`).
+#       - Hequr 3 dead imports: `timedelta`, `settings`, `PLAN_LIMITS`.
 # V3.6: REFACTOR — `org_id` → `organization_id` (fushat e DB).
 # V3.5: DYNAMIC REAL-TIME USER COUNT SYNC.
 
@@ -30,6 +34,7 @@ TIER_LIMITS = {
     "DEFAULT": 1,
     "GROWTH": 5
 }
+
 
 class OrganizationService:
 
@@ -144,13 +149,16 @@ class OrganizationService:
             )
 
         invitation_token = str(uuid.uuid4())
+
+        # V3.8: I ftuari mbetet INACTIVE derisa të pranojë ftesën.
+        # Aktivizimi bëhet vetëm në `accept_invitation`.
         db.users.insert_one({
             "email": invitee_email,
             "username": invitee_email.split('@')[0],
             "role": "STANDARD",
             "organization_id": ObjectId(organization_id),  # V3.6
             "status": "pending_invite",
-            "subscription_status": "ACTIVE",
+            "subscription_status": "INACTIVE",  # V3.8: ishte "ACTIVE"
             "invitation_token": invitation_token,
             "created_at": datetime.now(timezone.utc)
         })
@@ -166,7 +174,7 @@ class OrganizationService:
         return {"message": "Invitation sent successfully"}
 
     def accept_invitation(self, db: Database, token: str, password: str, username: str) -> Dict:
-        """Activate a pending user, update full name/username, set ACTIVE subscription status."""
+        """V3.8: Aktivizohet VETËM këtu. Vendos password, status=active, subscription_status=ACTIVE."""
         user = db.users.find_one({"invitation_token": token, "status": "pending_invite"})
         if not user:
             raise HTTPException(status_code=400, detail="Token i pavlefshëm ose ftesa ka skaduar.")
@@ -179,7 +187,7 @@ class OrganizationService:
                     "hashed_password": hashed_password,
                     "username": username,
                     "status": "active",
-                    "subscription_status": "ACTIVE"
+                    "subscription_status": "ACTIVE"  # V3.8: aktivizimi real
                 },
                 "$unset": {"invitation_token": ""}
             }
@@ -213,5 +221,6 @@ class OrganizationService:
         db.users.delete_one({"_id": m_oid, "organization_id": ObjectId(organization_id)})
         self.decrement_active_users(db, ObjectId(organization_id))
         return {"message": "Removed"}
+
 
 organization_service = OrganizationService()

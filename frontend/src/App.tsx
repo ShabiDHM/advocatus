@@ -1,7 +1,12 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V9.0 (MOBILE UPLOAD REMOVED)
-// V9.0: Hequr route /mobile-upload/:token + import MobileConnect (dead code).
-// V8.0: FORENSIC DESK REMOVED
+// PHOENIX PROTOCOL - ROUTING V10.0 (SUBSCRIPTION GUARD)
+// V10.0: SUBSCRIPTION GUARD —
+//        - `ProtectedRoute` me prop `requireSubscription` (default true).
+//        - Admin/Superadmin → bypass kontroll abonimi.
+//        - User INACTIVE ose i skaduar → redirect /pending-approval.
+//        - Whitelist routes (`/account`, `/support`, `/laws/*`) nuk kërkojnë abonim.
+//        - Route i ri: `/pending-approval` (standalone, pa MainLayout).
+// V9.0: Hequr route /mobile-upload/:token + import MobileConnect.
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -31,9 +36,44 @@ import LawSearchPage from './pages/LawSearchPage';
 import LawArticlePage from './pages/LawArticlePage';
 import LawOverviewPage from './pages/LawOverviewPage';
 import ChatPage from './pages/ChatPage';
+import PendingApprovalPage from './pages/PendingApprovalPage';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+// ═══════════════════════════════════════════════════════════════════════════
+// GUARDS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const _isAdmin = (role?: string): boolean => {
+  const r = (role || '').toUpperCase();
+  return r === 'ADMIN' || r === 'SUPERADMIN';
+};
+
+const _hasActiveSubscription = (user: any): boolean => {
+  if (!user) return false;
+  const status = String(user.subscription_status || '').toUpperCase();
+  if (status !== 'ACTIVE') return false;
+
+  if (user.subscription_expiry) {
+    try {
+      const expiry = new Date(user.subscription_expiry);
+      if (expiry < new Date()) return false;
+    } catch {
+      // Pa datë valide → lejo
+    }
+  }
+  return true;
+};
+
+/**
+ * V10.0: Guard me dy nivele.
+ * - requireSubscription=true (default): kërkon auth + abonim aktiv. Admin bypass.
+ * - requireSubscription=false: vetëm auth (whitelist: /account, /support, /laws, /pending-approval).
+ */
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  requireSubscription?: boolean;
+}> = ({ children, requireSubscription = true }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-canvas">
@@ -41,14 +81,27 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
       </div>
     );
   }
+
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
+
+  // Admin bypass — gjithmonë kalon
+  if (_isAdmin(user?.role)) {
+    return <>{children}</>;
+  }
+
+  // Kontroll abonimi (vetëm nëse kërkohet)
+  if (requireSubscription && !_hasActiveSubscription(user)) {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
   return <>{children}</>;
 };
 
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-canvas">
@@ -57,53 +110,87 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     );
   }
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
-  if (user?.role !== 'ADMIN') {
-    return <Navigate to="/dashboard" />;
+  if (!_isAdmin(user?.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROUTES
+// ═══════════════════════════════════════════════════════════════════════════
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated } = useAuth();
 
   return (
     <Routes>
-      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LandingPage />} />
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
-      <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
-      
+      {/* ─── Publike ─── */}
+      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
-
       <Route path="/portal/:caseId" element={<ClientPortalPage />} />
-      
-      <Route path="/finance/wizard" element={<ProtectedRoute><FinanceWizardPage /></ProtectedRoute>} />
 
-      {/* Rrugët e Mbrojtura për të Gjithë Përdoruesit e Kyçur */}
-      <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/cases/:caseId" element={<CaseViewPage />} />
-        <Route path="/cases/:caseId/chat" element={<ChatPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/support" element={<SupportPage />} />
-        <Route path="/business" element={<BusinessPage />} />
+      {/* ─── Pending Approval (standalone, auth required, NO subscription required) ─── */}
+      <Route
+        path="/pending-approval"
+        element={
+          <ProtectedRoute requireSubscription={false}>
+            <PendingApprovalPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ─── Whitelist: auth required, NO subscription required (MainLayout) ─── */}
+      <Route
+        element={
+          <ProtectedRoute requireSubscription={false}>
+            <MainLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/support" element={<SupportPage />} />
         <Route path="/laws/search" element={<LawSearchPage />} />
         <Route path="/laws/overview" element={<LawOverviewPage />} />
         <Route path="/laws/article" element={<LawArticlePage />} />
         <Route path="/laws/:chunkId" element={<LawViewerPage />} />
       </Route>
 
-      {/* Rrugët Ekskluzive VETËM PËR ADMIN */}
-      <Route element={<AdminRoute><MainLayout /></AdminRoute>}>
+      {/* ─── Biznes: auth + subscription required (MainLayout) ─── */}
+      <Route
+        element={
+          <ProtectedRoute requireSubscription={true}>
+            <MainLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/cases/:caseId" element={<CaseViewPage />} />
+        <Route path="/cases/:caseId/chat" element={<ChatPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/business" element={<BusinessPage />} />
+        <Route path="/finance/wizard" element={<FinanceWizardPage />} />
+      </Route>
+
+      {/* ─── Admin ─── */}
+      <Route
+        element={
+          <AdminRoute>
+            <MainLayout />
+          </AdminRoute>
+        }
+      >
         <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/admin/support" element={<AdminSupportPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

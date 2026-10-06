@@ -1,8 +1,9 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V10.1
-# V10.1: Shtuar `organization_id` në UserBase — DB përdor `organization_id` (i re)
-#        por modeli lexonte vetëm `org_id` (legacy) → _get_user_org_id kthente None
-#        për admin → case krijohej me org_id=None → guest nuk e shihte.
+# PHOENIX PROTOCOL - USER MODEL V10.3
+# V10.3: RESTORED `UserLogin` — ishte hequr gabimisht në V10.2, por auth.py
+#        e importon.
+# V10.2: ADDED `status` FIELD — frontend shoh "FTESË" vs "AKTIV".
+# V10.1: Shtuar `organization_id` në UserBase.
 # V10.0: GDPR COMPLIANT — soft delete + consent fields.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
@@ -11,18 +12,22 @@ from datetime import datetime, timezone
 from enum import Enum
 from .common import PyObjectId
 
+
 # --- Subscription Matrix Enums ---
 class AccountType(str, Enum):
     SOLO = "SOLO"
     ORGANIZATION = "ORGANIZATION"
 
+
 class SubscriptionTier(str, Enum):
     BASIC = "BASIC"
     PRO = "PRO"
 
+
 class ProductPlan(str, Enum):
     SOLO_PLAN = "SOLO_PLAN"
     TEAM_PLAN = "TEAM_PLAN"
+
 
 # Base User Model
 class UserBase(BaseModel):
@@ -31,12 +36,15 @@ class UserBase(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100)
     role: str = "STANDARD"
 
-    # Organization Context & Granular Access (Default role for users is MEMBER)
-    # V10.1: Të dyja fushat — organization_id (i re) + org_id (legacy)
+    # V10.2: Account lifecycle status
+    # Vlerat: 'active', 'pending_invite', 'inactive'
+    status: str = "active"
+
+    # Organization Context & Granular Access
     organization_id: Optional[PyObjectId] = None
     org_id: Optional[PyObjectId] = None
     org_role: str = "MEMBER"
-    org_access_level: str = "FULL"  # 'FULL' ose 'SELECTIVE'
+    org_access_level: str = "FULL"
     assigned_case_ids: List[str] = Field(default_factory=list)
 
     # Subscription Matrix Fields
@@ -55,9 +63,17 @@ class UserBase(BaseModel):
     consent_to_process: bool = False
     consent_date: Optional[datetime] = None
 
+
 # Model for creating a new user
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
+
+
+# V10.3: RESTORED — modeli për login
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
 
 # Model for updating user details
 class UserUpdate(BaseModel):
@@ -65,6 +81,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     role: Optional[str] = None
+    status: Optional[str] = None
 
     organization_id: Optional[PyObjectId] = None
     org_id: Optional[PyObjectId] = None
@@ -84,6 +101,7 @@ class UserUpdate(BaseModel):
     # GDPR Consent Fields
     consent_to_process: Optional[bool] = None
     consent_date: Optional[datetime] = None
+
 
 # Model stored in DB
 class UserInDB(UserBase):
@@ -105,6 +123,7 @@ class UserInDB(UserBase):
         arbitrary_types_allowed=True,
     )
 
+
 # Return Model
 class UserOut(UserBase):
     id: PyObjectId = Field(alias="_id", serialization_alias="id")
@@ -117,9 +136,8 @@ class UserOut(UserBase):
         arbitrary_types_allowed=True,
     )
 
-class UserLogin(BaseModel):
     username: str
-    password: str
+
 
 # --- Plan Limits ---
 PLAN_LIMITS = {
