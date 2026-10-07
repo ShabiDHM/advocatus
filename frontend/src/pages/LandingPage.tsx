@@ -1,10 +1,11 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V51.0
-// V51.0: ONE-TIME PASS REMOVED —
-//        - Hequr karta "One-Time Pass (19.99€)".
-//        - Grid 3 kolona → 2 kolona (Solo + Team).
-//        - Përditësuar tekstet: vetëm abonim mujor.
-//        - Payment badges mbeten (Visa/Mastercard/Raiffeisen).
+// PHOENIX PROTOCOL - LANDING PAGE V51.1
+// V51.1: PAYMENT METHODS — CASH + m-BANKING ONLY —
+//        - Hequr "Visa & Mastercard" (pagesa online do shtohen së shpejti).
+//        - Hequr ikonën CreditCard nga importet (pa përdorim).
+//        - Shtuar shënim për aktivizim manual nga ekipi (24 orë).
+//        - Mbeten vetëm: Cash në Zyrë + m-Banking (Raiffeisen).
+// V51.0: ONE-TIME PASS REMOVED.
 // V50.2: ENCRYPTION CLAIM ACCURACY.
 // V50.1: AI REFERENCES SYNC.
 
@@ -27,10 +28,10 @@ import {
   Mic,
   FileSearch,
   Sparkles,
-  CreditCard,
   Building2,
   Banknote,
-  Smartphone
+  Smartphone,
+  Clock
 } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 
@@ -507,22 +508,27 @@ export const LandingPage: React.FC = () => {
 
           </div>
 
-          {/* PAYMENT BADGES BANNER */}
-          <div className="p-6 rounded-2xl bg-surface/60 border border-main flex flex-wrap items-center justify-between gap-4 select-none max-w-4xl mx-auto">
+          {/* PAYMENT METHODS — CASH + m-BANKING ONLY (V51.1) */}
+          <div className="p-6 rounded-2xl bg-surface/60 border border-main space-y-5 select-none max-w-4xl mx-auto">
             <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
-              <CreditCard className="w-4 h-4 text-primary-start" />
-              <span>Mënyrat e Pagesës në Kosovë:</span>
+              <Banknote className="w-4 h-4 text-primary-start" />
+              <span>Mënyrat e Pagesës (aktualisht):</span>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-text-secondary">
-              <span className="px-3 py-1 bg-card border border-main rounded-lg flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5 text-blue-500" /> Visa & Mastercard
-              </span>
-              <span className="px-3 py-1 bg-card border border-main rounded-lg flex items-center gap-1.5">
-                <Smartphone className="w-3.5 h-3.5 text-amber-500" /> Raiffeisen Bank (m-Banking)
-              </span>
-              <span className="px-3 py-1 bg-card border border-main rounded-lg flex items-center gap-1.5">
+              <span className="px-3 py-1.5 bg-card border border-main rounded-lg flex items-center gap-1.5">
                 <Banknote className="w-3.5 h-3.5 text-emerald-500" /> Para në dorë (Cash në Zyrë)
               </span>
+              <span className="px-3 py-1.5 bg-card border border-main rounded-lg flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5 text-amber-500" /> m-Banking (Raiffeisen Bank)
+              </span>
+            </div>
+            <div className="pt-4 border-t border-main/60 flex items-start gap-3">
+              <Clock className="w-4 h-4 text-primary-start shrink-0 mt-0.5" />
+              <p className="text-xs text-text-secondary leading-relaxed">
+                <strong className="text-text-primary">Aktivizim manual:</strong> Pas konfirmimit të pagesës,
+                llogaria juaj aktivizohet nga ekipi i Juristi.tech brenda 24 orëve. Pagesat online me
+                kartelë bankare do të shtohen së shpejti.
+              </p>
             </div>
           </div>
 
